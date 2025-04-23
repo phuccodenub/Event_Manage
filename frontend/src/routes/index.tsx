@@ -1,22 +1,38 @@
-import { useEffect, useState } from "react";
-import { useLocation } from "wouter";
-import PublicRoutes from "./publicRoutes";
-import PrivateRoutes from "./privateRoutes";
+import { useState, useEffect } from "react";
+import { useLocation, useNavigate } from "react-router-dom";
+import PublicRoutes from "./PublicRoutes";
+import PrivateRoutes from "./PrivateRoutes";
+import authService from '../services/authService';
 
 const Router = () => {
-  const [role, setRole] = useState<string | null>(null);
-  const [, navigate] = useLocation();
+  const [isAuthenticated, setIsAuthenticated] = useState<boolean | null>(null);
+  const [role, setRole] = useState<string | null>(null); // Define role state
+  const navigate = useNavigate();
+  const location = useLocation();
 
   useEffect(() => {
-    const user = JSON.parse(localStorage.getItem("user") || "null");
-    setRole(user?.role || null);
-  }, []);
+    const checkAuth = () => {
+      const userInfo = authService.getProfile();
+      if (userInfo) {
+        setIsAuthenticated(true);
+        setRole(userInfo.role || null);
+      } else {
+        setIsAuthenticated(false);
+        setRole(null);
+        if (!["/login", "/register"].includes(location.pathname)) {
+          navigate("/login", { replace: true });
+        }
+      }
+    };
 
-  if (role === null) {
-    return <PublicRoutes />; // Hiển thị trạng thái loading trong lúc kiểm tra quyền
+    checkAuth();
+  }, [navigate, location.pathname]);
+
+  if (isAuthenticated === null) {
+    return <div>Loading...</div>;
   }
 
-  return role === "admin" ? <PrivateRoutes /> : <PublicRoutes />;
+  return isAuthenticated ? <PublicRoutes /> : <PublicRoutes />;
 };
 
 export default Router;

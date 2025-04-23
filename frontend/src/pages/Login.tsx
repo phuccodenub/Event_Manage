@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { login } from '../services/authService';
+import authService from '../services/authService';
 import { Mail, Lock, Calendar, Clock, MapPin } from 'lucide-react';
 
 const Login = () => {
@@ -10,28 +10,32 @@ const Login = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!credentials.username || !credentials.password) {
+      setError("Vui lòng nhập tên tài khoản và mật khẩu");
+      return;
+    }
     try {
-      const userData = await login(credentials);
-      localStorage.setItem('user', JSON.stringify(userData)); // Store user data in localStorage
-      navigate('/success'); // Redirect to the success page
+      setError("");
+      const user = await authService.login(credentials.username, credentials.password);
+      console.log("Login successful, user data:", user);
+      navigate("/", { replace: true });
     } catch (err: any) {
-      setError(err.message || 'Login failed');
+      setError(err.message || "Login failed");
     }
   };
 
   return (
-    <div className="flex h-screen bg-gradient-to-br from-gray-100 to-gray-300">
+    <div className="flex h-screen bg-gradient-to-r from-blue-500 via-blue-600 to-blue-700">
       {/* Left Panel */}
-      <div className="hidden md:flex flex-1 flex-col justify-center items-center bg-gradient-to-br from-blue-700 to-blue-900 text-white p-8 relative">
-        <h1 className="text-4xl font-bold mb-4 z-10">Event Hutech</h1>
-        <p className="text-lg mb-8 z-10">
+      <div className="hidden md:flex flex-1 flex-col justify-center items-center bg-gradient-to-br from-blue-800 to-blue-900 text-white p-8">
+        <h1 className="text-4xl font-bold mb-6">Event Hutech</h1>
+        <p className="text-lg text-center mb-8">
           Tham gia các sự kiện học thuật, giao lưu và hoạt động ngoại khóa tại Đại học Công nghệ TP.HCM
         </p>
-        <div className="bg-gray-600 bg-opacity-50 p-4 rounded-lg w-full max-w-sm z-10">
+        <div className="bg-blue-900 bg-opacity-60 p-6 rounded-lg w-full max-w-sm">
           <h2 className="text-xl font-semibold mb-4">Sự kiện sắp diễn ra</h2>
-          <div className="bg-white text-blue-900 p-3 rounded-lg mb-3 flex items-center">
-            <div className="flex items-center justify-center w-12 h-12 bg-blue-100 rounded-lg mr-3 relative">
-              {/* <Calendar className="text-blue-700 absolute top-1 left-1" size={16} /> */}
+          <div className="bg-white text-blue-900 p-4 rounded-lg mb-4 flex items-center">
+            <div className="flex items-center justify-center w-12 h-12 bg-blue-100 rounded-lg mr-4">
               <div className="text-center">
                 <p className="text-sm font-bold text-blue-700">15</p>
                 <p className="text-xs text-blue-700">Th4</p>
@@ -44,9 +48,8 @@ const Login = () => {
               </p>
             </div>
           </div>
-          <div className="bg-white text-blue-900 p-3 rounded-lg flex items-center">
-            <div className="flex items-center justify-center w-12 h-12 bg-blue-100 rounded-lg mr-3 relative">
-              {/* <Calendar className="text-blue-700 absolute top-1 left-1" size={16} /> */}
+          <div className="bg-white text-blue-900 p-4 rounded-lg flex items-center">
+            <div className="flex items-center justify-center w-12 h-12 bg-blue-100 rounded-lg mr-4">
               <div className="text-center">
                 <p className="text-sm font-bold text-blue-700">20</p>
                 <p className="text-xs text-blue-700">Th4</p>
@@ -60,18 +63,17 @@ const Login = () => {
             </div>
           </div>
         </div>
-        <div className="absolute inset-0 bg-cover bg-center opacity-10" style={{ backgroundImage: 'url(/api/placeholder/400/400)' }}></div>
       </div>
 
       {/* Right Panel */}
-      <div className="flex-1 bg-white flex flex-col justify-center items-center p-8">
+      <div className="flex-1 bg-white flex flex-col justify-center items-center p-8 shadow-lg">
         <div className="text-center mb-6">
           <img src="/vite.svg" alt="Hutech Logo" className="h-16 mx-auto mb-4" />
           <h2 className="text-2xl font-bold">Đăng nhập</h2>
         </div>
         {error && <p className="text-red-500 mb-4">{error}</p>}
-        <form onSubmit={handleSubmit} className="w-full max-w-sm">
-          <div className="mb-4">
+        <form onSubmit={handleSubmit} className="w-full max-w-sm space-y-4">
+          <div>
             <label className="block text-sm font-medium mb-1">Email hoặc MSSV</label>
             <div className="flex items-center border rounded px-3 py-2 focus-within:ring-2 focus-within:ring-blue-500">
               <Mail className="text-gray-500 mr-2" size={20} />
@@ -85,7 +87,7 @@ const Login = () => {
               />
             </div>
           </div>
-          <div className="mb-4">
+          <div>
             <label className="block text-sm font-medium mb-1">Mật khẩu</label>
             <div className="flex items-center border rounded px-3 py-2 focus-within:ring-2 focus-within:ring-blue-500">
               <Lock className="text-gray-500 mr-2" size={20} />
@@ -99,7 +101,7 @@ const Login = () => {
               />
             </div>
           </div>
-          <div className="flex justify-between items-center mb-4">
+          <div className="flex justify-between items-center">
             <a href="/forgot-password" className="text-blue-500 text-sm">Quên mật khẩu?</a>
           </div>
           <button type="submit" className="w-full bg-blue-500 text-white py-2 rounded hover:bg-blue-600">

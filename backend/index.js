@@ -20,6 +20,7 @@ connectDB();
 
 // Route files
 const authRoutes = require('./routes/authRoutes');
+const eventRoutes = require('./routes/eventRoutes');
 
 const app = express();
 
@@ -55,6 +56,7 @@ const API_PREFIX = '/api/v1';
 
 // Mount routers
 app.use(`${API_PREFIX}/auth`, authRoutes);
+app.use(`${API_PREFIX}/events`, eventRoutes);
 
 // Error handler middleware
 app.use(errorHandler);

@@ -4,6 +4,12 @@ const jwt = require('jsonwebtoken');
 const crypto = require('crypto');
 const validator = require('validator');
 
+// Import the Event model to ensure it is registered
+require('./eventModel');
+
+// Import the Department model to ensure it is registered
+require('./departmentModel');
+
 const userSchema = new mongoose.Schema({
   username: {
     type: String,
