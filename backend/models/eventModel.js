@@ -6,9 +6,15 @@ const eventSchema = new mongoose.Schema({
     required: [true, 'Please enter event title'],
     trim: true
   },
-  image: [{
-    public_id: String,
-    url: String,
+  images: [{
+    public_id: {
+      type: String,
+      required: true
+    },
+    url: {
+      type: String,
+      required: true
+    }
   }],
   description: {
     type: String,
@@ -116,7 +122,33 @@ const eventSchema = new mongoose.Schema({
         default: Date.now
       }
     }
-  ]
+  ],
+  visibility: {
+    type: String,
+    enum: ['public', 'private', 'restricted'],
+    default: 'public'
+  },
+  category: {
+    type: String,
+    enum: ['academic', 'cultural', 'sports', 'workshop', 'seminar', 'other'],
+    required: [true, 'Please select event category']
+  },
+  registrationDeadline: {
+    type: Date
+  },
+  capacity: {
+    type: Number,
+    default: 0
+  },
+  isRegistrationRequired: {
+    type: Boolean,
+    default: true
+  },
+  creator: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User',
+    required: true
+  }
 }, { timestamps: true });
 
 // Validate location based on eventType
@@ -131,6 +163,22 @@ eventSchema.pre('save', function(next) {
     if (!this.location.physical || !this.location.online) {
       throw new Error('Both physical and online locations are required for hybrid events');
     }
+  }
+  next();
+});
+
+// Automatically update status based on dates
+eventSchema.pre('save', async function(next) {
+  const now = new Date();
+  const eventStart = new Date(this.startDate);
+  const eventEnd = new Date(this.endDate);
+
+  if (now < eventStart) {
+    this.status = 'upcoming';
+  } else if (now >= eventStart && now <= eventEnd) {
+    this.status = 'ongoing';
+  } else {
+    this.status = 'completed';
   }
   next();
 });

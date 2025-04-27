@@ -1,23 +1,52 @@
 import apiClient from '../api/apiClient';
 
 const eventService = {
-  /**
-   * Fetch all events
-   * @returns Promise with the list of events
-   */
   getAllEvents: async () => {
     const response = await apiClient.get('/events');
-    return response.data?.data || []; // Ensure it returns an array
+    return response.data?.data || [];
   },
 
-  /**
-   * Fetch a single event by ID
-   * @param eventId ID of the event
-   * @returns Promise with the event details
-   */
   getEventById: async (eventId: string) => {
     const response = await apiClient.get(`/events/${eventId}`);
-    return response.data?.data || null; // Ensure it returns the event or null
+    return response.data?.data || null;
+  },
+
+  createEvent: async (eventData: FormData) => {
+    try {
+      console.log('Creating event with data:', {
+        title: eventData.get('title'),
+        description: eventData.get('description'),
+        images: eventData.get('images'),
+      });
+
+      const response = await apiClient.post('/events', eventData, {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+        },
+      });
+
+      if (!response.data?.success) {
+        throw new Error(response.data?.error || 'Failed to create event');
+      }
+
+      return response.data.data;
+    } catch (error: any) {
+      console.error('Event creation error:', error.response || error);
+      throw error;
+    }
+  },
+
+  updateEvent: async (eventId: string, eventData: FormData) => {
+    const response = await apiClient.put(`/events/${eventId}`, eventData, {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
+    });
+    return response.data.data;
+  },
+
+  deleteEvent: async (eventId: string) => {
+    await apiClient.delete(`/events/${eventId}`);
   },
 };
 

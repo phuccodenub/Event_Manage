@@ -21,6 +21,9 @@ connectDB();
 // Route files
 const authRoutes = require('./routes/authRoutes');
 const eventRoutes = require('./routes/eventRoutes');
+const userRoutes = require('./routes/userRoutes');
+const uploadRoutes = require('./routes/uploadRoutes');
+const announcementRoutes = require('./routes/announcementRoutes');
 
 const app = express();
 
@@ -57,6 +60,9 @@ const API_PREFIX = '/api/v1';
 // Mount routers
 app.use(`${API_PREFIX}/auth`, authRoutes);
 app.use(`${API_PREFIX}/events`, eventRoutes);
+app.use(`${API_PREFIX}/users`, userRoutes);
+app.use(`${API_PREFIX}/upload`, uploadRoutes);
+app.use(`${API_PREFIX}/announcements`, announcementRoutes);
 
 // Error handler middleware
 app.use(errorHandler);

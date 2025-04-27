@@ -1,0 +1,47 @@
+### Create new user
+POST http://localhost:5000/api/v1/auth/register
+Content-Type: application/json
+
+{
+  "username": "student001",
+  "password": "123456",
+  "fullName": "Nguyễn Văn A",
+  "email": "student001@hutech.edu.vn",
+  "userId": "2180607401", 
+  "class": "20DTHD4",
+  "gender": "nam",
+  "phone": "0123456789",
+  "role": "student",
+  "department": "64f7125708d7c35d83541550" // ID of IT department
+}
+
+### Create teacher account
+POST http://localhost:5000/api/v1/auth/register
+Content-Type: application/json
+
+{
+  "username": "teacher001",
+  "password": "123456",
+  "fullName": "Trần Thị B",
+  "email": "teacher001@hutech.edu.vn",
+  "userId": "GV001",
+  "gender": "nữ",
+  "phone": "0987654321",
+  "role": "teacher",
+  "department": "64f7125708d7c35d83541550"
+}
+
+### Create admin account
+POST http://localhost:5000/api/v1/auth/register
+Content-Type: application/json
+
+{
+  "username": "admin001",
+  "password": "123456",
+  "fullName": "Admin",
+  "email": "admin@hutech.edu.vn",
+  "userId": "AD001",
+  "gender": "nam",
+  "phone": "0909123456",
+  "role": "admin"
+}

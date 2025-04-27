@@ -12,10 +12,11 @@ const authService = {
    */
   login: async (username: string, password: string) => {
     const response = await apiClient.post('/auth/login', { username, password });
-    const { user } = response.data;
+    const { user, token } = response.data;
 
-    // Lưu thông tin người dùng vào localStorage
-    localStorage.setItem('user', JSON.stringify(user));
+    // Lưu token và thông tin người dùng vào localStorage
+    localStorage.setItem('token', token);
+    localStorage.setItem('user', JSON.stringify(user)); // Lưu toàn bộ thông tin user
 
     return user;
   },
@@ -26,6 +27,7 @@ const authService = {
   logout: async () => {
     // Xóa toàn bộ localStorage
     const response = await apiClient.get('/auth/logout');
+    localStorage.clear(); // Xóa toàn bộ localStorage
     return response;
   },
 
@@ -33,9 +35,15 @@ const authService = {
    * Lấy thông tin người dùng hiện tại từ localStorage
    * @returns Thông tin người dùng hoặc null nếu không có
    */
-  getProfile: () => {
-    const user = localStorage.getItem('user');
-    return user ? JSON.parse(user) : null;
+  getProfile: async () => {
+    try {
+      const response = await apiClient.get('/auth/me');
+      const user = response.data.data;
+      localStorage.setItem('user', JSON.stringify(user)); // Cập nhật lại thông tin user trong localStorage
+      return user;
+    } catch (error) {
+      return null;
+    }
   },
 
   /**

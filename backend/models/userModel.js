@@ -24,6 +24,16 @@ const userSchema = new mongoose.Schema({
     minLength: [6, 'Mật khẩu phải có ít nhất 6 ký tự'],
     select: false // Không trả mật khẩu khi truy vấn
   },
+  avatar: {
+    public_id: {
+      type: String,
+      default: null
+    },
+    url: {
+      type: String,
+      default: null
+    }
+  },
   userId: {
     type: String,
     unique: true,
@@ -66,6 +76,15 @@ const userSchema = new mongoose.Schema({
         return /^\d{10,11}$/.test(v);
       },
       message: 'Số điện thoại không hợp lệ'
+    }
+  },
+  birthday: {
+    type: Date,
+    validate: {
+      validator: function(value) {
+        return value <= new Date();
+      },
+      message: 'Ngày sinh không hợp lệ'
     }
   },
   registeredEvents: [
