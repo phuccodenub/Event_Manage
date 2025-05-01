@@ -45,18 +45,12 @@ const JoinEventButton: React.FC<JoinEventButtonProps> = ({
 
   // Check if user has joined when component mounts or participants change
   useEffect(() => {
-    if (user && participants) {
-      console.log('Debug join status:', {
-        userId: user._id,
-        participants: participants,
-        hasJoined: participants.includes(user._id)
-      });
-      // Convert IDs to string for comparison
-      const isParticipant = participants.some(
-        participantId => participantId.toString() === user._id.toString()
-      );
-      setHasJoined(isParticipant);
-    }
+    if (!user || !participants) return; // Early return if no user or participants
+
+    const isParticipant = participants.some(
+      participantId => participantId?.toString() === user?._id?.toString()
+    );
+    setHasJoined(isParticipant);
   }, [user, participants]);
 
   const handleJoin = async () => {

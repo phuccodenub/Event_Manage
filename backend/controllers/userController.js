@@ -193,3 +193,27 @@ exports.deleteAvatar = async (req, res, next) => {
   }
 };
 
+// @desc: Reset user password
+// @route: POST /api/v1/users/:id/reset-password
+// @access: Private/Admin
+exports.resetUserPassword = async (req, res, next) => {
+  try {
+    const user = await User.findById(req.params.id);
+    
+    if (!user) {
+      return next(new ErrorResponse(`User not found with id of ${req.params.id}`, 404));
+    }
+
+    // Set new password and save
+    user.password = 'password123';
+    await user.save();
+
+    res.status(200).json({
+      success: true,
+      message: 'Password has been reset successfully'
+    });
+  } catch (error) {
+    next(new ErrorResponse('Error resetting password', 500));
+  }
+};
+

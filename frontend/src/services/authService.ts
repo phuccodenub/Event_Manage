@@ -53,6 +53,44 @@ const authService = {
   isAuthenticated: () => {
     return !!localStorage.getItem('user');
   },
+
+  /**
+   * Đăng nhập bằng Google OAuth
+   * @param credential Credential từ Google
+   * @returns Promise với kết quả đăng nhập
+   */
+  googleLogin: async (credential: string) => {
+    const response = await apiClient.post('/auth/google', { credential });
+    const { user, token } = response.data;
+
+    localStorage.setItem('token', token);
+    localStorage.setItem('user', JSON.stringify(user));
+
+    return user;
+  },
+
+  /**
+   * Đăng nhập bằng Facebook OAuth
+   * @param accessToken Access token từ Facebook
+   * @returns Promise với kết quả đăng nhập
+   */
+  facebookLogin: async (accessToken: string) => {
+    try {
+      const response = await apiClient.post('/auth/facebook', { accessToken });
+      
+      if (response.data.success) {
+        const { user, token } = response.data;
+        localStorage.setItem('token', token);
+        localStorage.setItem('user', JSON.stringify(user));
+        return user;
+      }
+      
+      throw new Error('Facebook login failed');
+    } catch (error) {
+      console.error('Facebook login error:', error);
+      throw error;
+    }
+  },
 };
 
 export default authService;

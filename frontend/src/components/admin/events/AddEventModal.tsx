@@ -293,7 +293,7 @@ const AddEventModal = ({ isOpen, onClose }: Props) => {
             Thời gian bắt đầu <span className="text-red-500">*</span>
           </label>
           <div className="relative">
-            <ClockIcon className="h-5 w-5 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
+            <ClockIcon className="h-5 w-5 text-gray-400 absolute left-3 top-1/2 -translate-y-1/4" />
             <input
               {...register('startDate', { required: 'Vui lòng chọn thời gian bắt đầu' })}
               type="datetime-local"
@@ -310,7 +310,7 @@ const AddEventModal = ({ isOpen, onClose }: Props) => {
             Thời gian kết thúc <span className="text-red-500">*</span>
           </label>
           <div className="relative">
-            <ClockIcon className="h-5 w-5 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
+            <ClockIcon className="h-5 w-5 text-gray-400 absolute left-3 top-1/2 -translate-y-1/4" />
             <input
               {...register('endDate', { required: 'Vui lòng chọn thời gian kết thúc' })}
               type="datetime-local"
@@ -353,7 +353,7 @@ const AddEventModal = ({ isOpen, onClose }: Props) => {
                 Địa chỉ <span className="text-red-500">*</span>
               </label>
               <div className="relative">
-                <LocationMarkerIcon className="h-5 w-5 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                <LocationMarkerIcon className="h-5 w-5 text-gray-400 absolute left-3 top-1/2 -translate-y-1/4" />
                 <input
                   {...register('physicalAddress', { required: 'Vui lòng nhập địa chỉ' })}
                   type="text"

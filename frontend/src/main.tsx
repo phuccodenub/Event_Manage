@@ -5,15 +5,18 @@ import App from './App.tsx'
 import { AuthProvider } from './context/AuthContext';
 import { EventProvider } from './context/EventContext';
 import { NotificationProvider } from './context/NotificationContext';
+import { GoogleOAuthProvider } from '@react-oauth/google';
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
-    <AuthProvider>
-      <EventProvider>
-        <NotificationProvider>
-          <App />
-        </NotificationProvider>
-      </EventProvider>
-    </AuthProvider>
+    <GoogleOAuthProvider clientId={import.meta.env.VITE_GOOGLE_CLIENT_ID || ''}>
+      <AuthProvider>
+        <EventProvider>
+          <NotificationProvider>
+            <App />
+          </NotificationProvider>
+        </EventProvider>
+      </AuthProvider>
+    </GoogleOAuthProvider>
   </StrictMode>,
 )

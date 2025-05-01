@@ -112,6 +112,15 @@ const userSchema = new mongoose.Schema({
   ],
   resetPasswordToken: String,
   resetPasswordExpire: Date,
+  oauthProvider: {
+    type: String,
+    enum: ['local', 'google', 'facebook'],
+    default: 'local'
+  },
+  oauthId: {
+    type: String,
+    sparse: true
+  },
 }, { timestamps: true });
 
 // Mã hóa mật khẩu trước khi lưu

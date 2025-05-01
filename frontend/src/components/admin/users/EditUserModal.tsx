@@ -1,8 +1,9 @@
 import { Fragment, useState, useEffect } from 'react';
 import { Dialog, Transition } from '@headlessui/react';
-import { XIcon } from '@heroicons/react/outline';
+import { XIcon, ExclamationIcon } from '@heroicons/react/outline';
 import { toast } from 'react-toastify';
 import type { User } from '@/types';
+import userService from '@/services/userService';
 
 interface EditUserModalProps {
   isOpen: boolean;
@@ -25,6 +26,7 @@ const EditUserModal = ({ isOpen, onClose, onSubmit, user }: EditUserModalProps) 
   });
 
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const [isResetConfirmOpen, setIsResetConfirmOpen] = useState(false);
 
   useEffect(() => {
     if (user) {
@@ -88,6 +90,73 @@ const EditUserModal = ({ isOpen, onClose, onSubmit, user }: EditUserModalProps) 
       }
     }
   };
+
+  const handleResetPassword = async () => {
+    if (!user?._id) return;
+    
+    try {
+      await userService.resetPassword(user._id);
+      toast.success('Đặt lại mật khẩu thành công');
+      setIsResetConfirmOpen(false);
+    } catch (error: any) {
+      toast.error(error.response?.data?.message || 'Có lỗi xảy ra khi đặt lại mật khẩu');
+    }
+  };
+
+  const ResetPasswordConfirmation = () => (
+    <Transition show={isResetConfirmOpen} as={Fragment}>
+      <Dialog onClose={() => setIsResetConfirmOpen(false)} className="relative z-[60]">
+        <Transition.Child
+          enter="ease-out duration-300"
+          enterFrom="opacity-0"
+          enterTo="opacity-100"
+          leave="ease-in duration-200"
+          leaveFrom="opacity-100"
+          leaveTo="opacity-0"
+        >
+          <div className="fixed inset-0 bg-black/50" />
+        </Transition.Child>
+
+        <div className="fixed inset-0 overflow-y-auto">
+          <div className="flex min-h-full items-center justify-center p-4">
+            <Dialog.Panel className="w-full max-w-md transform overflow-hidden rounded-2xl bg-white p-6 text-left align-middle shadow-xl transition-all">
+              <div className="flex items-center gap-4">
+                <div className="flex-shrink-0 w-12 h-12 rounded-full bg-yellow-100 flex items-center justify-center">
+                  <ExclamationIcon className="h-6 w-6 text-yellow-600" />
+                </div>
+                <div>
+                  <Dialog.Title className="text-lg font-medium text-gray-900">
+                    Xác nhận đặt lại mật khẩu
+                  </Dialog.Title>
+                  <p className="mt-2 text-sm text-gray-500">
+                    Bạn có chắc chắn muốn đặt lại mật khẩu cho người dùng <span className="font-medium text-gray-900">{user?.fullName}</span>? 
+                    Mật khẩu mới sẽ là "<span className="font-medium">password123</span>".
+                  </p>
+                </div>
+              </div>
+
+              <div className="mt-6 flex justify-end gap-3">
+                <button
+                  type="button"
+                  onClick={() => setIsResetConfirmOpen(false)}
+                  className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-lg focus:outline-none focus-visible:ring-2 focus-visible:ring-gray-500 focus-visible:ring-offset-2"
+                >
+                  Hủy
+                </button>
+                <button
+                  type="button"
+                  onClick={handleResetPassword}
+                  className="px-4 py-2 text-sm font-medium text-white bg-yellow-600 hover:bg-yellow-700 rounded-lg focus:outline-none focus-visible:ring-2 focus-visible:ring-yellow-500 focus-visible:ring-offset-2"
+                >
+                  Xác nhận
+                </button>
+              </div>
+            </Dialog.Panel>
+          </div>
+        </div>
+      </Dialog>
+    </Transition>
+  );
 
   return (
     <Transition show={isOpen} as={Fragment}>
@@ -229,6 +298,13 @@ const EditUserModal = ({ isOpen, onClose, onSubmit, user }: EditUserModalProps) 
                   <div className="flex justify-end gap-2 mt-6">
                     <button
                       type="button"
+                      onClick={() => setIsResetConfirmOpen(true)}
+                      className="px-4 py-2 bg-yellow-500 text-white rounded-lg hover:bg-yellow-600 mr-auto"
+                    >
+                      Đặt lại mật khẩu
+                    </button>
+                    <button
+                      type="button"
                       onClick={onClose}
                       className="px-4 py-2 border rounded-lg hover:bg-gray-50"
                     >
@@ -246,6 +322,7 @@ const EditUserModal = ({ isOpen, onClose, onSubmit, user }: EditUserModalProps) 
             </Dialog.Panel>
           </div>
         </div>
+        <ResetPasswordConfirmation />
       </Dialog>
     </Transition>
   );

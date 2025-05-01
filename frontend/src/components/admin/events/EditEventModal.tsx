@@ -1,77 +1,155 @@
-import { Fragment, useState, useEffect } from 'react';
 import { Dialog, Transition } from '@headlessui/react';
-import { XIcon } from '@heroicons/react/outline';
-import type { Event } from '@/types';
+import { Fragment, useState, useEffect } from 'react';
+import { XIcon, PhotographIcon } from '@heroicons/react/outline';
+import { useForm } from 'react-hook-form';
+import { toast } from 'react-toastify';
+import departmentService from '@/services/departmentService';
+import uploadService from '@/services/uploadService';
+import { motion } from 'framer-motion';
+import type { Event, Department } from '@/types';
 
-interface EditEventModalProps {
+interface Props {
   isOpen: boolean;
   onClose: () => void;
   onSubmit: (id: string, eventData: any) => Promise<void>;
   event: Event | null;
 }
 
-const EditEventModal = ({ isOpen, onClose, onSubmit, event }: EditEventModalProps) => {
-  const [formData, setFormData] = useState({
-    title: '',
-    description: '',
-    startDate: new Date(),
-    endDate: new Date(),
-    eventType: 'offline' as 'offline' | 'online' | 'hybrid',
-    category: '',
-    department: '',
-    location: {
-      physical: {
-        address: '',
-        room: ''
-      },
-      online: {
-        platform: 'zoom',
-        meetingLink: ''
-      }
-    },
-    capacity: 0,
-    images: [] as any[]
-  });
+const EVENT_TYPES = {
+  offline: 'Trực tiếp',
+  online: 'Trực tuyến',
+  hybrid: 'Kết hợp'
+};
+
+const EVENT_CATEGORIES = {
+  academic: 'Học thuật',
+  cultural: 'Văn hóa',
+  sports: 'Thể thao',
+  workshop: 'Hội thảo',
+  career: 'Việc làm',
+  seminar: 'Thuyết trình',
+  other: 'Khác'
+};
+
+const EditEventModal = ({ isOpen, onClose, onSubmit, event }: Props) => {
+  const [loading, setLoading] = useState(false);
+  const [selectedImages, setSelectedImages] = useState<File[]>([]);
+  const [previews, setPreviews] = useState<string[]>([]);
+  const [existingImages, setExistingImages] = useState<any[]>([]);
+  const [departments, setDepartments] = useState<Department[]>([]);
+
+  const { register, handleSubmit, watch, formState: { errors }, reset, setValue } = useForm();
+  const eventType = watch('eventType', event?.eventType || 'offline');
 
   useEffect(() => {
     if (event) {
-      setFormData({
-        title: event.title || '',
-        description: event.description || '',
-        startDate: new Date(event.startDate),
-        endDate: new Date(event.endDate),
-        eventType: event.eventType || 'offline',
-        category: event.category || '',
-        department: event.department?._id || '',
-        location: {
-          physical: {
-            address: event.location?.physical?.address || '',
-            room: event.location?.physical?.room || ''
-          },
-          online: {
-            platform: event.location?.online?.platform || 'zoom',
-            meetingLink: event.location?.online?.meetingLink || ''
-          }
-        },
-        capacity: event.capacity || 0,
-        images: event.images || []
-      });
-    }
-  }, [event]);
+      setValue('title', event.title);
+      setValue('description', event.description);
+      setValue('category', event.category);
+      setValue('department', event.department?._id);
+      setValue('startDate', new Date(event.startDate).toISOString().slice(0, 16));
+      setValue('endDate', new Date(event.endDate).toISOString().slice(0, 16));
+      setValue('eventType', event.eventType);
+      setValue('capacity', event.capacity);
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+      if (event.location?.physical) {
+        setValue('physicalAddress', event.location.physical.address);
+        setValue('physicalRoom', event.location.physical.room);
+      }
+
+      if (event.location?.online) {
+        setValue('onlinePlatform', event.location.online.platform);
+        setValue('meetingLink', event.location.online.meetingLink);
+      }
+
+      if (event.images) {
+        setExistingImages(event.images);
+        setPreviews(event.images.map(img => img.url));
+      }
+    }
+  }, [event, setValue]);
+
+  const handleImageUpload = (files: FileList | null) => {
+    if (!files) return;
+    const newImages = Array.from(files);
+    setSelectedImages(prev => [...prev, ...newImages]);
+    setPreviews(prev => [...prev, ...newImages.map(file => URL.createObjectURL(file))]);
+  };
+
+  const removeImage = (index: number) => {
+    setSelectedImages(prev => prev.filter((_, i) => i !== index));
+    setPreviews(prev => prev.filter((_, i) => i !== index));
+  };
+
+  useEffect(() => {
+    const fetchDepartments = async () => {
+      try {
+        const data = await departmentService.getAllDepartments();
+        setDepartments(data);
+      } catch (error) {
+        console.error('Error fetching departments:', error);
+        toast.error('Không thể tải danh sách khoa');
+      }
+    };
+
+    fetchDepartments();
+  }, []);
+
+  const handleFormSubmit = async (data: any) => {
     if (!event?._id) return;
 
     try {
-      await onSubmit(event._id, formData);
+      setLoading(true);
+      const formDataToSubmit = new FormData();
+
+      formDataToSubmit.append('title', data.title);
+      formDataToSubmit.append('description', data.description);
+      formDataToSubmit.append('category', data.category);
+      formDataToSubmit.append('department', data.department);
+      formDataToSubmit.append('startDate', data.startDate);
+      formDataToSubmit.append('endDate', data.endDate);
+      formDataToSubmit.append('eventType', data.eventType);
+      
+      if (data.capacity) {
+        formDataToSubmit.append('capacity', data.capacity);
+      }
+
+      const location = {
+        ...(data.eventType !== 'online' ? { 
+          physical: {
+            address: data.physicalAddress,
+            room: data.physicalRoom
+          }
+        } : {}),
+        ...(data.eventType !== 'offline' ? { 
+          online: {
+            platform: data.onlinePlatform || 'other',
+            meetingLink: data.meetingLink
+          }
+        } : {})
+      };
+      formDataToSubmit.append('location', JSON.stringify(location));
+
+      formDataToSubmit.append('existingImages', JSON.stringify(existingImages));
+
+      if (selectedImages.length > 0) {
+        const uploadedFiles = await uploadService.uploadEventImages(selectedImages);
+        uploadedFiles.forEach((image, index) => {
+          formDataToSubmit.append(`images[${index}][public_id]`, image.public_id);
+          formDataToSubmit.append(`images[${index}][url]`, image.url);
+        });
+      }
+
+      await onSubmit(event._id, formDataToSubmit);
+      toast.success('Cập nhật sự kiện thành công');
       onClose();
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error updating event:', error);
+      toast.error(error.response?.data?.message || 'Có lỗi xảy ra khi cập nhật sự kiện');
+    } finally {
+      setLoading(false);
     }
   };
-
-  if (!event) return null;
 
   return (
     <Transition show={isOpen} as={Fragment}>
@@ -90,7 +168,14 @@ const EditEventModal = ({ isOpen, onClose, onSubmit, event }: EditEventModalProp
 
         <div className="fixed inset-0 overflow-y-auto">
           <div className="flex min-h-full items-center justify-center p-4">
-            <Dialog.Panel className="w-full max-w-4xl transform rounded-xl bg-white p-6 shadow-xl transition-all">
+            <Dialog.Panel 
+              as={motion.div}
+              initial={{ opacity: 0, y: 50 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -50 }}
+              transition={{ type: "spring", duration: 0.5 }}
+              className="w-full max-w-7xl transform rounded-xl bg-white p-6 shadow-xl"
+            >
               <div className="flex items-center justify-between mb-6">
                 <Dialog.Title className="text-xl font-semibold text-gray-900">
                   Chỉnh sửa sự kiện
@@ -100,70 +185,206 @@ const EditEventModal = ({ isOpen, onClose, onSubmit, event }: EditEventModalProp
                 </button>
               </div>
 
-              <form onSubmit={handleSubmit} className="space-y-6">
-                {/* Basic Information */}
-                <div className="space-y-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Tên sự kiện <span className="text-red-500">*</span>
-                    </label>
-                    <input
-                      type="text"
-                      value={formData.title}
-                      onChange={e => setFormData(prev => ({ ...prev, title: e.target.value }))}
-                      className="w-full rounded-lg border border-gray-300 px-3 py-2"
-                      required
-                    />
+              <form onSubmit={handleSubmit(handleFormSubmit)} className="space-y-6">
+                {/* Main content in 2 columns */}
+                <div className="grid grid-cols-2 gap-6">
+                  {/* Left column - Basic info */}
+                  <div className="space-y-6">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Tên sự kiện <span className="text-red-500">*</span>
+                      </label>
+                      <input
+                        {...register('title', { required: 'Vui lòng nhập tên sự kiện' })}
+                        type="text"
+                        className="w-full rounded-lg border border-gray-300 px-3 py-2"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Mô tả <span className="text-red-500">*</span>
+                      </label>
+                      <textarea
+                        {...register('description', { required: 'Vui lòng nhập mô tả' })}
+                        rows={5}
+                        className="w-full rounded-lg border border-gray-300 px-3 py-2"
+                      />
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          Khoa <span className="text-red-500">*</span>
+                        </label>
+                        <select
+                          {...register('department', { required: 'Vui lòng chọn khoa' })}
+                          className="w-full rounded-lg border border-gray-300 px-3 py-2"
+                        >
+                          <option value="">Chọn khoa</option>
+                          {departments.map(dept => (
+                            <option key={dept._id} value={dept._id}>
+                              {dept.name}
+                            </option>
+                          ))}
+                        </select>
+                        {errors.department && (
+                          <p className="mt-1 text-sm text-red-500">{errors.department.message as string}</p>
+                        )}
+                      </div>
+
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          Thời gian bắt đầu
+                        </label>
+                        <input
+                          {...register('startDate')}
+                          type="datetime-local"
+                          className="w-full rounded-lg border border-gray-300 px-3 py-2"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          Thời gian kết thúc
+                        </label>
+                        <input
+                          {...register('endDate')}
+                          type="datetime-local"
+                          className="w-full rounded-lg border border-gray-300 px-3 py-2"
+                        />
+                      </div>
+                    </div>
                   </div>
 
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Mô tả <span className="text-red-500">*</span>
-                    </label>
-                    <textarea
-                      value={formData.description}
-                      onChange={e => setFormData(prev => ({ ...prev, description: e.target.value }))}
-                      rows={4}
-                      className="w-full rounded-lg border border-gray-300 px-3 py-2"
-                      required
-                    />
+                  {/* Right column - Additional info */}
+                  <div className="space-y-6">
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          Danh mục
+                        </label>
+                        <select
+                          {...register('category')}
+                          className="w-full rounded-lg border border-gray-300 px-3 py-2"
+                        >
+                          {Object.entries(EVENT_CATEGORIES).map(([value, label]) => (
+                            <option key={value} value={value}>{label}</option>
+                          ))}
+                        </select>
+                      </div>
+
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          Hình thức
+                        </label>
+                        <select
+                          {...register('eventType')}
+                          className="w-full rounded-lg border border-gray-300 px-3 py-2"
+                        >
+                          {Object.entries(EVENT_TYPES).map(([value, label]) => (
+                            <option key={value} value={value}>{label}</option>
+                          ))}
+                        </select>
+                      </div>
+                    </div>
+
+                    {(eventType === 'offline' || eventType === 'hybrid') && (
+                      <div className="space-y-4">
+                        <h3 className="font-medium text-gray-900">Địa điểm</h3>
+                        <div className="grid grid-cols-2 gap-4">
+                          <input
+                            {...register('physicalAddress')}
+                            placeholder="Địa chỉ"
+                            className="w-full rounded-lg border border-gray-300 px-3 py-2"
+                          />
+                          <input
+                            {...register('physicalRoom')}
+                            placeholder="Phòng"
+                            className="w-full rounded-lg border border-gray-300 px-3 py-2"
+                          />
+                        </div>
+                      </div>
+                    )}
+
+                    {(eventType === 'online' || eventType === 'hybrid') && (
+                      <div className="space-y-4">
+                        <h3 className="font-medium text-gray-900">Thông tin trực tuyến</h3>
+                        <div className="grid grid-cols-2 gap-4">
+                          <select
+                            {...register('onlinePlatform')}
+                            className="w-full rounded-lg border border-gray-300 px-3 py-2"
+                          >
+                            <option value="zoom">Zoom</option>
+                            <option value="meet">Google Meet</option>
+                            <option value="teams">Microsoft Teams</option>
+                          </select>
+                          <input
+                            {...register('meetingLink')}
+                            placeholder="Link meeting"
+                            className="w-full rounded-lg border border-gray-300 px-3 py-2"
+                          />
+                        </div>
+                      </div>
+                    )}
+
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Hình ảnh
+                      </label>
+                      <div className="mt-2 grid grid-cols-4 gap-4">
+                        {/* Existing images preview */}
+                        {previews.map((preview, index) => (
+                          <div key={index} className="relative group">
+                            <img
+                              src={preview}
+                              alt=""
+                              className="h-24 w-full object-cover rounded-lg"
+                            />
+                            <button
+                              type="button"
+                              onClick={() => removeImage(index)}
+                              className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-1"
+                            >
+                              <XIcon className="h-4 w-4" />
+                            </button>
+                          </div>
+                        ))}
+                        
+                        {/* Upload button */}
+                        <div
+                          onClick={() => document.getElementById('image-input')?.click()}
+                          className="h-24 border-2 border-dashed border-gray-300 rounded-lg flex items-center justify-center cursor-pointer hover:border-orange-500"
+                        >
+                          <PhotographIcon className="h-8 w-8 text-gray-400" />
+                        </div>
+                        <input
+                          id="image-input"
+                          type="file"
+                          multiple
+                          accept="image/*"
+                          className="hidden"
+                          onChange={(e) => handleImageUpload(e.target.files)}
+                        />
+                      </div>
+                    </div>
                   </div>
                 </div>
 
-                {/* Event Type and Location */}
-                <div className="space-y-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Hình thức <span className="text-red-500">*</span>
-                    </label>
-                    <select
-                      value={formData.eventType}
-                      onChange={e => setFormData(prev => ({ ...prev, eventType: e.target.value as 'offline' | 'online' | 'hybrid' }))}
-                      className="w-full rounded-lg border border-gray-300 px-3 py-2"
-                    >
-                      <option value="offline">Trực tiếp</option>
-                      <option value="online">Trực tuyến</option>
-                      <option value="hybrid">Kết hợp</option>
-                    </select>
-                  </div>
-
-                  {/* Location fields based on event type */}
-                  {/* ... additional form fields ... */}
-                </div>
-
-                <div className="pt-6 border-t flex justify-end gap-3">
+                <div className="flex justify-end gap-3 pt-6 border-t">
                   <button
                     type="button"
                     onClick={onClose}
-                    className="px-4 py-2 text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 border border-gray-300 rounded-lg"
+                    className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50"
                   >
                     Hủy
                   </button>
                   <button
                     type="submit"
-                    className="px-4 py-2 text-sm font-medium text-white bg-orange-600 hover:bg-orange-700 rounded-lg"
+                    disabled={loading}
+                    className="px-4 py-2 text-sm font-medium text-white bg-orange-600 rounded-lg hover:bg-orange-700 disabled:opacity-50"
                   >
-                    Cập nhật
+                    {loading ? 'Đang cập nhật...' : 'Cập nhật'}
                   </button>
                 </div>
               </form>

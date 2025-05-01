@@ -143,33 +143,60 @@ exports.updateEvent = async (req, res, next) => {
 exports.deleteEvent = async (req, res, next) => {
   try {
     const event = await Event.findById(req.params.id);
-    
+
     if (!event) {
-      return next(new ErrorResponse('Event not found', 404));
+      return next(new ErrorResponse('Không tìm thấy sự kiện', 404));
     }
 
-    // Check authorization
-    if (event.creator.toString() !== req.user.id && req.user.role !== 'admin') {
-      return next(new ErrorResponse('Not authorized to delete this event', 403));
+    // Check if user is event creator or admin
+    if (event.creator?.toString() !== req.user.id && req.user.role !== 'admin') {
+      return next(new ErrorResponse('Không có quyền xóa sự kiện này', 403));
     }
 
-    // Delete images from Cloudinary
-    if (event.images?.length > 0) {
-      const deletePromises = event.images.map(img => 
-        deleteFromCloudinary(img.public_id)
-      );
-      await Promise.all(deletePromises);
+    // Start a transaction for data consistency
+    const session = await mongoose.startSession();
+    session.startTransaction();
+
+    try {
+      // Remove references from all users who registered for this event
+      if (event.participants && event.participants.length > 0) {
+        await User.updateMany(
+          { _id: { $in: event.participants } },
+          { $pull: { registeredEvents: event._id } },
+          { session }
+        );
+      }
+
+      // Remove references from all collaborators
+      if (event.collaborators && event.collaborators.length > 0) {
+        await User.updateMany(
+          { _id: { $in: event.collaborators } },
+          { $pull: { collaboratorEvents: event._id } },
+          { session }
+        );
+      }
+
+      // Delete the event
+      await Event.findByIdAndDelete(event._id, { session });
+      
+      // Commit the transaction
+      await session.commitTransaction();
+      
+      res.status(200).json({
+        success: true,
+        data: {}
+      });
+    } catch (error) {
+      // If anything fails, abort the transaction
+      await session.abortTransaction();
+      throw error;
+    } finally {
+      // End the session
+      session.endSession();
     }
-
-    // Use findByIdAndDelete instead of remove
-    await Event.findByIdAndDelete(req.params.id);
-
-    res.status(200).json({
-      success: true,
-      data: {}
-    });
   } catch (error) {
-    next(new ErrorResponse(error.message, 500));
+    console.error('Delete event error:', error);
+    next(new ErrorResponse('Lỗi khi xóa sự kiện', 500));
   }
 };
 

@@ -6,9 +6,10 @@ const {
   updateUser,
   deleteUser,
   updateAvatar,
-  deleteAvatar
+  deleteAvatar,
+  resetUserPassword
 } = require('../controllers/userController');
-const { protect } = require('../middleware/auth');
+const { protect, authorize } = require('../middleware/auth');
 
 const router = express.Router();
 
@@ -30,5 +31,8 @@ router.delete('/:id', deleteUser);
 // Avatar routes
 router.put('/me/avatar', protect, updateAvatar);
 router.delete('/me/avatar', deleteAvatar);
+
+// @route: POST /api/v1/users/:id/reset-password
+router.post('/:id/reset-password', protect, authorize('admin'), resetUserPassword);
 
 module.exports = router;

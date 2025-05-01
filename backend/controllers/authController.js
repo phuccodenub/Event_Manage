@@ -1,5 +1,8 @@
 const User = require('../models/userModel');
 const ErrorResponse = require('../utils/errorResponse');
+const { OAuth2Client } = require('google-auth-library');
+
+const client = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
 
 // Import the Event model to ensure it is registered
 require('../models/eventModel');
@@ -101,6 +104,140 @@ exports.login = async (req, res, next) => {
     sendTokenResponse(user, 200, res);
   } catch (error) {
     next(error);
+  }
+};
+
+// @desc    Đăng nhập Google
+// @route   POST /api/v1/auth/google-login
+// @access  Public
+exports.googleLogin = async (req, res, next) => {
+  try {
+    const { credential } = req.body;
+    
+    if (!credential) {
+      return next(new ErrorResponse('No credential provided', 400));
+    }
+
+    console.log('Verifying Google token...');
+    const ticket = await client.verifyIdToken({
+      idToken: credential,
+      audience: process.env.GOOGLE_CLIENT_ID
+    });
+
+    const payload = ticket.getPayload();
+    console.log('Google payload:', payload);
+
+    if (!payload) {
+      return next(new ErrorResponse('Invalid Google token', 401));
+    }
+
+    const { sub: googleId, email, name, picture } = payload;
+
+    // Find or create user
+    let user = await User.findOne({
+      $or: [
+        { oauthId: googleId, oauthProvider: 'google' },
+        { email: email }
+      ]
+    });
+
+    if (!user) {
+      console.log('Creating new user from Google data...');
+      const defaultClass = 'Unknown'; // Default class for student role
+      user = await User.create({
+        username: `google_${googleId.slice(-8)}`,
+        email,
+        fullName: name,
+        password: Math.random().toString(36).slice(-8),
+        oauthProvider: 'google',
+        oauthId: googleId,
+        gender: 'khác',
+        phone: '0000000000',
+        role: 'student', // Explicitly set role
+        class: defaultClass, // Set default class for student
+        avatar: {
+          url: picture
+        }
+      });
+    } else {
+      console.log('Existing user found:', user.email);
+      // Update existing user's Google-related info
+      user.oauthProvider = 'google';
+      user.oauthId = googleId;
+      if (picture && !user.avatar?.url) {
+        user.avatar = { url: picture };
+      }
+      await user.save();
+    }
+
+    sendTokenResponse(user, 200, res);
+  } catch (error) {
+    console.error('Google auth error:', error);
+    next(new ErrorResponse(error.message || 'Google authentication failed', 401));
+  }
+};
+
+// @desc    Đăng nhập Facebook
+// @route   POST /api/v1/auth/facebook-login
+// @access  Public
+exports.facebookLogin = async (req, res, next) => {
+  try {
+    const { accessToken } = req.body;
+    
+    if (!accessToken) {
+      return next(new ErrorResponse('No access token provided', 400));
+    }
+
+    // Fetch user data from Facebook Graph API
+    const response = await fetch(`https://graph.facebook.com/v18.0/me?fields=id,name,email,picture.type(large)&access_token=${accessToken}`);
+    const data = await response.json();
+
+    if (data.error) {
+      console.error('Facebook API Error:', data.error);
+      return next(new ErrorResponse('Invalid Facebook token', 401));
+    }
+
+    console.log('Facebook user data:', data);
+
+    // Check if user exists
+    let user = await User.findOne({
+      $or: [
+        { oauthId: data.id, oauthProvider: 'facebook' },
+        { email: data.email }
+      ]
+    });
+
+    if (!user) {
+      // Create new user
+      user = await User.create({
+        username: `fb_${data.id.slice(-8)}`,
+        email: data.email || `fb_${data.id}@facebook.com`,
+        fullName: data.name,
+        password: Math.random().toString(36).slice(-8), // Random password
+        oauthProvider: 'facebook',
+        oauthId: data.id,
+        gender: 'khác',
+        role: 'student',
+        class: 'Unknown',
+        phone: '0000000000',
+        avatar: {
+          url: data.picture?.data?.url
+        }
+      });
+    } else {
+      // Update existing user's Facebook info
+      user.oauthProvider = 'facebook';
+      user.oauthId = data.id;
+      if (data.picture?.data?.url && !user.avatar?.url) {
+        user.avatar = { url: data.picture.data.url };
+      }
+      await user.save();
+    }
+
+    sendTokenResponse(user, 200, res);
+  } catch (error) {
+    console.error('Facebook login error:', error);
+    next(new ErrorResponse('Facebook authentication failed', 401));
   }
 };
 

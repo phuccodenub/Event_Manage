@@ -24,9 +24,9 @@ const app = express();
 const httpServer = createServer(app);
 const io = new Server(httpServer, {
   cors: {
-    origin: ['http://localhost:3000', 'http://localhost:5173', process.env.CLIENT_URL].filter(Boolean),
+    origin: ['https://localhost:5173', 'http://localhost:5173', process.env.CLIENT_URL].filter(Boolean),
     credentials: true,
-    methods: ['GET', 'POST']
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS']
   }
 });
 
@@ -53,6 +53,13 @@ io.on('connection', async (socket) => {
   });
 });
 
+global.notifyUser = (userId, notification) => {
+  const userSocket = global.userSockets.get(userId);
+  if (userSocket) {
+    userSocket.emit('newNotification', notification);
+  }
+};
+
 // Body parser
 app.use(express.json());
 
@@ -73,8 +80,10 @@ app.use(fileUpload({
 
 // Enable CORS
 app.use(cors({
-  origin: ['http://localhost:3000', 'http://localhost:5173', process.env.CLIENT_URL].filter(Boolean),
-  credentials: true
+  origin: ['http://localhost:5173', process.env.CLIENT_URL].filter(Boolean),
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization']
 }));
 
 // Set static folder

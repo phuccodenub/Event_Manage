@@ -60,7 +60,7 @@ const RightSidebar: React.FC = () => {
                   </div>
                   <div className="flex items-center text-sm text-gray-600 mb-4">
                     <LocationMarkerIcon className="w-5 h-5 mr-2" />
-                    <span>{event.location?.physical?.address || 'Địa điểm không xác định'}</span>
+                    <span>{event.location?.physical?.address + ' - ' + event.location?.physical?.room || 'Địa điểm không xác định'}</span>
                   </div>
                 </div>
                 <div 

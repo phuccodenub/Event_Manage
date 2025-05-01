@@ -91,6 +91,11 @@ const userService = {
     const response = await apiClient.delete(`/users/${id}`);
     return response.data.data;
   },
+
+  resetPassword: async (userId: string): Promise<any> => {
+    const response = await apiClient.post(`/users/${userId}/reset-password`);
+    return response.data;
+  }
 };
 
 export default userService;

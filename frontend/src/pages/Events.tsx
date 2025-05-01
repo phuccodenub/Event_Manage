@@ -163,7 +163,7 @@ const Events: React.FC = () => {
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
               {/* Search Input */}
               <div className="relative lg:col-span-2">
-                <SearchIcon className="h-5 w-5 absolute left-3 top-1/2 -translate-y-1/2 text-orange-400" />
+                <SearchIcon className="h-5 w-5 absolute left-3 top-1/2 -translate-y-1/4 text-orange-400" />
                 <input
                   type="text"
                   placeholder="Tìm kiếm sự kiện..."
