@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { IoClose } from 'react-icons/io5';
-import { Announcement } from '../types';
+import { Announcement } from '../../types';
 
 interface EditAnnouncementModalProps {
   isOpen: boolean;

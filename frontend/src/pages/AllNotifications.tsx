@@ -1,12 +1,15 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import Header from '../components/Header';
 import { IoTimeOutline, IoCheckmarkCircleOutline, IoCalendarOutline, IoLocationOutline, IoFilterOutline, 
-  IoNotificationsOutline, IoPeopleOutline, IoCheckmarkOutline } from 'react-icons/io5';
+  IoNotificationsOutline, IoPeopleOutline, IoCheckmarkOutline, IoNotificationsOffOutline } from 'react-icons/io5';
+import { useNotifications } from '../context/NotificationContext'; // Fixed path
+import { useNavigate } from 'react-router-dom';
 
 const AllNotifications = () => {
+  const { notifications, loading, filterNotifications, markAsRead, markAllAsRead } = useNotifications();
   const [selectedFilter, setSelectedFilter] = useState('all');
   const [selectedPeriod, setSelectedPeriod] = useState('all');
-  const [selectedView, setSelectedView] = useState('all');
+  const navigate = useNavigate();
 
   const filters = [
     { id: 'all', label: 'Tất cả' },
@@ -43,21 +46,17 @@ const AllNotifications = () => {
     }
   ];
 
-  const notifications = [
-    {
-      id: 1,
-      type: 'event',
-      title: 'Sự kiện sắp diễn ra',
-      message: 'Workshop "Kỹ năng mềm trong công việc" sẽ diễn ra trong 2 giờ nữa',
-      time: '2 giờ trước',
-      isRead: false,
-      eventDetails: {
-        date: '15/04/2024',
-        location: 'Hội trường A',
-      }
-    },
-    // ...more notifications
-  ];
+  const filteredNotifications = useMemo(() => 
+    filterNotifications(selectedFilter, selectedPeriod),
+    [filterNotifications, selectedFilter, selectedPeriod]
+  );
+
+  const handleNotificationClick = async (notification) => {
+    await markAsRead(notification._id);
+    if (notification.link) {
+      navigate(notification.link);
+    }
+  };
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -130,7 +129,10 @@ const AllNotifications = () => {
                 </div>
 
                 {/* Action Button */}
-                <button className="w-full px-4 py-2.5 bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition-colors flex items-center justify-center gap-2">
+                <button
+                  onClick={markAllAsRead}
+                  className="w-full px-4 py-2.5 bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition-colors flex items-center justify-center gap-2"
+                >
                   <IoCheckmarkOutline className="text-lg" />
                   <span>Đánh dấu tất cả đã đọc</span>
                 </button>
@@ -147,31 +149,14 @@ const AllNotifications = () => {
                   {viewTypes.map((view) => (
                     <button
                       key={view.id}
-                      onClick={() => setSelectedView(view.id)}
-                      className={`
-                        p-4 text-left transition-all duration-200
-                        ${selectedView === view.id 
-                          ? 'bg-orange-50/80' 
-                          : 'hover:bg-gray-50'
-                        }
-                      `}
+                      className="p-4 text-left transition-all duration-200 hover:bg-gray-50"
                     >
                       <div className="flex items-center gap-3">
-                        <div className={`
-                          p-2 rounded-lg
-                          ${selectedView === view.id 
-                            ? 'bg-orange-100 text-orange-600' 
-                            : 'bg-gray-100 text-gray-600'
-                          }
-                        `}>
+                        <div className="p-2 rounded-lg bg-gray-100 text-gray-600">
                           <view.icon className="text-xl" />
                         </div>
                         <div>
-                          <div className={`font-medium ${
-                            selectedView === view.id ? 'text-orange-600' : 'text-gray-900'
-                          }`}>
-                            {view.label}
-                          </div>
+                          <div className="font-medium text-gray-900">{view.label}</div>
                           <div className="text-xs text-gray-500 mt-0.5">{view.description}</div>
                         </div>
                       </div>
@@ -182,87 +167,60 @@ const AllNotifications = () => {
             </div>
 
             {/* Notifications List */}
-            <div className="space-y-4">
-              {notifications.map((notification) => (
-                <div
-                  key={notification.id}
-                  className={`bg-white rounded-xl shadow-sm border border-gray-100 p-6 transition-all hover:shadow-md
-                    ${!notification.isRead ? 'bg-orange-50/50' : ''}`}
-                >
-                  <div className="flex gap-4">
-                    <div className={`
-                      flex-shrink-0 w-12 h-12 rounded-xl flex items-center justify-center
-                      ${getNotificationTypeStyles(notification.type)}
-                    `}>
-                      {getNotificationIcon(notification.type)}
-                    </div>
-                    
-                    <div className="flex-1">
-                      <h3 className="font-semibold text-gray-900">{notification.title}</h3>
-                      <p className="mt-1 text-gray-600">{notification.message}</p>
+            {loading ? (
+              <div className="flex justify-center items-center h-64">
+                <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-orange-500"></div>
+              </div>
+            ) : filteredNotifications.length > 0 ? (
+              <div className="space-y-4">
+                {filteredNotifications.map((notification) => (
+                  <div
+                    key={notification._id}
+                    onClick={() => handleNotificationClick(notification)}
+                    className={`bg-white rounded-xl shadow-sm border border-gray-100 p-6 
+                      transition-all hover:shadow-md cursor-pointer
+                      ${!notification.read ? 'bg-orange-50/50' : ''}`}
+                  >
+                    <div className="flex gap-4">
+                      <div className="flex-shrink-0 w-12 h-12 rounded-xl flex items-center justify-center bg-gray-100 text-gray-600">
+                        <IoNotificationsOutline className="text-xl" />
+                      </div>
                       
-                      {notification.eventDetails && (
-                        <div className="mt-3 flex items-center gap-4 text-sm text-gray-500">
-                          <span className="flex items-center gap-1.5">
-                            <IoCalendarOutline className="text-orange-500" />
-                            {notification.eventDetails.date}
-                          </span>
-                          <span className="flex items-center gap-1.5">
-                            <IoLocationOutline className="text-orange-500" />
-                            {notification.eventDetails.location}
-                          </span>
+                      <div className="flex-1">
+                        <h3 className="font-semibold text-gray-900">{notification.title}</h3>
+                        <p className="mt-1 text-gray-600">{notification.message}</p>
+                        
+                        <div className="mt-4 flex items-center justify-between">
+                          <div className="flex items-center gap-2 text-sm text-gray-500">
+                            <span>{notification.createdAt}</span>
+                            {notification.link && (
+                              <span className="text-orange-600 hover:underline">
+                                Xem chi tiết →
+                              </span>
+                            )}
+                          </div>
+                          {!notification.read && (
+                            <span className="text-xs bg-orange-100 text-orange-600 px-2 py-1 rounded-full">
+                              Chưa đọc
+                            </span>
+                          )}
                         </div>
-                      )}
-                      
-                      <div className="mt-4 flex items-center justify-between">
-                        <span className="text-sm text-gray-500">{notification.time}</span>
-                        {!notification.isRead && (
-                          <span className="text-xs bg-orange-100 text-orange-600 px-2 py-1 rounded-full">
-                            Chưa đọc
-                          </span>
-                        )}
                       </div>
                     </div>
                   </div>
-                </div>
-              ))}
-            </div>
+                ))}
+              </div>
+            ) : (
+              <div className="text-center py-12">
+                <IoNotificationsOffOutline className="mx-auto text-5xl text-gray-400 mb-4" />
+                <p className="text-gray-500">Không có thông báo nào</p>
+              </div>
+            )}
           </div>
         </div>
       </div>
     </div>
   );
-};
-
-const getNotificationTypeStyles = (type: string) => {
-  switch (type) {
-    case 'event':
-      return 'bg-orange-100 text-orange-600';
-    case 'reminder':
-      return 'bg-blue-100 text-blue-600';
-    case 'success':
-      return 'bg-green-100 text-green-600';
-    case 'system':
-      return 'bg-gray-100 text-gray-600';
-    default:
-      return 'bg-gray-100 text-gray-600';
-  }
-};
-
-const getNotificationIcon = (type: string) => {
-  const iconClass = "text-xl";
-  switch (type) {
-    case 'event':
-      return <IoTimeOutline className={iconClass} />;
-    case 'reminder':
-      return <IoCalendarOutline className={iconClass} />;
-    case 'success':
-      return <IoCheckmarkCircleOutline className={iconClass} />;
-    case 'system':
-      return <IoNotificationsOutline className={iconClass} />;
-    default:
-      return <IoNotificationsOutline className={iconClass} />;
-  }
 };
 
 export default AllNotifications;

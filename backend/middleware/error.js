@@ -1,57 +1,34 @@
-const ErrorResponse = require('../utils/errorResponse');
+const ErrorHandler = require('../utils/errorHandler');
 
-const errorHandler = (err, req, res, next) => {
-  let error = { ...err };
-  error.message = err.message;
+module.exports = (err, req, res, next) => {
+  err.statusCode = err.statusCode || 500;
+  err.message = err.message || 'Internal Server Error';
 
-  // Log lỗi để phát triển
-  console.log(err.stack);
-
-  // Mongoose bad ObjectId
-  if (err.name === 'CastError') {
-    const message = `Không tìm thấy tài nguyên với ID ${err.value}`;
-    const value = err.keyValue(field);
-    error = new ErrorResponse(message, 404);
+  // Log error for development
+  if (process.env.NODE_ENV === 'development') {
+    console.error(err);
   }
 
-  // Mongoose duplicate key
+  // Mongoose duplicate key error
   if (err.code === 11000) {
-    let message = 'Giá trị đã tồn tại';
-    const field = Object.keys(err.keyValue)[0];
-    
-    if (field === 'email') {
-      message = 'Email "${value}" đã được sử dụng';
-    } else if (field === 'username') {
-      message = 'Tên đăng nhập "${value}" đã được sử dụng';
-    } else if (field === 'code') {
-      message = 'Mã sản phẩm "${value}" đã tồn tại';
-    } else if (field === 'slug') {
-      message = 'Slug "${value}" đã tồn tại';
-    }
-    
-    error = new ErrorResponse(message, 400);
+    const message = `Duplicate ${Object.keys(err.keyValue)} entered`;
+    err = new ErrorHandler(message, 400);
   }
 
-  // Mongoose validation error
-  if (err.name === 'ValidationError') {
-    const message = Object.values(err.errors).map(val => val.message).join(', ');
-    error = new ErrorResponse(message, 400);
-  }
-
-  // JWT error
+  // Wrong JWT error
   if (err.name === 'JsonWebTokenError') {
-    error = new ErrorResponse('Token không hợp lệ', 401);
+    const message = 'JSON Web Token is invalid. Try Again!!!';
+    err = new ErrorHandler(message, 400);
   }
 
-  // JWT expired
+  // JWT Expire error
   if (err.name === 'TokenExpiredError') {
-    error = new ErrorResponse('Token đã hết hạn', 401);
+    const message = 'JSON Web Token is expired. Try Again!!!';
+    err = new ErrorHandler(message, 400);
   }
 
-  res.status(error.statusCode || 500).json({
+  res.status(err.statusCode).json({
     success: false,
-    error: error.message || 'Lỗi server'
+    error: err.message
   });
 };
-
-module.exports = errorHandler; 

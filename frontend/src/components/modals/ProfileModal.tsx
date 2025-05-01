@@ -2,7 +2,8 @@ import React from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { CgProfile } from 'react-icons/cg';
 import { IoSettingsOutline, IoLogOutOutline } from 'react-icons/io5';
-import { User } from '../types';
+import { MdAdminPanelSettings } from 'react-icons/md';
+import { User } from '../../types';
 
 interface ProfileModalProps {
   isOpen: boolean;
@@ -79,6 +80,21 @@ const ProfileModal: React.FC<ProfileModalProps> = ({
           title="Cài đặt"
           subtitle="Tài khoản & Bảo mật"
         />
+        <div className="border-t border-gray-100 my-1" />
+        
+        {/* Admin Panel - Only show for admin users */}
+        {userData.role === 'admin' && (
+          <>
+            <div className="border-t border-gray-100 my-1" />
+            <MenuItem 
+              to="/admin"
+              icon={MdAdminPanelSettings}
+              title="Admin Panel"
+              subtitle="Quản lý hệ thống"
+            />
+          </>
+        )}
+        
         <div className="border-t border-gray-100 my-1" />
         <button 
           onClick={onLogout}

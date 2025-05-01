@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import ImageViewModal from './ImageViewModal';
+import ImageViewModal from './modals/ImageViewModal';
 
 interface EventImageGridProps {
   images: Array<{ url: string }>;

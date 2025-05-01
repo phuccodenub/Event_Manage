@@ -2,12 +2,19 @@ const User = require('../models/userModel');
 const ErrorResponse = require('../utils/errorResponse');
 const { uploadToCloudinary, deleteFromCloudinary } = require('../utils/cloudinary');
 
-// @desc: Get all users
+// @desc: Get all users (with optional role filtering)
 // @route: GET /api/v1/users
 // @access: Private/Admin
 exports.getUsers = async (req, res, next) => {
   try {
-    const users = await User.find({}).select('-password');
+    const { roles } = req.query;
+    let query = {};
+
+    if (roles) {
+      query.role = { $in: roles.split(',') };
+    }
+
+    const users = await User.find(query).select('-password');
     res.status(200).json({
       success: true,
       data: users

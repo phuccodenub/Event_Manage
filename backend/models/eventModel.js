@@ -1,4 +1,5 @@
 const mongoose = require('mongoose');
+const cron = require('node-cron');
 
 const eventSchema = new mongoose.Schema({
   title: {
@@ -138,7 +139,8 @@ const eventSchema = new mongoose.Schema({
   },
   capacity: {
     type: Number,
-    default: 0
+    min: [1, 'Capacity must be at least 1'],
+    default: 0 // 0 means unlimited
   },
   isRegistrationRequired: {
     type: Boolean,
@@ -167,6 +169,14 @@ eventSchema.pre('save', function(next) {
   next();
 });
 
+// Add validation for capacity
+eventSchema.pre('save', function(next) {
+  if (this.capacity < 0) {
+    throw new Error('Capacity cannot be negative');
+  }
+  next();
+});
+
 // Automatically update status based on dates
 eventSchema.pre('save', async function(next) {
   const now = new Date();
@@ -182,5 +192,35 @@ eventSchema.pre('save', async function(next) {
   }
   next();
 });
+
+// Add updateEventStatus method to schema
+eventSchema.statics.updateEventStatus = async function() {
+  const now = new Date();
+  
+  await this.updateMany(
+    {
+      startDate: { $lte: now },
+      endDate: { $gt: now },
+      status: { $ne: 'ongoing' }
+    },
+    { $set: { status: 'ongoing' } }
+  );
+
+  await this.updateMany(
+    {
+      endDate: { $lte: now },
+      status: { $ne: 'completed' }
+    },
+    { $set: { status: 'completed' } }
+  );
+
+  await this.updateMany(
+    {
+      startDate: { $gt: now },
+      status: { $ne: 'upcoming' }
+    },
+    { $set: { status: 'upcoming' } }
+  );
+};
 
 module.exports = mongoose.model('Event', eventSchema);

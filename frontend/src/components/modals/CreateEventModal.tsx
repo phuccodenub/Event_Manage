@@ -3,10 +3,11 @@ import { IoClose, IoImage } from 'react-icons/io5';
 import { MdImage } from 'react-icons/md';
 import { BiCalendarEvent } from 'react-icons/bi';
 import { IoLocationOutline } from 'react-icons/io5';
-import uploadService, { UploadedFile } from '../services/uploadService';
-import eventService from '../services/eventService';
-import announcementService from '../services/announcementService';
-import { useAuth } from '../context/AuthContext';
+import uploadService, { UploadedFile } from '../../services/uploadService';
+import eventService from '../../services/eventService';
+import announcementService from '../../services/announcementService';
+import notificationService from '../../services/notificationService';
+import { useAuth } from '../../context/AuthContext';
 
 interface CreateEventModalProps {
   isOpen: boolean;
@@ -67,6 +68,7 @@ const CreateEventModal: React.FC<CreateEventModalProps> = ({ isOpen, onClose }) 
   const [uploadedImages, setUploadedImages] = useState<UploadedFile[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
 
   const handleImagePaste = useCallback((e: ClipboardEvent) => {
     const items = e.clipboardData?.items;
@@ -104,11 +106,41 @@ const CreateEventModal: React.FC<CreateEventModalProps> = ({ isOpen, onClose }) 
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    setIsSubmitting(true);
     try {
-      const formDataToSubmit = new FormData();
+      setIsLoading(true);
+      
+      if (formData.postType === 'announcement') {
+        // Map các trường cho đúng với model Announcement
+        const announcementData = {
+          title: formData.title,
+          content: formData.description, // Map description sang content
+          category: formData.category,
+          priority: formData.priority || 0,
+          department: formData.department,
+          expiresAt: formData.expiresAt,
+          images: formData.images
+        };
 
-      if (formData.postType === 'event') {
+        const createdAnnouncement = await announcementService.createAnnouncement(announcementData);
+        console.log('Announcement created:', createdAnnouncement);
+
+        // Thông báo sau khi tạo announcement thành công
+        try {
+          await notificationService.createMassNotification({
+            recipients: ['all'],
+            type: 'new_announcement',
+            title: 'Thông báo mới',
+            message: `Một thông báo mới "${formData.title}" đã được đăng`,
+            relatedModel: 'Announcement',
+            relatedId: createdAnnouncement._id,
+            link: `/announcements/${createdAnnouncement._id}`
+          });
+        } catch (notifError) {
+          console.error('Notification error:', notifError);
+        }
+      } else {
+        const formDataToSubmit = new FormData();
+
         // Handle event creation
         formDataToSubmit.append('title', formData.title);
         formDataToSubmit.append('description', formData.description);
@@ -145,46 +177,27 @@ const CreateEventModal: React.FC<CreateEventModalProps> = ({ isOpen, onClose }) 
           }
         }
 
-        await eventService.createEvent(formDataToSubmit);
-      } else {
-        // Handle announcement creation similar to event
-        formDataToSubmit.append('title', formData.title);
-        formDataToSubmit.append('content', formData.description);
-        formDataToSubmit.append('category', formData.category);
-        formDataToSubmit.append('department', formData.department);
-        formDataToSubmit.append('priority', formData.priority?.toString() || '0');
-        formDataToSubmit.append('expiresAt', formData.expiresAt || '');
-
-        // Handle images similar to event
-        if (selectedFiles.length > 0) {
-          try {
-            const uploadedFiles = await uploadService.uploadEventImages(selectedFiles);
-            uploadedFiles.forEach((image, index) => {
-              formDataToSubmit.append(`images[${index}][public_id]`, image.public_id);
-              formDataToSubmit.append(`images[${index}][url]`, image.url);
-            });
-          } catch (uploadError) {
-            console.error('Error uploading images for announcement:', uploadError);
-            throw new Error('Failed to upload images');
-          }
-        }
-
-        console.log('Creating announcement with data:', {
-          title: formDataToSubmit.get('title'),
-          content: formDataToSubmit.get('content'),
-          images: formDataToSubmit.getAll('images'),
+        const newEvent = await eventService.createEvent(formDataToSubmit);
+        
+        // Gửi thông báo sau khi tạo event thành công
+        await notificationService.createMassNotification({
+          recipients: ['all'], // hoặc một array của user IDs cụ thể
+          type: 'new_event',
+          title: 'Sự kiện mới',
+          message: `Một sự kiện mới "${formData.title}" đã được tạo`,
+          relatedModel: 'Event',
+          relatedId: newEvent._id,
+          link: `/events/${newEvent._id}`
         });
-
-        await announcementService.createAnnouncement(formDataToSubmit);
       }
 
       resetForm();
       onClose();
     } catch (error) {
       console.error('Error creating post:', error);
-      setError(error.message || 'An error occurred');
+      setError(error.response?.data?.message || 'Error creating post');
     } finally {
-      setIsSubmitting(false);
+      setIsLoading(false);
     }
   };
 

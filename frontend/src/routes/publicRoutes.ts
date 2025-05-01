@@ -16,6 +16,8 @@ import Advertising from "@/pages/footer/Advertising";
 import Business from "@/pages/footer/Business";
 import Mobile from "@/pages/footer/Mobile";
 import More from "@/pages/footer/More";
+import PostDetails from "@/pages/PostDetails";
+import NotFound from "@/pages/NotFound";
 
 const PublicRoutes = () => {
   return React.createElement(
@@ -36,7 +38,10 @@ const PublicRoutes = () => {
     React.createElement(Route, { path: "/advertising", component: Advertising }),
     React.createElement(Route, { path: "/business", component: Business }),
     React.createElement(Route, { path: "/mobile", component: Mobile }),
-    React.createElement(Route, { path: "/more", component: More })
+    React.createElement(Route, { path: "/more", component: More }),
+    React.createElement(Route, { path: "/events/:id", component: PostDetails }),
+    React.createElement(Route, { path: "/announcements/:id", component: PostDetails }),
+    React.createElement(Route, { path: "*", component: NotFound })
   );
 };
 

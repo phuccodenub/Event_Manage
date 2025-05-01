@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import Header from '../../components/Header';
-import HelpContactModal from '../../components/HelpContactModal';
+import HelpContactModal from '../../components/modals/HelpContactModal';
 import { IoSearchOutline, IoHelpCircleOutline, IoLockClosedOutline, IoNotificationsOutline, 
          IoCalendarOutline, IoPersonOutline, IoBusinessOutline, IoChatbubbleEllipsesOutline } from 'react-icons/io5';
 

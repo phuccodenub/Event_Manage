@@ -1,38 +1,57 @@
 import { useState, useEffect } from "react";
-import { useLocation, useNavigate } from "react-router-dom";
+import { useLocation } from "wouter";
 import PublicRoutes from "./PublicRoutes";
 import PrivateRoutes from "./PrivateRoutes";
 import authService from '../services/authService';
 
 const Router = () => {
   const [isAuthenticated, setIsAuthenticated] = useState<boolean | null>(null);
-  const [role, setRole] = useState<string | null>(null); // Define role state
-  const navigate = useNavigate();
-  const location = useLocation();
+  const [userRole, setUserRole] = useState<string | null>(null);
+  const [location, setLocation] = useLocation();
 
   useEffect(() => {
-    const checkAuth = () => {
-      const userInfo = authService.getProfile();
-      if (userInfo) {
-        setIsAuthenticated(true);
-        setRole(userInfo.role || null);
-      } else {
-        setIsAuthenticated(false);
-        setRole(null);
-        if (!["/login", "/register"].includes(location.pathname)) {
-          navigate("/login", { replace: true });
+    const checkAuth = async () => {
+      try {
+        const user = await authService.getProfile();
+        if (user) {
+          setIsAuthenticated(true);
+          setUserRole(user.role);
+          
+          if (location === '/login') {
+            setLocation(user.role === 'admin' ? '/admin/dashboard' : '/');
+          }
+          else if (location.startsWith('/admin') && user.role !== 'admin') {
+            setLocation('/');
+          }
+        } else {
+          setIsAuthenticated(false);
+          setUserRole(null);
+          if (!["/login", "/register"].includes(location)) {
+            setLocation("/login");
+          }
         }
+      } catch (error) {
+        setIsAuthenticated(false);
+        setUserRole(null);
+        setLocation("/login");
       }
     };
 
     checkAuth();
-  }, [navigate, location.pathname]);
+  }, [location, setLocation]);
 
   if (isAuthenticated === null) {
     return <div>Loading...</div>;
   }
 
-  return isAuthenticated ? <PublicRoutes /> : <PublicRoutes />;
+  if (isAuthenticated) {
+    if (userRole === 'admin') {
+      return location.startsWith('/admin') ? <PrivateRoutes /> : <PublicRoutes />;
+    }
+    return <PublicRoutes />;
+  }
+
+  return <PublicRoutes />;
 };
 
 export default Router;

@@ -1,0 +1,529 @@
+import React, { useState, useEffect } from 'react';
+import { useParams, useLocation } from 'wouter';
+import Header from '../components/Header';
+import eventService from '../services/eventService';
+import announcementService from '../services/announcementService';
+import { Event, Announcement, isEvent } from '../types';
+import { IoCalendarOutline, IoPeopleOutline, IoLocationOutline, IoDesktopOutline } from 'react-icons/io5';
+import { BsThreeDotsVertical } from 'react-icons/bs';
+import { MdEdit, MdDelete, MdContentCopy, MdPushPin, MdInfoOutline } from 'react-icons/md';
+import { useAuth } from '../context/AuthContext';
+import { formatDistanceToNow } from 'date-fns';
+import { vi } from 'date-fns/locale';
+import EventImageGrid from '../components/EventImageGrid';
+import { toast } from 'react-toastify';
+import JoinEventButton from '../components/JoinEventButton';
+import { useEvents } from '../context/EventContext';
+
+const PostDetails: React.FC = () => {
+  const { id } = useParams();
+  const [location] = useLocation();
+  const { user } = useAuth();
+  const { updateEventParticipants } = useEvents();
+  const [post, setPost] = useState<Event | Announcement | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [activeDropdown, setActiveDropdown] = useState<string | null>(null);
+  const [isJoining, setIsJoining] = useState(false);
+  const [currentParticipants, setCurrentParticipants] = useState<string[]>([]);
+
+  const isEventPage = location.includes('/events/');
+
+  const formatTimeAgo = (date: string | Date) => {
+    return formatDistanceToNow(new Date(date), { 
+      addSuffix: true,
+      locale: vi
+    });
+  };
+
+  useEffect(() => {
+    const fetchPostDetails = async () => {
+      try {
+        setLoading(true);
+        if (isEventPage) {
+          const data = await eventService.getEventById(id);
+          setPost(data);
+        } else {
+          const data = await announcementService.getAnnouncementById(id);
+          setPost(data);
+        }
+      } catch (err) {
+        setError('Error fetching post details');
+        console.error(err);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    if (id) {
+      fetchPostDetails();
+    }
+  }, [id, isEventPage]);
+
+  useEffect(() => {
+    if (post && isEvent(post)) {
+      setCurrentParticipants(post.participants);
+    }
+  }, [post]);
+
+  const handleParticipantUpdate = (isJoining: boolean) => {
+    if (!user?._id) return;
+    
+    // Cập nhật cả 2 state đồng thời
+    setCurrentParticipants(prev => {
+      if (isJoining) {
+        return [...prev, user._id];
+      } else {
+        return prev.filter(id => id !== user._id);
+      }
+    });
+
+    // Gọi update trong context để cập nhật danh sách người tham gia
+    updateEventParticipants(id, user._id, isJoining);
+  };
+
+  const renderDropdownMenu = (item: Event | Announcement, type: 'event' | 'announcement') => {
+    const isCreator = item.creator?._id === user?._id;
+    const isAdmin = user?.role === 'admin';
+    const canModify = isCreator || isAdmin;
+
+    const handleDelete = async () => {
+      if (!window.confirm(`Bạn có chắc chắn muốn xóa ${type === 'event' ? 'sự kiện' : 'thông báo'} này?`)) {
+        return;
+      }
+
+      try {
+        if (type === 'event') {
+          await eventService.deleteEvent(item._id);
+          toast.success('Đã xóa sự kiện thành công');
+        } else {
+          await announcementService.deleteAnnouncement(item._id);
+          toast.success('Đã xóa thông báo thành công');
+        }
+        navigate('/');
+      } catch (error: any) {
+        toast.error(error.response?.data?.message || `Lỗi khi xóa ${type === 'event' ? 'sự kiện' : 'thông báo'}`);
+      }
+      setActiveDropdown(null);
+    };
+
+    return (
+      <div className="relative">
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            setActiveDropdown(activeDropdown === item._id ? null : item._id);
+          }}
+          className="p-1 hover:bg-gray-100 rounded-full transition-colors"
+        >
+          <BsThreeDotsVertical className="text-gray-600" />
+        </button>
+
+        {activeDropdown === item._id && (
+          <>
+            <div
+              className="fixed inset-0 z-10"
+              onClick={() => setActiveDropdown(null)}
+            ></div>
+            <div className="absolute right-0 top-8 w-48 bg-white rounded-lg shadow-lg border border-gray-200 py-1 z-20">
+              <button
+                onClick={() => {
+                  // Handle view details action
+                  setActiveDropdown(null);
+                }}
+                className="w-full px-4 py-2 text-left text-sm hover:bg-gray-100 flex items-center gap-2"
+              >
+                <MdInfoOutline className="text-blue-600" />
+                <span>View details</span>
+              </button>
+
+              {canModify && (
+                <>
+                  <button
+                    onClick={() => {
+                      // Handle edit
+                      setActiveDropdown(null);
+                    }}
+                    className="w-full px-4 py-2 text-left text-sm hover:bg-gray-100 flex items-center gap-2"
+                  >
+                    <MdEdit className="text-blue-600" />
+                    <span>Edit {type}</span>
+                  </button>
+                  
+                  <button
+                    onClick={handleDelete}
+                    className="w-full px-4 py-2 text-left text-sm hover:bg-gray-100 text-red-600 flex items-center gap-2"
+                  >
+                    <MdDelete className="text-red-600" />
+                    <span>Delete {type}</span>
+                  </button>
+                </>
+              )}
+
+              {isAdmin && (
+                <>
+                  {type === 'event' && (
+                    <button
+                      onClick={() => {
+                        // Handle duplicate
+                        setActiveDropdown(null);
+                      }}
+                      className="w-full px-4 py-2 text-left text-sm hover:bg-gray-100 flex items-center gap-2"
+                    >
+                      <MdContentCopy className="text-green-600" />
+                      <span>Duplicate event</span>
+                    </button>
+                  )}
+                  
+                  <button
+                    onClick={() => {
+                      // Handle pin/priority
+                      setActiveDropdown(null);
+                    }}
+                    className="w-full px-4 py-2 text-left text-sm hover:bg-gray-100 flex items-center gap-2"
+                  >
+                    <MdPushPin className="text-orange-600" />
+                    <span>{type === 'announcement' ? 'Change priority' : 'Pin to top'}</span>
+                  </button>
+                </>
+              )}
+            </div>
+          </>
+        )}
+      </div>
+    );
+  };
+
+  const renderEventDetails = (post: Event) => (
+    <div className="lg:col-span-2">
+      <div className="bg-white rounded-lg shadow-sm overflow-hidden">
+        <div className="flex items-center justify-between p-4 border-b border-[#EDEDED]">
+          <div className="flex items-center">
+            <img
+              src={post.organizer?.avatar?.url || '/default-avatar.png'}
+              alt={post.organizer?.fullName || 'User'}
+              className="w-10 h-10 rounded-full object-cover"
+              onError={(e) => {
+                const target = e.target as HTMLImageElement;
+                target.src = '/default-avatar.png';
+              }}
+            />
+            <div className="ml-3">
+              <h3 className="text-sm font-semibold text-[#000000]">
+                {post.organizer?.fullName || 'Anonymous'}
+              </h3>
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-gray-500">
+                  {formatTimeAgo(post.createdAt)}
+                </span>
+                <div className="flex items-center gap-3">
+                  {(post.eventType === 'offline' || post.eventType === 'hybrid') && 
+                    post.location?.physical?.address && (
+                      <div className="flex items-center space-x-1">
+                        <IoLocationOutline className="text-orange-500 w-3 h-3" />
+                        <span className="text-xs text-gray-500">
+                          {post.location.physical.room 
+                            ? `${post.location.physical.address} - ${post.location.physical.room}`
+                            : post.location.physical.address}
+                        </span>
+                      </div>
+                  )}
+                  {(post.eventType === 'online' || post.eventType === 'hybrid') && 
+                    post.location?.online?.platform && (
+                      <div className="flex items-center space-x-1">
+                        <IoDesktopOutline className="text-orange-500 w-3 h-3" />
+                        <span className="text-xs text-gray-500">
+                          {post.location.online.platform} Meeting
+                        </span>
+                      </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+          {(
+            renderDropdownMenu(post, 'event')
+          )}
+        </div>
+
+        <div className="p-4 flex flex-col">
+          <h2 className="text-base font-semibold text-[#000000] mb-4">{post.title}</h2>
+          <p className="text-sm text-[#666666] mb-6">{post.description}</p>
+
+          {post.images?.length > 0 && (
+            <EventImageGrid 
+              images={post.images} 
+              title={post.title} 
+              event={{
+                title: post.title,
+                description: post.description,
+                organizer: {
+                  fullName: post.organizer.fullName,
+                  avatar: post.organizer.avatar,
+                },
+                createdAt: post.createdAt,
+                eventType: post.eventType,
+                location: post.location,
+                participants: post.participants,
+                status: post.status
+              }}
+            />
+          )}
+
+          <div className="mt-6 flex items-center justify-between border-t pt-6">
+            <div className="flex items-center gap-4">
+              <span className="text-sm text-gray-600 flex items-center gap-2">
+                <IoPeopleOutline className="text-orange-500" />
+                {currentParticipants.length} người tham gia
+              </span>
+            </div>
+            <JoinEventButton
+              eventId={post._id}
+              participants={currentParticipants}
+              startDate={post.startDate}
+              endDate={post.endDate}
+              status={post.status}
+              onJoinSuccess={() => {
+                handleParticipantUpdate(true);
+              }}
+              onLeaveSuccess={() => {
+                handleParticipantUpdate(false);
+              }}
+            />
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+
+  const renderAnnouncementDetails = (announcement: Announcement) => (
+    <div className="lg:col-span-2">
+      <div className={`bg-white rounded-lg shadow-sm p-4 
+        ${announcement.priority >= 4 ? 'border-l-4 border-red-500' : ''}`}
+      >
+        <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center">
+            <img
+              src={announcement.creator?.avatar?.url || '/default-avatar.png'}
+              alt={announcement.creator?.fullName}
+              className="w-10 h-10 rounded-full object-cover"
+              onError={(e) => {
+                const target = e.target as HTMLImageElement;
+                target.src = '/default-avatar.png';
+              }}
+            />
+            <div className="ml-3">
+              <h3 className="font-semibold">{announcement.creator?.fullName}</h3>
+              <p className="text-sm text-gray-500">
+                {formatTimeAgo(announcement.createdAt)}
+              </p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            {announcement.priority >= 4 && (
+              <span className="bg-red-100 text-red-800 text-xs font-medium px-2.5 py-0.5 rounded">
+                Urgent
+              </span>
+            )}
+            <span className={`text-xs font-medium px-2.5 py-0.5 rounded ${
+              announcement.category === 'general' ? 'bg-blue-100 text-blue-800' :
+              announcement.category === 'academic' ? 'bg-green-100 text-green-800' :
+              announcement.category === 'event' ? 'bg-purple-100 text-purple-800' :
+              announcement.category === 'news' ? 'bg-yellow-100 text-yellow-800' :
+              'bg-gray-100 text-gray-800'
+            }`}>
+              {announcement.category.charAt(0).toUpperCase() + announcement.category.slice(1)}
+            </span>
+            {renderDropdownMenu(announcement, 'announcement')}
+          </div>
+        </div>
+
+        <h2 className="text-lg font-semibold mb-2">{announcement.title}</h2>
+        <p className="text-gray-700 mb-4 whitespace-pre-line">{announcement.content}</p>
+
+        {announcement.images && announcement.images.length > 0 && (
+          <div className="mt-4 mb-4">
+            <EventImageGrid 
+              images={announcement.images}
+              title={announcement.title}
+              event={{
+                title: announcement.title,
+                description: announcement.content,
+                organizer: {
+                  fullName: announcement.creator.fullName,
+                  avatar: announcement.creator.avatar,
+                },
+                createdAt: new Date(announcement.createdAt),
+                status: announcement.status,
+                category: announcement.category,
+                priority: announcement.priority
+              }}
+            />
+          </div>
+        )}
+
+        <div className="mt-4 pt-4 border-t border-gray-100">
+          <div className="flex justify-between items-center text-xs text-gray-500">
+            <span>Expires: {new Date(announcement.expiresAt).toLocaleDateString()}</span>
+            {announcement.department && (
+              <span>Department: {announcement.department.name}</span>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+
+  return (
+    <div className="min-h-screen bg-[#F3F2EF]">
+      <Header />
+      <main className="container mx-auto px-4 py-8">
+        {loading ? (
+          <div className="flex justify-center items-center h-[calc(100vh-200px)]">
+            <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-orange-500"></div>
+          </div>
+        ) : error || !post ? (
+          <div className="text-center py-12">
+            <h2 className="text-2xl font-bold text-gray-900">Post not found</h2>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+            {isEventPage ? renderEventDetails(post as Event) : renderAnnouncementDetails(post as Announcement)}
+            <div className="lg:col-span-1">
+              {isEventPage ? (
+                <EventSidebar 
+                  event={post as Event}
+                  currentParticipants={currentParticipants}
+                  handleParticipantUpdate={handleParticipantUpdate}
+                />
+              ) : (
+                <AnnouncementSidebar announcement={post as Announcement} />
+              )}
+            </div>
+          </div>
+        )}
+      </main>
+    </div>
+  );
+};
+
+interface EventSidebarProps {
+  event: Event;
+  currentParticipants: string[];
+  handleParticipantUpdate: (isJoining: boolean) => void;
+}
+
+const EventSidebar: React.FC<EventSidebarProps> = ({ event, currentParticipants, handleParticipantUpdate }) => {
+  const { user } = useAuth();
+  const { currentParticipantList, fetchParticipants } = useEvents();
+
+  // Fetch participants when component mounts or event changes
+  useEffect(() => {
+    if (event._id) {
+      fetchParticipants(event._id);
+    }
+  }, [event._id, fetchParticipants]);
+
+  return (
+    <div className="sticky top-20 space-y-4">
+      <div className="bg-white rounded-2xl shadow-sm p-6">
+        <div className="flex justify-between items-center mb-6">
+          <h3 className="text-xl font-bold text-gray-900">Tham gia sự kiện</h3>
+          <span className={`px-3 py-1 rounded-full text-sm font-medium
+            ${event.status === 'upcoming' ? 'bg-green-100 text-green-800' :
+              event.status === 'ongoing' ? 'bg-blue-100 text-blue-800' :
+              event.status === 'completed' ? 'bg-gray-100 text-gray-800' :
+              'bg-red-100 text-red-800'}`}
+          >
+            {event.status === 'upcoming' ? 'Sắp diễn ra' :
+             event.status === 'ongoing' ? 'Đang diễn ra' :
+             event.status === 'completed' ? 'Đã kết thúc' : 'Đã hủy'}
+          </span>
+        </div>
+
+        <JoinEventButton
+          eventId={event._id}
+          participants={currentParticipants}
+          startDate={event.startDate}
+          endDate={event.endDate}
+          status={event.status}
+          onJoinSuccess={() => handleParticipantUpdate(true)}
+          onLeaveSuccess={() => handleParticipantUpdate(false)}
+        />
+      </div>
+
+      <div className="bg-white rounded-2xl shadow-sm p-6">
+        <h3 className="text-xl font-bold text-gray-900 mb-4">Người tham gia</h3>
+        <p className="text-gray-600 mb-4">
+          {currentParticipants?.length || 0} người đã tham gia
+        </p>
+
+        <div className="space-y-4">
+          {currentParticipantList.length > 0 ? (
+            currentParticipantList.map((participant) => (
+              <div key={participant._id} className="flex items-center gap-3">
+                <img
+                  src={participant.avatar?.url || '/default-avatar.png'}
+                  alt={participant.fullName}
+                  className="w-10 h-10 rounded-full object-cover border border-gray-200"
+                  onError={(e) => {
+                    const target = e.target as HTMLImageElement;
+                    target.src = '/default-avatar.png';
+                  }}
+                />
+                <div>
+                  <p className="text-sm font-medium text-gray-900">
+                    {participant.fullName}
+                  </p>
+                  <p className="text-xs text-gray-500">
+                    {participant.registrationStatus === 'approved' ? 'Đã tham gia' : 'Đã hủy'}
+                  </p>
+                </div>
+              </div>
+            ))
+          ) : (
+            <p className="text-sm text-gray-500 italic">
+              Chưa có người tham gia
+            </p>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+};
+
+const AnnouncementSidebar = ({ announcement }: { announcement: Announcement }) => {
+  return (
+    <div className="sticky top-20 space-y-6">
+      <div className="bg-white rounded-2xl shadow-sm p-6">
+        <div className="flex justify-between items-center mb-6">
+          <h3 className="text-xl font-bold text-gray-900">Details</h3>
+          <span className={`px-3 py-1 rounded-full text-sm font-medium
+            ${announcement.priority >= 4 ? 'bg-red-100 text-red-800' : 'bg-blue-100 text-blue-800'}`}
+          >
+            {announcement.priority >= 4 ? 'Urgent' : 'Regular'}
+          </span>
+        </div>
+
+        <div className="space-y-4">
+          <div>
+            <h4 className="text-sm font-medium text-gray-700">Category</h4>
+            <p className="text-gray-600">{announcement.category}</p>
+          </div>
+          <div>
+            <h4 className="text-sm font-medium text-gray-700">Department</h4>
+            <p className="text-gray-600">{announcement.department?.name || 'All Departments'}</p>
+          </div>
+          <div>
+            <h4 className="text-sm font-medium text-gray-700">Expires</h4>
+            <p className="text-gray-600">
+              {new Date(announcement.expiresAt).toLocaleDateString()}
+            </p>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+export default PostDetails;

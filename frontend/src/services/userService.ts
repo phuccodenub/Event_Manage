@@ -61,6 +61,36 @@ const userService = {
     const response = await apiClient.delete('/users/me/avatar');
     return response.data?.data;
   },
+
+  getUsers: async (): Promise<User[]> => {
+    try {
+      const response = await apiClient.get('/users');
+      return response.data?.data || [];
+    } catch (error) {
+      console.error('Error fetching users:', error);
+      return [];
+    }
+  },
+
+  createUser: async (userData: Partial<User>) => {
+    try {
+      const response = await apiClient.post('/users', userData);
+      return response.data.data;
+    } catch (error: any) {
+      console.error('Error creating user:', error.response?.data || error.message);
+      throw error;
+    }
+  },
+
+  updateUser: async (id: string, userData: any) => {
+    const response = await apiClient.put(`/users/${id}`, userData);
+    return response.data.data;
+  },
+
+  deleteUser: async (id: string) => {
+    const response = await apiClient.delete(`/users/${id}`);
+    return response.data.data;
+  },
 };
 
 export default userService;

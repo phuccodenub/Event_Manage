@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import Header from '../../components/Header';
-import PlanSelectionModal from '../../components/PlanSelectionModal';
-import ContactModal from '../../components/ContactModal';
+import PlanSelectionModal from '../../components/modals/PlanSelectionModal';
+import ContactModal from '../../components/modals/ContactModal';
 import { IoCheckmarkCircle, IoBriefcaseOutline, IoPeopleOutline, 
          IoTrendingUpOutline } from 'react-icons/io5';
 

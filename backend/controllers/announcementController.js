@@ -82,20 +82,50 @@ exports.updateAnnouncement = async (req, res, next) => {
   }
 };
 
-exports.deleteAnnouncement = async (req, res, next) => {
+exports.updateAnnouncementStatus = async (req, res, next) => {
   try {
-    const announcement = await Announcement.findById(req.params.id);
+    const { status } = req.body;
     
+    // Validate status
+    const validStatuses = ['active', 'expired', 'archived', 'published', 'draft'];
+    if (!validStatuses.includes(status)) {
+      return next(new ErrorResponse('Invalid status value', 400));
+    }
+
+    const announcement = await Announcement.findByIdAndUpdate(
+      req.params.id,
+      { status },
+      { new: true }
+    ).populate('creator', 'fullName email avatar')
+     .populate('department', 'name');
+
     if (!announcement) {
       return next(new ErrorResponse('Announcement not found', 404));
     }
 
-    // Check authorization
-    if (announcement.creator.toString() !== req.user.id && req.user.role !== 'admin') {
-      return next(new ErrorResponse('Not authorized to delete this announcement', 403));
+    res.status(200).json({
+      success: true,
+      data: announcement
+    });
+  } catch (error) {
+    next(new ErrorResponse('Error updating announcement status', 500));
+  }
+};
+
+exports.deleteAnnouncement = async (req, res, next) => {
+  try {
+    const announcement = await Announcement.findById(req.params.id);
+
+    if (!announcement) {
+      return next(new ErrorResponse('Không tìm thấy thông báo', 404));
     }
 
-    // Delete images from Cloudinary
+    // Check authorization
+    if (announcement.creator.toString() !== req.user.id && req.user.role !== 'admin') {
+      return next(new ErrorResponse('Bạn không có quyền xóa thông báo này', 403));
+    }
+
+    // Delete images from Cloudinary if any
     if (announcement.images?.length > 0) {
       const deletePromises = announcement.images.map(img => 
         deleteFromCloudinary(img.public_id)
@@ -103,13 +133,36 @@ exports.deleteAnnouncement = async (req, res, next) => {
       await Promise.all(deletePromises);
     }
 
-    await announcement.remove();
+    await Announcement.findByIdAndDelete(req.params.id);
 
     res.status(200).json({
       success: true,
+      message: 'Đã xóa thông báo thành công',
       data: {}
     });
   } catch (error) {
-    next(new ErrorResponse(error.message, 500));
+    next(new ErrorResponse('Có lỗi xảy ra khi xóa thông báo', 500));
+  }
+};
+
+exports.getAnnouncementById = async (req, res, next) => {
+  try {
+    const announcement = await Announcement.findById(req.params.id)
+      .populate('creator', 'fullName email avatar')
+      .populate('department', 'name');
+
+    if (!announcement) {
+      return res.status(404).json({
+        success: false,
+        error: 'Announcement not found'
+      });
+    }
+
+    res.status(200).json({
+      success: true,
+      data: announcement
+    });
+  } catch (error) {
+    next(error);
   }
 };

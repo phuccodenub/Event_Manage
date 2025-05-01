@@ -13,8 +13,12 @@ const registrationSchema = new mongoose.Schema({
   },
   status: {
     type: String,
-    enum: ['pending', 'approved', 'rejected', 'attended'],
+    enum: ['pending', 'approved', 'rejected', 'cancelled', 'attended'],
     default: 'pending'
+  },
+  registeredAt: {
+    type: Date,
+    default: Date.now
   },
   attendanceTime: {
     type: Date

@@ -5,7 +5,9 @@ const {
   getAllAnnouncements,
   createAnnouncement,
   updateAnnouncement,
-  deleteAnnouncement
+  deleteAnnouncement,
+  getAnnouncementById,
+  updateAnnouncementStatus
 } = require('../controllers/announcementController');
 
 router.route('/')
@@ -15,5 +17,10 @@ router.route('/')
 router.route('/:id')
   .put(protect, authorize('admin'), updateAnnouncement)
   .delete(protect, authorize('admin'), deleteAnnouncement);
+
+router.get('/:id', getAnnouncementById);
+
+// Add new route for status update
+router.patch('/:id/status', protect, authorize('admin'), updateAnnouncementStatus);
 
 module.exports = router;

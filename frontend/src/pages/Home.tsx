@@ -8,13 +8,18 @@ import LeftSidebar from '../components/LeftSidebar';
 import RightSidebar from '../components/RightSidebar';
 import eventService from '../services/eventService';
 import announcementService from '../services/announcementService';
-import CreateEventModal from '../components/CreateEventModal';
+import CreateEventModal from '../components/modals/CreateEventModal';
 import EventImageGrid from '../components/EventImageGrid';
-import EditEventModal from '../components/EditEventModal';
-import EditAnnouncementModal from '../components/EditAnnouncementModal';
+import EditEventModal from '../components/modals/EditEventModal';
+import EditAnnouncementModal from '../components/modals/EditAnnouncementModal';
 import { Event } from '../types';
 import { useAuth } from '../context/AuthContext';
 import { formatDistanceToNow } from 'date-fns';
+import { vi } from 'date-fns/locale';
+import { useNavigate } from 'react-router-dom';
+import { toast } from 'react-toastify';
+import { useEvents } from '../context/EventContext';
+import JoinEventButton from '../components/JoinEventButton';
 
 // Interface for Event
 interface Event {
@@ -82,8 +87,9 @@ interface Announcement {
 }
 
 const Home: React.FC = () => {
+  const { events, setEvents, updateEventParticipants } = useEvents();
   const { user } = useAuth();
-  const [events, setEvents] = useState<Event[]>([]);
+  const navigate = useNavigate();
   const [announcements, setAnnouncements] = useState<Announcement[]>([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
@@ -122,6 +128,21 @@ const Home: React.FC = () => {
     return formatDistanceToNow(new Date(date), { addSuffix: true });
   };
 
+  const formatTimeAgo = (date: string | Date) => {
+    return formatDistanceToNow(new Date(date), { 
+      addSuffix: true,
+      locale: vi // Sử dụng tiếng Việt
+    });
+  };
+
+  const handleTimeClick = (post: Event | Announcement) => {
+    if ('startDate' in post) {
+      navigate(`/events/${post._id}`);
+    } else {
+      navigate(`/announcements/${post._id}`);
+    }
+  };
+
   useEffect(() => {
     const fetchContent = async () => {
       try {
@@ -143,7 +164,15 @@ const Home: React.FC = () => {
           return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
         });
 
-        const sortedEvents = sortEvents(fetchedEvents);
+        // Ensure participants are mapped correctly
+        const formattedEvents = fetchedEvents.map(event => ({
+          ...event,
+          participants: event.participants.map((p: any) => 
+            typeof p === 'string' ? p : p._id.toString()
+          )
+        }));
+
+        const sortedEvents = sortEvents(formattedEvents);
         
         setAnnouncements(activeAnnouncements);
         setEvents(sortedEvents);
@@ -182,20 +211,19 @@ const Home: React.FC = () => {
     }
   };
 
-  const handleDeleteEvent = async (eventId: string) => {
-    if (!window.confirm('Are you sure you want to delete this event?')) {
-      return;
-    }
+  const handleDeletePost = async (id: string, type: 'event' | 'announcement') => {
     try {
-      setIsLoading(true);
-      await eventService.deleteEvent(eventId);
-      setEvents(prevEvents => prevEvents.filter(event => event._id !== eventId));
-      setError(null);
+      if (type === 'event') {
+        await eventService.deleteEvent(id);
+        setEvents(prev => prev.filter(event => event._id !== id));
+        toast.success('Đã xóa sự kiện thành công');
+      } else {
+        await announcementService.deleteAnnouncement(id);
+        setAnnouncements(prev => prev.filter(ann => ann._id !== id));
+        toast.success('Đã xóa thông báo thành công');
+      }
     } catch (error: any) {
-      setError(error.response?.data?.message || 'Error deleting event');
-      console.error('Error deleting event:', error);
-    } finally {
-      setIsLoading(false);
+      toast.error(error.response?.data?.message || 'Có lỗi xảy ra khi xóa');
     }
   };
 
@@ -210,19 +238,6 @@ const Home: React.FC = () => {
     } catch (error: any) {
       setError(error.response?.data?.message || 'Error updating event');
       console.error('Error updating event:', error);
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const handleDeleteAnnouncement = async (id: string) => {
-    try {
-      setIsLoading(true);
-      await announcementService.deleteAnnouncement(id);
-      setAnnouncements(prev => prev.filter(announcement => announcement._id !== id));
-      setError(null);
-    } catch (error: any) {
-      setError(error.response?.data?.message || 'Error deleting announcement');
     } finally {
       setIsLoading(false);
     }
@@ -302,11 +317,7 @@ const Home: React.FC = () => {
                   <button
                     onClick={() => {
                       if (window.confirm(`Are you sure you want to delete this ${type}?`)) {
-                        if (type === 'event') {
-                          handleDeleteEvent(item._id);
-                        } else {
-                          handleDeleteAnnouncement(item._id);
-                        }
+                        handleDeletePost(item._id, type);
                       }
                       setActiveDropdown(null);
                     }}
@@ -372,8 +383,14 @@ const Home: React.FC = () => {
           />
           <div className="ml-3">
             <h3 className="font-semibold">{announcement.creator?.fullName}</h3>
-            <p className="text-sm text-gray-500">
-              {formatEventDate(new Date(announcement.createdAt))}
+            <p 
+              className="text-sm text-gray-500 hover:text-orange-600 cursor-pointer"
+              onClick={(e) => {
+                e.stopPropagation();
+                handleTimeClick(announcement);
+              }}
+            >
+              {formatTimeAgo(announcement.createdAt)}
             </p>
           </div>
         </div>
@@ -452,7 +469,15 @@ const Home: React.FC = () => {
               {event.organizer?.fullName || 'Anonymous'}
             </h3>
             <div className="flex items-center gap-2">
-              <span className="text-xs text-gray-500">{formatEventDate(event.createdAt)}</span>
+              <span 
+                className="text-xs text-gray-500 hover:text-orange-600 cursor-pointer"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleTimeClick(event);
+                }}
+              >
+                {formatTimeAgo(event.createdAt)}
+              </span>
               <div className="flex items-center gap-3">
                 {(event.eventType === 'offline' || event.eventType === 'hybrid') && 
                   event.location?.physical?.address && (
@@ -506,18 +531,28 @@ const Home: React.FC = () => {
         )}
 
         <div className="mt-auto pt-4 border-t border-[#EDEDED]">
-          <div className="flex justify-between items-center text-xs text-[#666666] mb-3">
-            <span>{event.participants.length} attendees</span>
-            <span>Status: {event.status}</span>
-          </div>
-
-          <div className="flex gap-2">
-            <button
-              className="flex-1 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition-colors"
-              disabled={isLoading}
-            >
-              {isLoading ? 'Processing...' : 'Join'}
-            </button>
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-4">
+              <span className="text-sm text-gray-600">
+                {event.participants.length} người tham gia
+              </span>
+              <span className="text-sm text-gray-600">
+                Trạng thái: {event.status.charAt(0).toUpperCase() + event.status.slice(1)}
+              </span>
+            </div>
+            <JoinEventButton
+              eventId={event._id}
+              participants={event.participants}
+              startDate={event.startDate}
+              endDate={event.endDate}
+              status={event.status}
+              onJoinSuccess={() => {
+                updateEventParticipants(event._id, user?._id, true);
+              }}
+              onLeaveSuccess={() => {
+                updateEventParticipants(event._id, user?._id, false);
+              }}
+            />
           </div>
         </div>
       </div>

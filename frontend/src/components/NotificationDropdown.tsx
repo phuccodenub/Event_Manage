@@ -1,6 +1,8 @@
-import React, { useRef, useEffect } from 'react';
+import React, { useRef, useEffect, useMemo } from 'react';
 import { IoTimeOutline, IoCheckmarkCircleOutline, IoCalendarOutline, IoLocationOutline, IoNotificationsOffOutline, IoFlameOutline } from 'react-icons/io5';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
+import { toast } from 'react-toastify';
+import { useNotifications } from '../context/NotificationContext';
 
 interface NotificationDropdownProps {
   isOpen: boolean;
@@ -8,6 +10,8 @@ interface NotificationDropdownProps {
 }
 
 const NotificationDropdown: React.FC<NotificationDropdownProps> = ({ isOpen, onClose }) => {
+  const { notifications, markAllAsRead, markAsRead } = useNotifications();
+  const navigate = useNavigate();
   const dropdownRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -26,44 +30,37 @@ const NotificationDropdown: React.FC<NotificationDropdownProps> = ({ isOpen, onC
     };
   }, [isOpen, onClose]);
 
-  if (!isOpen) return null;
-
-  const notifications = [
-    {
-      id: 1,
-      type: 'event',
-      title: 'Sự kiện sắp diễn ra',
-      message: 'Workshop "Kỹ năng mềm trong công việc" sẽ diễn ra trong 2 giờ nữa',
-      time: '2 giờ trước',
-      isRead: false,
-      eventDetails: {
-        date: '15/04/2024',
-        location: 'Hội trường A',
-        participants: 45
-      }
-    },
-    {
-      id: 2,
-      type: 'reminder',
-      title: 'Nhắc nhở sự kiện',
-      message: 'Sự kiện "Ngày hội việc làm IT 2024" sẽ diễn ra vào ngày mai',
-      time: '5 giờ trước',
-      isRead: false,
-      eventDetails: {
-        date: '16/04/2024',
-        location: 'Sảnh A',
-        participants: 120
-      }
-    },
-    {
-      id: 3,
-      type: 'success',
-      title: 'Đăng ký thành công',
-      message: 'Bạn đã đăng ký thành công sự kiện "Hội thảo AWS Cloud"',
-      time: '1 ngày trước',
-      isRead: true
+  const handleMarkAllAsRead = async () => {
+    try {
+      await markAllAsRead();
+      toast.success('Đã đánh dấu tất cả là đã đọc');
+    } catch (error) {
+      toast.error('Có lỗi xảy ra khi cập nhật thông báo');
     }
-  ];
+  };
+
+  const recentNotifications = useMemo(() => 
+    notifications.slice(0, 5),
+    [notifications]
+  );
+
+  const handleNotificationClick = async (notification: any) => {
+    try {
+      await markAsRead(notification._id);
+      if (notification.relatedModel && notification.relatedId) {
+        const path = notification.relatedModel.toLowerCase();
+        navigate(`/${path}s/${notification.relatedId}`);
+        onClose();
+      } else if (notification.link) {
+        navigate(notification.link);
+        onClose();
+      }
+    } catch (error) {
+      console.error('Error handling notification click:', error);
+    }
+  };
+
+  if (!isOpen) return null;
 
   return (
     <div ref={dropdownRef} className="absolute right-0 w-[380px] z-50">
@@ -77,7 +74,7 @@ const NotificationDropdown: React.FC<NotificationDropdownProps> = ({ isOpen, onC
                 <span className="absolute -top-1 -right-1 flex h-4 w-4">
                   <span className="absolute inline-flex h-full w-full rounded-full bg-orange-500 opacity-50 animate-ping"></span>
                   <span className="relative inline-flex rounded-full h-4 w-4 bg-orange-600 text-[10px] text-white items-center justify-center font-medium">
-                    2
+                    {notifications.filter((n) => !n.read).length}
                   </span>
                 </span>
               </div>
@@ -86,80 +83,87 @@ const NotificationDropdown: React.FC<NotificationDropdownProps> = ({ isOpen, onC
                 <p className="text-xs text-gray-500">{new Date().toLocaleDateString()}</p>
               </div>
             </div>
-            <button className="text-sm text-orange-600 hover:text-orange-700 font-medium px-3 py-1.5 rounded-lg hover:bg-orange-50/80 transition-colors">
-              Đã đọc tất cả
+            <button
+              onClick={handleMarkAllAsRead}
+              className="text-sm text-orange-600 hover:text-orange-700 font-medium px-3 py-1.5 rounded-lg hover:bg-orange-50/80 transition-colors"
+            >
+              Đánh dấu tất cả là đã đọc
             </button>
           </div>
         </div>
 
         {/* Notification List */}
         <div className="max-h-[480px] overflow-y-auto">
-          <div className="p-3 grid gap-2">
-            {notifications.map((notification) => (
-              <div
-                key={notification.id}
-                className={`
-                  relative group rounded-xl p-4 cursor-pointer
-                  transition-all duration-200 hover:bg-orange-50
-                  ${!notification.isRead && 'bg-gradient-to-r from-orange-50/50 to-transparent'}
-                `}
-              >
-                {/* Hover Effect Border */}
-                <div className="absolute inset-0 rounded-xl border-2 border-transparent group-hover:border-orange-200/50 transition-colors" />
+          {recentNotifications.length > 0 ? (
+            <div className="p-3 grid gap-2">
+              {recentNotifications.map((notification) => (
+                <div
+                  key={notification._id}
+                  onClick={() => handleNotificationClick(notification)}
+                  className={`relative group rounded-xl p-4 cursor-pointer
+                    ${!notification.read ? 'bg-orange-50/50' : 'bg-white'}`}
+                >
+                  {/* Hover Effect Border */}
+                  <div className="absolute inset-0 rounded-xl border-2 border-transparent group-hover:border-orange-200/50 transition-colors" />
 
-                <div className="relative flex gap-4">
-                  {/* Animated Icon Container */}
-                  <div className={`
-                    relative flex-shrink-0 w-12 h-12 rounded-xl
-                    ${getNotificationTypeStyles(notification.type)}
-                    group-hover:scale-110 transform transition-all duration-300
-                    before:absolute before:inset-0 before:rounded-xl
-                    before:bg-black/5 before:opacity-0 group-hover:before:opacity-100
-                    before:transition-opacity
-                  `}>
-                    <div className="absolute inset-0 flex items-center justify-center">
-                      {getNotificationIcon(notification.type)}
-                    </div>
-                    {!notification.isRead && (
-                      <span className="absolute -top-1 -right-1 w-3 h-3 bg-orange-500 rounded-full ring-2 ring-white" />
-                    )}
-                  </div>
-
-                  {/* Content with Enhanced Typography */}
-                  <div className="flex-1 min-w-0 relative">
-                    <h4 className="font-semibold text-gray-900 group-hover:text-orange-600 transition-colors">
-                      {notification.title}
-                    </h4>
-                    <p className="mt-1 text-sm text-gray-600 line-clamp-2">
-                      {notification.message}
-                    </p>
-
-                    {notification.eventDetails && (
-                      <div className="mt-2 flex items-center gap-4 text-xs">
-                        <div className="flex items-center gap-1.5 text-gray-500">
-                          <IoCalendarOutline className="text-orange-500" />
-                          <span className="group-hover:text-orange-600 transition-colors">
-                            {notification.eventDetails.date}
-                          </span>
-                        </div>
-                        <div className="h-1 w-1 rounded-full bg-gray-300" />
-                        <div className="flex items-center gap-1.5 text-gray-500">
-                          <IoLocationOutline className="text-orange-500" />
-                          <span className="group-hover:text-orange-600 transition-colors">
-                            {notification.eventDetails.location}
-                          </span>
-                        </div>
+                  <div className="relative flex gap-4">
+                    {/* Animated Icon Container */}
+                    <div className={`relative flex-shrink-0 w-12 h-12 rounded-xl
+                      ${getNotificationTypeStyles(notification.type)}
+                      group-hover:scale-110 transform transition-all duration-300
+                      before:absolute before:inset-0 before:rounded-xl
+                      before:bg-black/5 before:opacity-0 group-hover:before:opacity-100
+                      before:transition-opacity
+                    `}>
+                      <div className="absolute inset-0 flex items-center justify-center">
+                        {getNotificationIcon(notification.type)}
                       </div>
-                    )}
-                    
-                    <span className="absolute top-0 right-0 text-xs text-gray-400 group-hover:text-orange-500 transition-colors">
-                      {notification.time}
-                    </span>
+                      {!notification.read && (
+                        <span className="absolute -top-1 -right-1 w-3 h-3 bg-orange-500 rounded-full ring-2 ring-white" />
+                      )}
+                    </div>
+
+                    {/* Content with Enhanced Typography */}
+                    <div className="flex-1 min-w-0 relative">
+                      <h4 className="font-semibold text-gray-900 group-hover:text-orange-600 transition-colors">
+                        {notification.title}
+                      </h4>
+                      <p className="mt-1 text-sm text-gray-600 line-clamp-2">
+                        {notification.message}
+                      </p>
+
+                      {notification.eventDetails && (
+                        <div className="mt-2 flex items-center gap-4 text-xs">
+                          <div className="flex items-center gap-1.5 text-gray-500">
+                            <IoCalendarOutline className="text-orange-500" />
+                            <span className="group-hover:text-orange-600 transition-colors">
+                              {notification.eventDetails.date}
+                            </span>
+                          </div>
+                          <div className="h-1 w-1 rounded-full bg-gray-300" />
+                          <div className="flex items-center gap-1.5 text-gray-500">
+                            <IoLocationOutline className="text-orange-500" />
+                            <span className="group-hover:text-orange-600 transition-colors">
+                              {notification.eventDetails.location}
+                            </span>
+                          </div>
+                        </div>
+                      )}
+                      
+                      <span className="absolute top-0 right-0 text-xs text-gray-400 group-hover:text-orange-500 transition-colors">
+                        {formatTimeAgo(new Date(notification.createdAt))}
+                      </span>
+                    </div>
                   </div>
                 </div>
-              </div>
-            ))}
-          </div>
+              ))}
+            </div>
+          ) : (
+            <div className="p-8 text-center text-gray-500">
+              <IoNotificationsOffOutline className="mx-auto text-4xl mb-2" />
+              <p>Không có thông báo mới</p>
+            </div>
+          )}
         </div>
 
         {/* Footer */}
@@ -205,6 +209,17 @@ const getNotificationIcon = (type: string) => {
     default:
       return <IoNotificationsOffOutline className={iconClass} />;
   }
+};
+
+const formatTimeAgo = (date: Date) => {
+  const now = new Date();
+  const diffInSeconds = Math.floor((now.getTime() - date.getTime()) / 1000);
+  
+  if (diffInSeconds < 60) return 'Vừa xong';
+  if (diffInSeconds < 3600) return `${Math.floor(diffInSeconds / 60)} phút trước`;
+  if (diffInSeconds < 86400) return `${Math.floor(diffInSeconds / 3600)} giờ trước`;
+  if (diffInSeconds < 2592000) return `${Math.floor(diffInSeconds / 86400)} ngày trước`;
+  return date.toLocaleDateString();
 };
 
 export default NotificationDropdown;

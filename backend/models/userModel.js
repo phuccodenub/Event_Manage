@@ -45,7 +45,18 @@ const userSchema = new mongoose.Schema({
   },
   class: {
     type: String,
-    required: true,
+    required: function() {
+      return this.role === 'student'; // Only required for students
+    },
+    validate: {
+      validator: function(value) {
+        if (this.role === 'student' && !value) {
+          return false;
+        }
+        return true;
+      },
+      message: 'Lớp là bắt buộc đối với sinh viên'
+    }
   },
   email: {
     type: String,
@@ -139,6 +150,27 @@ userSchema.methods.getResetPasswordToken = function() {
   this.passwordResetExpires = Date.now() + 15 * 60 * 1000; // 15 phút
 
   return resetToken;
+};
+
+// Thêm phương thức static để cập nhật sự kiện đã đăng ký
+userSchema.statics.updateRegisteredEvents = async function(userId, eventId, action) {
+  try {
+    const user = await this.findById(userId);
+    if (!user) throw new Error('User not found');
+
+    if (action === 'join') {
+      user.registeredEvents.addToSet(eventId);
+    } else if (action === 'leave') {
+      user.registeredEvents = user.registeredEvents.filter(
+        id => id.toString() !== eventId.toString()
+      );
+    }
+
+    await user.save();
+    return user;
+  } catch (error) {
+    throw error;
+  }
 };
 
 module.exports = mongoose.model('User', userSchema);

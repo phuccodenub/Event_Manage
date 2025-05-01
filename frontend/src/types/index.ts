@@ -37,15 +37,90 @@ export interface Event {
       meetingLink: string;
     };
   };
-  images: Avatar[];
+  images: Array<{
+    public_id: string;
+    url: string;
+  }>;
   organizer: {
     _id: string;
     fullName: string;
     email: string;
-    avatar?: Avatar;
+    avatar?: string;
   };
   participants: string[];
-  collaborators: string[];
-  status: 'upcoming' | 'ongoing' | 'completed' | 'cancelled';
-  creator: string;
+  creator: {
+    _id: string;
+    fullName: string;
+    avatar?: string;
+  };
+  status: 'sắp diễn ra' | 'đang diễn ra' | 'đã kết thúc' | 'đã hủy';
+}
+
+export interface Announcement {
+  _id: string;
+  title: string;
+  content: string;
+  category: string;
+  priority: number;
+  creator: {
+    _id: string;
+    fullName: string;
+    email: string;
+    avatar?: {
+      public_id: string;
+      url: string;
+    };
+  };
+  department?: {
+    _id: string;
+    name: string;
+  };
+  expiresAt: string;
+  status: 'active' | 'expired' | 'archived';
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface BasePost {
+  _id: string;
+  title: string;
+  creator: {
+    _id: string;
+    fullName: string;
+    avatar?: {
+      url: string;
+    };
+  };
+  createdAt: string;
+  images?: Array<{
+    public_id: string;
+    url: string;
+  }>;
+}
+
+export type Post = Event | Announcement;
+
+export function isEvent(post: Event | Announcement): post is Event {
+  return 'eventType' in post;
+}
+
+export function isAnnouncement(post: Post): post is Announcement {
+  return (post as Announcement).priority !== undefined;
+}
+
+export interface Notification {
+  relatedModel?: 'Event' | 'Announcement';
+  relatedId?: string;
+  link?: string;
+  createdAt: string;
+}
+
+export interface Department {
+  _id: string;
+  name: string;
+  code: string;
+  description?: string;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
 }

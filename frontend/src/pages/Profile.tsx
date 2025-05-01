@@ -3,7 +3,7 @@ import Header from '../components/Header';
 import { IoCamera, IoSchoolOutline, IoMailOutline, IoCallOutline, IoCalendarOutline, 
   IoLocationOutline, IoTimeOutline, IoCheckmarkCircle, IoPencil, IoShieldCheckmark } from 'react-icons/io5';
 import authService from '../services/authService';
-import AvatarUploadModal from '../components/AvatarUploadModal';
+import AvatarUploadModal from '../components/modals/AvatarUploadModal';
 import userService from '../services/userService';
 import { toast } from 'react-toastify';
 import { User } from '../types';

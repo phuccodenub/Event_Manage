@@ -29,8 +29,17 @@ exports.protect = async (req, res, next) => {
 
 exports.authorize = (...roles) => {
   return (req, res, next) => {
+    // Debug log để kiểm tra role
+    console.log('User role:', req.user.role);
+    console.log('Allowed roles:', roles);
+    
     if (!roles.includes(req.user.role)) {
-      return next(new ErrorResponse('Không có quyền thực hiện hành động này', 403));
+      return next(
+        new ErrorResponse(
+          `Không có quyền thực hiện hành động này`,
+          403
+        )
+      );
     }
     next();
   };

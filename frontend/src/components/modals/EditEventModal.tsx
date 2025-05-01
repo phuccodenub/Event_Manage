@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { IoClose } from 'react-icons/io5';
-import { Event } from '../types';
+import { Event } from '../../types';
 
 interface EditEventModalProps {
   isOpen: boolean;
