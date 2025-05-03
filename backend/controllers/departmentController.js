@@ -5,8 +5,8 @@ const catchAsyncErrors = require('../middleware/catchAsyncErrors');
 
 exports.getAllDepartments = catchAsyncErrors(async (req, res, next) => {
   const departments = await Department.find()
-    .populate('head', 'fullName')
-    .populate('eventManagers', 'fullName');
+    .populate('head')
+    .populate('eventManagers');
 
   res.status(200).json({
     success: true,
@@ -16,8 +16,8 @@ exports.getAllDepartments = catchAsyncErrors(async (req, res, next) => {
 
 exports.getDepartmentById = catchAsyncErrors(async (req, res, next) => {
   const department = await Department.findById(req.params.id)
-    .populate('head', 'fullName')
-    .populate('eventManagers', 'fullName');
+    .populate('head')
+    .populate('eventManagers');
 
   if (!department) {
     return next(new ErrorHandler('Department not found', 404));
@@ -96,7 +96,7 @@ exports.assignDepartmentHead = catchAsyncErrors(async (req, res, next) => {
       new: true,
       runValidators: true 
     }
-  ).populate('head', 'fullName email');
+  ).populate('head');
 
   if (!department) {
     return next(new ErrorHandler('Department not found', 404));
@@ -111,7 +111,7 @@ exports.assignDepartmentHead = catchAsyncErrors(async (req, res, next) => {
 // Get department head
 exports.getDepartmentHead = catchAsyncErrors(async (req, res, next) => {
   const department = await Department.findById(req.params.id)
-    .populate('head', 'fullName email');
+    .populate('head');
 
   if (!department) {
     return next(new ErrorHandler('Department not found', 404));

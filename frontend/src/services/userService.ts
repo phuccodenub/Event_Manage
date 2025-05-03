@@ -47,9 +47,26 @@ const userService = {
     return response.data?.data;
   },
 
-  getUserById: async (userId: string): Promise<User | null> => {
-    const response = await apiClient.get(`/users/${userId}`);
-    return response.data?.data || null;
+  getUserById: async (id: string): Promise<User> => {
+    try {
+      console.log('Fetching user:', `/users/${id}`); // Debug log
+
+      const response = await apiClient.get(`/users/${id}`);
+      console.log('Response:', response.data); // Debug log
+
+      if (!response.data.success) {
+        throw new Error(response.data.message || 'Failed to fetch user data');
+      }
+
+      return response.data.data;
+    } catch (error: any) {
+      console.error('Error details:', error.response || error); // Debug log
+      throw new Error(
+        error.response?.data?.message || 
+        error.message || 
+        'Failed to fetch user'
+      );
+    }
   },
 
   getRegisteredEvents: async (): Promise<User[]> => {

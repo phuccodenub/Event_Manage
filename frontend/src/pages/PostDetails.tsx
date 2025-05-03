@@ -5,7 +5,7 @@ import eventService from '../services/eventService';
 import announcementService from '../services/announcementService';
 import { Event, Announcement, isEvent } from '../types';
 import { IoCalendarOutline, IoPeopleOutline, IoLocationOutline, IoDesktopOutline } from 'react-icons/io5';
-import { BsThreeDotsVertical } from 'react-icons/bs';
+import { BsThreeDotsVertical, BsCalendarEvent, BsCalendarCheck } from 'react-icons/bs';
 import { MdEdit, MdDelete, MdContentCopy, MdPushPin, MdInfoOutline } from 'react-icons/md';
 import { useAuth } from '../context/AuthContext';
 import { formatDistanceToNow } from 'date-fns';
@@ -14,6 +14,7 @@ import EventImageGrid from '../components/EventImageGrid';
 import { toast } from 'react-toastify';
 import JoinEventButton from '../components/JoinEventButton';
 import { useEvents } from '../context/EventContext';
+import { formatDescriptionWithLinks } from '@/utils/linkUtils';
 
 const PostDetails: React.FC = () => {
   const { id } = useParams();
@@ -26,6 +27,8 @@ const PostDetails: React.FC = () => {
   const [activeDropdown, setActiveDropdown] = useState<string | null>(null);
   const [isJoining, setIsJoining] = useState(false);
   const [currentParticipants, setCurrentParticipants] = useState<string[]>([]);
+  const [isDescriptionExpanded, setIsDescriptionExpanded] = useState(false);
+  const [isExpanded, setIsExpanded] = useState(false);
 
   const isEventPage = location.includes('/events/');
 
@@ -194,6 +197,43 @@ const PostDetails: React.FC = () => {
     );
   };
 
+  const renderDescription = (description: string) => {
+    const parts = formatDescriptionWithLinks(description);
+    const shouldShowExpandButton = description.split('\n').length > 3;
+
+    return (
+      <div className="prose max-w-none">
+        <div className={`whitespace-pre-line ${!isExpanded ? 'line-clamp-3' : ''}`}>
+          {parts.map((part, index) => {
+            if (typeof part === 'string') {
+              return <span key={index}>{part}</span>;
+            }
+            return (
+              <a
+                key={index}
+                href={part.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-blue-600 hover:text-blue-800 hover:underline"
+                onClick={(e) => e.stopPropagation()}
+              >
+                {part.text}
+              </a>
+            );
+          })}
+        </div>
+        {shouldShowExpandButton && (
+          <button
+            onClick={() => setIsExpanded(!isExpanded)}
+            className="text-sm text-orange-600 hover:text-orange-700 mt-2 font-medium"
+          >
+            {isExpanded ? 'Ẩn bớt' : 'Xem thêm'}
+          </button>
+        )}
+      </div>
+    );
+  };
+
   const renderEventDetails = (post: Event) => (
     <div className="lg:col-span-2">
       <div className="bg-white rounded-lg shadow-sm overflow-hidden">
@@ -211,9 +251,17 @@ const PostDetails: React.FC = () => {
             <div className="ml-3">
               <h3 className="text-sm font-semibold text-[#000000]">
                 {post.organizer?.fullName || 'Anonymous'}
+                {post.department && (
+                  <>
+                    <span className="text-sm font-normal text-gray-600 ml-1">tại</span>
+                    <span className="text-sm font-semibold text-[#000000] ml-1">
+                      {post.department.name}
+                    </span>
+                  </>
+                )}
               </h3>
               <div className="flex items-center gap-2">
-                <span className="text-xs text-gray-500">
+                <span className="text-xs text-gray-500 hover:text-orange-600 cursor-pointer">
                   {formatTimeAgo(post.createdAt)}
                 </span>
                 <div className="flex items-center gap-3">
@@ -221,7 +269,7 @@ const PostDetails: React.FC = () => {
                     post.location?.physical?.address && (
                       <div className="flex items-center space-x-1">
                         <IoLocationOutline className="text-orange-500 w-3 h-3" />
-                        <span className="text-xs text-gray-500">
+                        <span className="text-xs text-gray-500 truncate max-w-[150px]">
                           {post.location.physical.room 
                             ? `${post.location.physical.address} - ${post.location.physical.room}`
                             : post.location.physical.address}
@@ -232,7 +280,7 @@ const PostDetails: React.FC = () => {
                     post.location?.online?.platform && (
                       <div className="flex items-center space-x-1">
                         <IoDesktopOutline className="text-orange-500 w-3 h-3" />
-                        <span className="text-xs text-gray-500">
+                        <span className="text-xs text-gray-500 truncate">
                           {post.location.online.platform} Meeting
                         </span>
                       </div>
@@ -248,29 +296,35 @@ const PostDetails: React.FC = () => {
 
         <div className="p-4 flex flex-col">
           <h2 className="text-base font-semibold text-[#000000] mb-4">{post.title}</h2>
-          <p className="text-sm text-[#666666] mb-6">{post.description}</p>
+          
+          <div className="space-y-4">
+            <div className="mb-6">
+              {renderDescription(post.description)}
+            </div>
+
+            <div className="flex items-center gap-6 mt-3 text-sm text-gray-600">
+              <div className="flex items-center gap-2">
+                <BsCalendarEvent className="text-orange-500" />
+                <span>Bắt đầu: {new Date(post.startDate).toLocaleString('vi-VN')}</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <BsCalendarCheck className="text-orange-500" />
+                <span>Kết thúc: {new Date(post.endDate).toLocaleString('vi-VN')}</span>
+              </div>
+            </div>
+          </div>
 
           {post.images?.length > 0 && (
-            <EventImageGrid 
-              images={post.images} 
-              title={post.title} 
-              event={{
-                title: post.title,
-                description: post.description,
-                organizer: {
-                  fullName: post.organizer.fullName,
-                  avatar: post.organizer.avatar,
-                },
-                createdAt: post.createdAt,
-                eventType: post.eventType,
-                location: post.location,
-                participants: post.participants,
-                status: post.status
-              }}
-            />
+            <div className="">
+              <EventImageGrid 
+                images={post.images} 
+                title={post.title} 
+                event={post}
+              />
+            </div>
           )}
 
-          <div className="mt-6 flex items-center justify-between border-t pt-6">
+          <div className="flex items-center justify-between pt-6">
             <div className="flex items-center gap-4">
               <span className="text-sm text-gray-600 flex items-center gap-2">
                 <IoPeopleOutline className="text-orange-500" />

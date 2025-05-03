@@ -28,3 +28,4 @@ node_modules
 
 # SSL Certificates
 .cert/*.pem
+.cert/create-cert.js

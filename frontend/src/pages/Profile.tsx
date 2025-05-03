@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useRoute } from "wouter";
 import Header from '../components/Header';
 import { IoCamera, IoSchoolOutline, IoMailOutline, IoCallOutline, IoCalendarOutline, 
   IoLocationOutline, IoTimeOutline, IoCheckmarkCircle, IoPencil, IoShieldCheckmark } from 'react-icons/io5';
@@ -7,20 +8,51 @@ import AvatarUploadModal from '../components/modals/AvatarUploadModal';
 import userService from '../services/userService';
 import { toast } from 'react-toastify';
 import { User } from '../types';
+import { useAuth } from '../context/AuthContext';
 
 const Profile = () => {
+  const [, params] = useRoute("/profile/:id");
+  const { user: currentUser } = useAuth();
   const [activeSection, setActiveSection] = useState('personal');
   const [userData, setUserData] = useState<User | null>(null);
   const [isAvatarModalOpen, setIsAvatarModalOpen] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
+  const [isOwner, setIsOwner] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     const fetchUserData = async () => {
-      const data = await authService.getProfile();
-      setUserData(data);
+      setIsLoading(true);
+      setError(null);
+      
+      console.log('Current params:', params); // Debug log
+      
+      try {
+        let data;
+        if (params?.id) {
+          console.log('Fetching user by ID:', params.id); // Debug log
+          data = await userService.getUserById(params.id);
+        } else {
+          console.log('Fetching current user profile'); // Debug log
+          data = await authService.getProfile();
+        }
+        
+        console.log('Fetched user data:', data); // Debug log
+        setUserData(data);
+        setIsOwner(currentUser?._id === data._id);
+      } catch (error: any) {
+        console.error('Profile fetch error:', error);
+        const errorMessage = error.message || 'Error fetching profile';
+        setError(errorMessage);
+        toast.error(errorMessage);
+      } finally {
+        setIsLoading(false);
+      }
     };
+
     fetchUserData();
-  }, []);
+  }, [params?.id, currentUser?._id]);
 
   const handleAvatarUpload = async (file: File) => {
     try {
@@ -43,14 +75,34 @@ const Profile = () => {
     { id: 'certificates', label: 'Chứng nhận' }
   ];
 
+  if (isLoading) {
+    return <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+      <div className="text-center">Loading profile...</div>
+    </div>;
+  }
+
+  if (error) {
+    return <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+      <div className="text-center text-red-600">{error}</div>
+    </div>;
+  }
+
   return (
     <div className="min-h-screen bg-gray-50">
       <Header />
       
       {/* Hero Banner */}
-      <div className="h-64 bg-gradient-to-r from-orange-600 to-orange-500 relative">
-        <div className="absolute inset-0 bg-black/20" />
-        <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/60 to-transparent h-32" />
+      <div className="h-64 relative bg-orange-600 text-white py-16 overflow-hidden">
+        <div className="absolute inset-0 opacity-10">
+          <div className="absolute inset-0" style={{
+            backgroundImage: "url(\"data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23000000' fill-opacity='1'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E\")",
+          }} />
+        </div>
+        {/* <div className="container mx-auto px-4 relative">
+          <span className="inline-block py-1 px-3 bg-orange-500 rounded-full text-sm mb-4">Sự kiện</span>
+          <h1 className="text-5xl font-bold mb-4 leading-tight">Sự Kiện Nổi Bật</h1>
+          <p className="text-xl opacity-90 max-w-2xl">Khám phá các sự kiện thú vị đang diễn ra tại HUTECH</p>
+        </div> */}
       </div>
 
       {/* Main Content */}
@@ -75,12 +127,14 @@ const Profile = () => {
                       </div>
                     )}
                   </div>
-                  <button 
-                    className="absolute bottom-2 right-2 p-2 bg-white rounded-full shadow-md hover:bg-gray-50"
-                    onClick={() => setIsAvatarModalOpen(true)}
-                  >
-                    <IoCamera className="text-gray-600 text-lg" />
-                  </button>
+                  {isOwner && (
+                    <button 
+                      className="absolute bottom-2 right-2 p-2 bg-white rounded-full shadow-md hover:bg-gray-50"
+                      onClick={() => setIsAvatarModalOpen(true)}
+                    >
+                      <IoCamera className="text-gray-600 text-lg" />
+                    </button>
+                  )}
                 </div>
 
                 {/* User Info */}
@@ -106,12 +160,14 @@ const Profile = () => {
                 </div>
 
                 {/* Actions */}
-                <div className="flex gap-3">
-                  <button className="px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition-colors flex items-center gap-2">
-                    <IoPencil />
-                    <span>Chỉnh sửa</span>
-                  </button>
-                </div>
+                {isOwner && (
+                  <div className="flex gap-3">
+                    <button className="px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition-colors flex items-center gap-2">
+                      <IoPencil />
+                      <span>Chỉnh sửa</span>
+                    </button>
+                  </div>
+                )}
               </div>
             </div>
 
@@ -260,13 +316,15 @@ const Profile = () => {
         </div>
       </div>
 
-      {/* Add Avatar Upload Modal */}
-      <AvatarUploadModal
-        isOpen={isAvatarModalOpen}
-        onClose={() => setIsAvatarModalOpen(false)}
-        onUpload={handleAvatarUpload}
-        isLoading={isUploading}
-      />
+      {/* Avatar Upload Modal - Only for owner */}
+      {isOwner && (
+        <AvatarUploadModal
+          isOpen={isAvatarModalOpen}
+          onClose={() => setIsAvatarModalOpen(false)}
+          onUpload={handleAvatarUpload}
+          isLoading={isUploading}
+        />
+      )}
     </div>
   );
 };

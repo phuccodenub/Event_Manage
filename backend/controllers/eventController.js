@@ -95,47 +95,91 @@ exports.createEvent = async (req, res, next) => {
 // @desc: Update event with authorization check
 exports.updateEvent = async (req, res, next) => {
   try {
-    let event = await Event.findById(req.params.id);
-    
-    if (!event) {
-      return next(new ErrorResponse('Event not found', 404));
-    }
-
-    // Kiểm tra quyền chỉnh sửa
-    if (event.creator.toString() !== req.user.id && req.user.role !== 'admin') {
-      return next(new ErrorResponse('Not authorized to update this event', 403));
-    }
-
     const eventData = { ...req.body };
-    
-    // Xử lý upload ảnh mới nếu có
-    if (req.files) {
-      // Xóa ảnh cũ từ Cloudinary
-      const deletePromises = event.images.map(img => 
-        deleteFromCloudinary(img.public_id)
-      );
-      await Promise.all(deletePromises);
+    const oldEvent = await Event.findById(req.params.id);
 
-      // Upload ảnh mới
-      const imagePromises = Object.values(req.files).map(file => 
-        uploadToCloudinary(file)
-      );
-      const uploadedImages = await Promise.all(imagePromises);
-      eventData.images = uploadedImages;
+    // Handle arrays properly
+    const arrayFields = ['participants', 'collaborators', 'speakers', 'tags', 'likes', 'comments', 'shares'];
+    arrayFields.forEach(field => {
+      if (field in eventData) {
+        try {
+          // Parse if string, otherwise use as is
+          eventData[field] = typeof eventData[field] === 'string' 
+            ? JSON.parse(eventData[field])
+            : eventData[field];
+            
+          // Ensure empty arrays are handled properly
+          if (!Array.isArray(eventData[field])) {
+            eventData[field] = [];
+          }
+        } catch (e) {
+          eventData[field] = [];
+        }
+      }
+    });
+
+    // Handle location object
+    if (eventData.location && typeof eventData.location === 'string') {
+      eventData.location = JSON.parse(eventData.location);
     }
 
-    event = await Event.findByIdAndUpdate(
+    // Handle images - Delete removed images from Cloudinary
+    if ('existingImages' in eventData) {
+      const newExistingImages = JSON.parse(eventData.existingImages || '[]');
+      const oldImages = oldEvent.images || [];
+      
+      // Find images that were removed
+      const removedImages = oldImages.filter(oldImg => 
+        !newExistingImages.some(newImg => newImg.public_id === oldImg.public_id)
+      );
+
+      // Delete removed images from Cloudinary
+      for (const image of removedImages) {
+        try {
+          await deleteFromCloudinary(image.public_id);
+          console.log('Deleted image:', image.public_id);
+        } catch (err) {
+          console.error('Error deleting image from Cloudinary:', err);
+        }
+      }
+
+      // Update images array - even if empty
+      eventData.images = newExistingImages;
+    }
+
+    // Add new uploaded images if any
+    if (req.body['images[0][public_id]']) {
+      const newImages = [];
+      let index = 0;
+      while (req.body[`images[${index}][public_id]`]) {
+        newImages.push({
+          public_id: req.body[`images[${index}][public_id]`],
+          url: req.body[`images[${index}][url]`]
+        });
+        index++;
+      }
+      
+      // Combine with existing images
+      eventData.images = eventData.images || [];
+      eventData.images = [...eventData.images, ...newImages];
+    }
+
+    const event = await Event.findByIdAndUpdate(
       req.params.id,
       eventData,
       { new: true, runValidators: true }
-    ).populate('creator', 'fullName email');
+    );
+
+    if (!event) {
+      return next(new ErrorHandler('Event not found', 404));
+    }
 
     res.status(200).json({
       success: true,
       data: event
     });
   } catch (error) {
-    next(new ErrorResponse(error.message, 500));
+    next(error);
   }
 };
 

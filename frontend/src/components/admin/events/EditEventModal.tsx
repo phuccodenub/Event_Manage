@@ -31,6 +31,18 @@ const EVENT_CATEGORIES = {
   other: 'Khác'
 };
 
+// Thêm helper function để format thời gian
+const formatDateTimeForInput = (dateString: string) => {
+  const date = new Date(dateString);
+  // Giữ nguyên múi giờ khi format
+  return date.toISOString().slice(0, 16);
+};
+
+const formatDateTimeForSubmit = (dateString: string) => {
+  const date = new Date(dateString);
+  return date.toISOString(); // Format: "2025-04-24T06:00:00.000Z"
+};
+
 const EditEventModal = ({ isOpen, onClose, onSubmit, event }: Props) => {
   const [loading, setLoading] = useState(false);
   const [selectedImages, setSelectedImages] = useState<File[]>([]);
@@ -43,26 +55,41 @@ const EditEventModal = ({ isOpen, onClose, onSubmit, event }: Props) => {
 
   useEffect(() => {
     if (event) {
+      // Basic information
       setValue('title', event.title);
       setValue('description', event.description);
       setValue('category', event.category);
       setValue('department', event.department?._id);
-      setValue('startDate', new Date(event.startDate).toISOString().slice(0, 16));
-      setValue('endDate', new Date(event.endDate).toISOString().slice(0, 16));
       setValue('eventType', event.eventType);
       setValue('capacity', event.capacity);
+      setValue('visibility', event.visibility);
+      setValue('status', event.status);
 
-      if (event.location?.physical) {
-        setValue('physicalAddress', event.location.physical.address);
-        setValue('physicalRoom', event.location.physical.room);
+      // Format thời gian đúng chuẩn khi load form
+      setValue('startDate', formatDateTimeForInput(event.startDate));
+      setValue('endDate', formatDateTimeForInput(event.endDate));
+
+      // Handle location based on type
+      try {
+        const locationData = typeof event.location === 'string' 
+          ? JSON.parse(event.location) 
+          : event.location;
+
+        if (locationData?.physical) {
+          setValue('physicalAddress', locationData.physical.address);
+          setValue('physicalRoom', locationData.physical.room);
+        }
+
+        if (locationData?.online) {
+          setValue('onlinePlatform', locationData.online.platform);
+          setValue('meetingLink', locationData.online.meetingLink);
+        }
+      } catch (error) {
+        console.error('Error parsing location:', error);
       }
 
-      if (event.location?.online) {
-        setValue('onlinePlatform', event.location.online.platform);
-        setValue('meetingLink', event.location.online.meetingLink);
-      }
-
-      if (event.images) {
+      // Handle images
+      if (event.images && Array.isArray(event.images)) {
         setExistingImages(event.images);
         setPreviews(event.images.map(img => img.url));
       }
@@ -77,9 +104,44 @@ const EditEventModal = ({ isOpen, onClose, onSubmit, event }: Props) => {
   };
 
   const removeImage = (index: number) => {
-    setSelectedImages(prev => prev.filter((_, i) => i !== index));
+    if (index < existingImages.length) {
+      // Remove from existing images
+      setExistingImages(prev => prev.filter((_, i) => i !== index));
+    } else {
+      // Remove from new images
+      const newIndex = index - existingImages.length;
+      setSelectedImages(prev => prev.filter((_, i) => i !== newIndex));
+    }
     setPreviews(prev => prev.filter((_, i) => i !== index));
   };
+
+  // Add paste handler
+  const handleImagePaste = (e: ClipboardEvent) => {
+    const items = e.clipboardData?.items;
+    if (!items) return;
+
+    for (let i = 0; i < items.length; i++) {
+      if (items[i].type.indexOf('image') !== -1) {
+        const file = items[i].getAsFile();
+        if (file) {
+          setSelectedImages(prev => [...prev, file]);
+          const reader = new FileReader();
+          reader.onloadend = () => {
+            setPreviews(prev => [...prev, reader.result as string]);
+          };
+          reader.readAsDataURL(file);
+        }
+      }
+    }
+  };
+
+  // Add useEffect for paste event listener
+  useEffect(() => {
+    document.addEventListener('paste', handleImagePaste);
+    return () => {
+      document.removeEventListener('paste', handleImagePaste);
+    };
+  }, []);
 
   useEffect(() => {
     const fetchDepartments = async () => {
@@ -100,48 +162,84 @@ const EditEventModal = ({ isOpen, onClose, onSubmit, event }: Props) => {
 
     try {
       setLoading(true);
-      const formDataToSubmit = new FormData();
 
-      formDataToSubmit.append('title', data.title);
-      formDataToSubmit.append('description', data.description);
-      formDataToSubmit.append('category', data.category);
-      formDataToSubmit.append('department', data.department);
-      formDataToSubmit.append('startDate', data.startDate);
-      formDataToSubmit.append('endDate', data.endDate);
-      formDataToSubmit.append('eventType', data.eventType);
-      
-      if (data.capacity) {
-        formDataToSubmit.append('capacity', data.capacity);
-      }
-
+      // Format location data properly
       const location = {
-        ...(data.eventType !== 'online' ? { 
+        ...(data.eventType === 'offline' || data.eventType === 'hybrid' ? {
           physical: {
-            address: data.physicalAddress,
-            room: data.physicalRoom
+            address: data.physicalAddress?.trim(),
+            room: data.physicalRoom?.trim() || ''
           }
         } : {}),
-        ...(data.eventType !== 'offline' ? { 
+        ...(data.eventType === 'online' || data.eventType === 'hybrid' ? {
           online: {
-            platform: data.onlinePlatform || 'other',
-            meetingLink: data.meetingLink
+            platform: data.onlinePlatform,
+            meetingLink: data.meetingLink?.trim()
           }
         } : {})
       };
-      formDataToSubmit.append('location', JSON.stringify(location));
 
-      formDataToSubmit.append('existingImages', JSON.stringify(existingImages));
+      const eventData = {
+        title: data.title.trim(),
+        description: data.description.trim(),
+        category: data.category,
+        department: data.department,
+        eventType: data.eventType,
+        startDate: new Date(data.startDate).toISOString(),
+        endDate: new Date(data.endDate).toISOString(),
+        visibility: 'public',
+        status: event.status,
+        location: JSON.stringify(location),
+        capacity: data.capacity ? parseInt(data.capacity) : undefined,
+        // Keep original arrays
+        organizer: event.organizer._id,
+        creator: event.creator,
+        participants: event.participants || [],
+        collaborators: event.collaborators || [],
+        speakers: event.speakers || [],
+        tags: event.tags || [],
+        likes: event.likes || [],
+        comments: event.comments || [],
+        shares: event.shares || []
+      };
 
+      // Handle images first
+      let uploadedImages = [];
       if (selectedImages.length > 0) {
-        const uploadedFiles = await uploadService.uploadEventImages(selectedImages);
-        uploadedFiles.forEach((image, index) => {
-          formDataToSubmit.append(`images[${index}][public_id]`, image.public_id);
-          formDataToSubmit.append(`images[${index}][url]`, image.url);
-        });
+        try {
+          uploadedImages = await uploadService.uploadEventImages(selectedImages);
+        } catch (uploadError) {
+          console.error('Error uploading images:', uploadError);
+          toast.error('Có lỗi khi tải ảnh lên');
+          return;
+        }
       }
 
+      const formDataToSubmit = new FormData();
+      
+      // Add each field to FormData
+      Object.entries(eventData).forEach(([key, value]) => {
+        // Only append arrays if they exist and have elements
+        if (Array.isArray(value)) {
+          if (value.length > 0) {
+            formDataToSubmit.append(key, JSON.stringify(value));
+          }
+        } else {
+          formDataToSubmit.append(key, value?.toString() || '');
+        }
+      });
+
+      // Always send existingImages array, even if empty
+      formDataToSubmit.append('existingImages', JSON.stringify(existingImages));
+
+      // Append new uploaded images
+      uploadedImages.forEach((image, index) => {
+        formDataToSubmit.append(`images[${index}][public_id]`, image.public_id);
+        formDataToSubmit.append(`images[${index}][url]`, image.url);
+      });
+
       await onSubmit(event._id, formDataToSubmit);
-      toast.success('Cập nhật sự kiện thành công');
+      // toast.success('Cập nhật sự kiện thành công');
       onClose();
     } catch (error: any) {
       console.error('Error updating event:', error);
@@ -315,9 +413,10 @@ const EditEventModal = ({ isOpen, onClose, onSubmit, event }: Props) => {
                             {...register('onlinePlatform')}
                             className="w-full rounded-lg border border-gray-300 px-3 py-2"
                           >
-                            <option value="zoom">Zoom</option>
-                            <option value="meet">Google Meet</option>
-                            <option value="teams">Microsoft Teams</option>
+                            <option value="Zoom">Zoom</option>
+                            <option value="Google Meet">Google Meet</option>
+                            <option value="Microsoft Teams">Microsoft Teams</option>
+                            <option value="Other">Khác</option>
                           </select>
                           <input
                             {...register('meetingLink')}
@@ -332,14 +431,14 @@ const EditEventModal = ({ isOpen, onClose, onSubmit, event }: Props) => {
                       <label className="block text-sm font-medium text-gray-700 mb-1">
                         Hình ảnh
                       </label>
-                      <div className="mt-2 grid grid-cols-4 gap-4">
+                      <div className="mt-2 grid grid-cols-2 gap-4">
                         {/* Existing images preview */}
                         {previews.map((preview, index) => (
                           <div key={index} className="relative group">
                             <img
                               src={preview}
                               alt=""
-                              className="h-24 w-full object-cover rounded-lg"
+                              className="h-48 w-full object-cover rounded-lg"
                             />
                             <button
                               type="button"
@@ -351,12 +450,20 @@ const EditEventModal = ({ isOpen, onClose, onSubmit, event }: Props) => {
                           </div>
                         ))}
                         
-                        {/* Upload button */}
+                        {/* Upload button with paste hint */}
                         <div
                           onClick={() => document.getElementById('image-input')?.click()}
-                          className="h-24 border-2 border-dashed border-gray-300 rounded-lg flex items-center justify-center cursor-pointer hover:border-orange-500"
+                          onDrop={(e) => {
+                            e.preventDefault();
+                            handleImageUpload(e.dataTransfer.files);
+                          }}
+                          onDragOver={(e) => e.preventDefault()}
+                          className="h-48 border-2 border-dashed border-gray-300 rounded-lg flex flex-col items-center justify-center cursor-pointer hover:border-orange-500 space-y-1"
                         >
                           <PhotographIcon className="h-8 w-8 text-gray-400" />
+                          <p className="text-xs text-orange-600">
+                            Click hoặc paste ảnh (Ctrl+V)
+                          </p>
                         </div>
                         <input
                           id="image-input"

@@ -29,10 +29,16 @@ exports.getUsers = async (req, res, next) => {
 // @access: Public
 exports.getUserById = async (req, res, next) => {
   try {
-    const user = await User.findById(req.params.id).select('-password');
+    const user = await User.findById(req.params.id)
+      .select('-password')
+      .populate('department')
+      .populate('registeredEvents')
+      .populate('collaboratorEvents');
+
     if (!user) {
-      return next(new ErrorResponse(`User not found with id of ${req.params.id}`, 404));
+      return next(new ErrorResponse('User not found', 404));
     }
+
     res.status(200).json({
       success: true,
       data: user

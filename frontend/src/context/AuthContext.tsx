@@ -1,38 +1,43 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
-
-interface User {
-  _id: string;
-  name: string;
-  email: string;
-  role: string;
-}
+import { useLocation } from "wouter";
+import { User } from '../types';
+import authService from '../services/authService';
 
 interface AuthContextType {
   user: User | null;
-  setUser: (user: User | null) => void;
-  logout: () => void;
+  loading: boolean;
+  error: string | null;
 }
 
-const AuthContext = createContext<AuthContextType | null>(null);
+const AuthContext = createContext<AuthContextType>({
+  user: null,
+  loading: true,
+  error: null
+});
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [, setLocation] = useLocation();
 
   useEffect(() => {
-    // Check for stored user data on component mount
-    const storedUser = localStorage.getItem('user');
-    if (storedUser) {
-      setUser(JSON.parse(storedUser));
-    }
-  }, []);
-
-  const logout = () => {
-    setUser(null);
-    localStorage.removeItem('user');
-  };
+    const loadUser = async () => {
+      try {
+        const userData = await authService.getProfile();
+        setUser(userData);
+      } catch (err) {
+        setError('Failed to load user');
+        setLocation('/login');
+      } finally {
+        setLoading(false);
+      }
+    };
+    loadUser();
+  }, [setLocation]);
 
   return (
-    <AuthContext.Provider value={{ user, setUser, logout }}>
+    <AuthContext.Provider value={{ user, loading, error }}>
       {children}
     </AuthContext.Provider>
   );

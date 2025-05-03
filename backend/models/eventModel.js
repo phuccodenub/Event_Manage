@@ -48,7 +48,7 @@ const eventSchema = new mongoose.Schema({
     online: {
       platform: {
         type: String,
-        enum: ['zoom', 'google-meet', 'microsoft-teams', 'other'],
+        enum: ['Zoom', 'Google Meet', 'Microsoft Teams', 'Other'],
       },
       meetingLink: String,
       meetingId: String,
@@ -131,7 +131,7 @@ const eventSchema = new mongoose.Schema({
   },
   category: {
     type: String,
-    enum: ['academic', 'cultural', 'sports', 'workshop', 'seminar', 'other'],
+    enum: ['academic', 'cultural', 'sports', 'workshop','career', 'seminar', 'other'],
     required: [true, 'Please select event category']
   },
   registrationDeadline: {

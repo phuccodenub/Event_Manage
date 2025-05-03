@@ -1,4 +1,14 @@
 import apiClient from '../api/apiClient';
+import type { Event } from '../types';
+
+interface EventQueryParams {
+  department?: string;
+}
+
+interface EventResponse {
+  success: boolean;
+  data: Event[];
+}
 
 const eventService = {
   getAllEvents: async () => {
@@ -91,6 +101,16 @@ const eventService = {
       return response.data;
     } catch (error) {
       console.error('Error fetching participants:', error);
+      throw error;
+    }
+  },
+
+  getEvents: async (params?: EventQueryParams): Promise<EventResponse> => {
+    try {
+      const response = await apiClient.get<EventResponse>('/events', { params });
+      return response.data;
+    } catch (error) {
+      console.error('Error fetching events:', error);
       throw error;
     }
   },

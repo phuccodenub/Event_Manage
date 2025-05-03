@@ -26,6 +26,8 @@ interface EventContextType {
   deleteEvent: (eventId: string) => void;  // Add this line
   loading: boolean;  // Thêm state loading
   error: string | null;  // Thêm state error
+  departmentEvents: Event[];
+  fetchDepartmentEvents: (departmentId: string) => Promise<void>;
 }
 
 const EventContext = createContext<EventContextType | undefined>(undefined);
@@ -36,6 +38,7 @@ export const EventProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const [currentParticipantList, setCurrentParticipantList] = useState<Participant[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [departmentEvents, setDepartmentEvents] = useState<Event[]>([]);
 
   const fetchParticipants = useCallback(async (eventId: string) => {
     try {
@@ -112,6 +115,25 @@ export const EventProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     });
   }, []);
 
+  const fetchDepartmentEvents = useCallback(async (departmentId: string) => {
+    try {
+      setLoading(true);
+      const response = await eventService.getEvents({ department: departmentId });
+      if (response.success && Array.isArray(response.data)) {
+        setDepartmentEvents(response.data);
+      } else {
+        setDepartmentEvents([]);
+      }
+      setError(null);
+    } catch (err) {
+      console.error('Error fetching department events:', err);
+      setError('Failed to fetch department events');
+      setDepartmentEvents([]);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
   return (
     <EventContext.Provider value={{ 
       events, 
@@ -126,7 +148,9 @@ export const EventProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       addEvent,
       deleteEvent,
       loading,
-      error
+      error,
+      departmentEvents,
+      fetchDepartmentEvents
     }}>
       {children}
     </EventContext.Provider>

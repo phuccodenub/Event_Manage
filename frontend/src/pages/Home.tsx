@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { MdImage, MdEdit, MdDelete, MdContentCopy, MdPushPin, MdInfoOutline } from 'react-icons/md';
 import { BiCalendarEvent } from 'react-icons/bi';
 import { IoLocationOutline, IoDesktopOutline } from 'react-icons/io5';
-import { BsThreeDotsVertical } from 'react-icons/bs';
+import { BsThreeDotsVertical, BsCalendarEvent, BsCalendarCheck } from 'react-icons/bs';
 import Header from '../components/Header';
 import LeftSidebar from '../components/LeftSidebar';
 import RightSidebar from '../components/RightSidebar';
@@ -20,6 +20,7 @@ import { useNavigate } from 'react-router-dom';
 import { toast } from 'react-toastify';
 import { useEvents } from '../context/EventContext';
 import JoinEventButton from '../components/JoinEventButton';
+import { formatDescriptionWithLinks } from '@/utils/linkUtils';
 
 // Interface for Event
 interface Event {
@@ -48,6 +49,10 @@ interface Event {
     fullName: string;
     email: string;
     avatar?: string;
+  };
+  department: {
+    _id: string;
+    name: string;
   };
   participants: string[];
   collaborators: string[];
@@ -97,6 +102,7 @@ const Home: React.FC = () => {
   const [activeDropdown, setActiveDropdown] = useState<string | null>(null);
   const [editingEvent, setEditingEvent] = useState<Event | null>(null);
   const [editingAnnouncement, setEditingAnnouncement] = useState<Announcement | null>(null);
+  const [expandedDescriptions, setExpandedDescriptions] = useState<Set<string>>(new Set());
 
   const toggleDropdown = (id: string) => {
     setActiveDropdown(activeDropdown === id ? null : id);
@@ -141,6 +147,18 @@ const Home: React.FC = () => {
     } else {
       navigate(`/announcements/${post._id}`);
     }
+  };
+
+  const toggleDescription = (eventId: string) => {
+    setExpandedDescriptions(prev => {
+      const next = new Set(prev);
+      if (next.has(eventId)) {
+        next.delete(eventId);
+      } else {
+        next.add(eventId);
+      }
+      return next;
+    });
   };
 
   useEffect(() => {
@@ -439,14 +457,35 @@ const Home: React.FC = () => {
 
       <div className="mt-4 pt-4 border-t border-gray-100">
         <div className="flex justify-between items-center text-xs text-gray-500">
-          <span>Expires: {formatEventDate(new Date(announcement.expiresAt))}</span>
+          <span>Hạn: {formatEventDate(new Date(announcement.expiresAt))}</span>
           {announcement.department && (
-            <span>Department: {announcement.department.name}</span>
+            <span>Khoa: {announcement.department.name}</span>
           )}
         </div>
       </div>
     </div>
   );
+
+  const renderDescription = (description: string) => {
+    const parts = formatDescriptionWithLinks(description);
+    return parts.map((part, index) => {
+      if (typeof part === 'string') {
+        return <span key={index}>{part}</span>;
+      }
+      return (
+        <a 
+          key={index}
+          href={part.url}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="text-blue-600 hover:text-blue-800 hover:underline"
+          onClick={(e) => e.stopPropagation()}
+        >
+          {part.text}
+        </a>
+      );
+    });
+  };
 
   const renderEvent = (event: Event) => (
     <div
@@ -467,6 +506,14 @@ const Home: React.FC = () => {
           <div className="ml-3">
             <h3 className="text-sm font-semibold text-[#000000]">
               {event.organizer?.fullName || 'Anonymous'}
+              {event.department && (
+                <>
+                  <span className="text-sm font-normal text-gray-600 ml-1">tại</span>
+                  <span className="text-sm font-semibold text-[#000000] ml-1">
+                    {event.department.name}
+                  </span>
+                </>
+              )}
             </h3>
             <div className="flex items-center gap-2">
               <span 
@@ -495,7 +542,7 @@ const Home: React.FC = () => {
                     <div className="flex items-center space-x-1">
                       <IoDesktopOutline className="text-orange-500 w-3 h-3" />
                       <span className="text-xs text-gray-500 truncate">
-                        {event.location.online.platform} Meeting
+                        {event.location.online.platform}
                       </span>
                     </div>
                 )}
@@ -508,7 +555,31 @@ const Home: React.FC = () => {
 
       <div className="p-4 flex flex-col flex-1">
         <h2 className="text-base font-semibold text-[#000000] line-clamp-2">{event.title}</h2>
-        <p className="text-sm text-[#666666] mt-2 line-clamp-3">{event.description}</p>
+        <div className="mt-2">
+          <p className={`text-sm text-[#666666] whitespace-pre-line ${
+            expandedDescriptions.has(event._id) ? '' : 'line-clamp-3'
+          }`}>
+            {renderDescription(event.description)}
+          </p>
+          {event.description.split('\n').length > 3 && (
+            <button
+              onClick={() => toggleDescription(event._id)}
+              className="text-sm text-orange-600 hover:text-orange-700 mt-1 font-medium"
+            >
+              {expandedDescriptions.has(event._id) ? 'Ẩn bớt' : 'Xem thêm'}
+            </button>
+          )}
+          <div className="flex items-center gap-6 mt-3 text-sm text-gray-600">
+            <div className="flex items-center gap-2">
+              <BsCalendarEvent className="text-orange-500" />
+              <span>Bắt đầu: {new Date(event.startDate).toLocaleString('vi-VN')}</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <BsCalendarCheck className="text-orange-500" />
+              <span>Kết thúc: {new Date(event.endDate).toLocaleString('vi-VN')}</span>
+            </div>
+          </div>
+        </div>
 
         {event.images?.length > 0 && (
           <EventImageGrid 
@@ -521,6 +592,9 @@ const Home: React.FC = () => {
                 fullName: event.organizer.fullName,
                 avatar: event.organizer.avatar,
               },
+              department: event.department,
+              startDate: event.startDate,
+              endDate: event.endDate,
               createdAt: event.createdAt,
               eventType: event.eventType,
               location: event.location,
@@ -536,9 +610,9 @@ const Home: React.FC = () => {
               <span className="text-sm text-gray-600">
                 {event.participants.length} người tham gia
               </span>
-              <span className="text-sm text-gray-600">
+              {/* <span className="text-sm text-gray-600">
                 Trạng thái: {event.status.charAt(0).toUpperCase() + event.status.slice(1)}
-              </span>
+              </span> */}
             </div>
             <JoinEventButton
               eventId={event._id}
@@ -596,7 +670,7 @@ const Home: React.FC = () => {
               />
               <div onClick={() => setIsModalOpen(true)} className="flex-grow cursor-pointer">
                 <div className="bg-gray-100 hover:bg-gray-200 rounded-full py-3.5 px-4 transition-colors">
-                  <p className="text-[#666666]">Share an event with your community...</p>
+                  <p className="text-[#666666]">Chia sẻ sự kiện với cộng đồng của bạn...</p>
                 </div>
               </div>
             </div>
@@ -607,21 +681,21 @@ const Home: React.FC = () => {
                 className="flex items-center justify-center space-x-2 px-4 py-2.5 hover:bg-gray-100 rounded-lg transition-colors flex-1"
               >
                 <MdImage className="text-[#378fe9] text-xl" />
-                <span className="text-[#666666] text-sm font-medium">Photo</span>
+                <span className="text-[#666666] text-sm font-medium">Ảnh</span>
               </button>
               <button
                 onClick={() => setIsModalOpen(true)}
                 className="flex items-center justify-center space-x-2 px-4 py-2.5 hover:bg-gray-100 rounded-lg transition-colors flex-1"
               >
                 <BiCalendarEvent className="text-[#c37d16] text-xl" />
-                <span className="text-[#666666] text-sm font-medium">Event</span>
+                <span className="text-[#666666] text-sm font-medium">Sự kiện</span>
               </button>
               <button
                 onClick={() => setIsModalOpen(true)}
                 className="flex items-center justify-center space-x-2 px-4 py-2.5 hover:bg-gray-100 rounded-lg transition-colors flex-1"
               >
                 <IoLocationOutline className="text-[#e16745] text-xl" />
-                <span className="text-[#666666] text-sm font-medium">Location</span>
+                <span className="text-[#666666] text-sm font-medium">Vị trí</span>
               </button>
             </div>
           </div>

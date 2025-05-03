@@ -7,6 +7,7 @@ import uploadService, { UploadedFile } from '../../services/uploadService';
 import eventService from '../../services/eventService';
 import announcementService from '../../services/announcementService';
 import notificationService from '../../services/notificationService';
+import departmentService from '../../services/departmentService';
 import { useAuth } from '../../context/AuthContext';
 
 interface CreateEventModalProps {
@@ -40,6 +41,12 @@ interface EventFormData {
   expiresAt?: string;
 }
 
+interface Department {
+  _id: string;
+  name: string;
+  code: string;
+}
+
 const CreateEventModal: React.FC<CreateEventModalProps> = ({ isOpen, onClose }) => {
   const { user } = useAuth();
 
@@ -69,6 +76,7 @@ const CreateEventModal: React.FC<CreateEventModalProps> = ({ isOpen, onClose }) 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [departments, setDepartments] = useState<Department[]>([]);
 
   const handleImagePaste = useCallback((e: ClipboardEvent) => {
     const items = e.clipboardData?.items;
@@ -103,6 +111,21 @@ const CreateEventModal: React.FC<CreateEventModalProps> = ({ isOpen, onClose }) 
       setFormData(prev => ({ ...prev, organizer: user._id }));
     }
   }, [user]);
+
+  useEffect(() => {
+    const fetchDepartments = async () => {
+      try {
+        const data = await departmentService.getAllDepartments();
+        setDepartments(data);
+      } catch (error) {
+        console.error('Error fetching departments:', error);
+      }
+    };
+
+    if (isOpen) {
+      fetchDepartments();
+    }
+  }, [isOpen]);
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -232,7 +255,7 @@ const CreateEventModal: React.FC<CreateEventModalProps> = ({ isOpen, onClose }) 
       <div className="absolute inset-0 bg-black bg-opacity-50" onClick={onClose}></div>
       <div className="relative bg-white rounded-lg w-full max-w-2xl mx-4">
         <div className="flex items-center justify-between p-4 border-b">
-          <h2 className="text-xl font-semibold">Create {formData.postType === 'event' ? 'Event' : 'Announcement'}</h2>
+          <h2 className="text-xl font-semibold">Tạo {formData.postType === 'event' ? 'Event' : 'Announcement'}</h2>
           <button
             onClick={onClose}
             className="p-1 hover:bg-gray-100 rounded-full transition-colors"
@@ -248,8 +271,8 @@ const CreateEventModal: React.FC<CreateEventModalProps> = ({ isOpen, onClose }) 
               value={formData.postType}
               onChange={(e) => setFormData({ ...formData, postType: e.target.value as 'event' | 'announcement' })}
             >
-              <option value="event">Create Event</option>
-              <option value="announcement">Create Announcement</option>
+              <option value="event">Tạo sự kiện</option>
+              <option value="announcement">Tạo thông báo</option>
             </select>
           )}
 
@@ -279,12 +302,12 @@ const CreateEventModal: React.FC<CreateEventModalProps> = ({ isOpen, onClose }) 
                   value={formData.category}
                   onChange={(e) => setFormData({ ...formData, category: e.target.value })}
                 >
-                  <option value="">Select Category *</option>
-                  <option value="general">General</option>
-                  <option value="academic">Academic</option>
-                  <option value="event">Event</option>
-                  <option value="news">News</option>
-                  <option value="urgent">Urgent</option>
+                  <option value="">Danh mục *</option>
+                  <option value="general">Chung</option>
+                  <option value="academic">Học thuật</option>
+                  <option value="event">Sự kiện</option>
+                  <option value="news">Tin tức</option>
+                  <option value="urgent">Khẩn cấp</option>
                 </select>
 
                 <input
@@ -313,10 +336,12 @@ const CreateEventModal: React.FC<CreateEventModalProps> = ({ isOpen, onClose }) 
                 value={formData.department}
                 onChange={(e) => setFormData({ ...formData, department: e.target.value })}
               >
-                <option value="">Select Department *</option>
-                <option value="64f7125708d7c35d8354154f">Computer Science</option>
-                <option value="64f7125708d7c35d83541550">Information Technology</option>
-                <option value="64f7125708d7c35d83541551">Software Engineering</option>
+                <option value="">Chọn Khoa *</option>
+                {departments.map((dept) => (
+                  <option key={dept._id} value={dept._id}>
+                    {dept.name}
+                  </option>
+                ))}
               </select>
             </>
           ) : (
@@ -358,10 +383,12 @@ const CreateEventModal: React.FC<CreateEventModalProps> = ({ isOpen, onClose }) 
                   value={formData.department}
                   onChange={(e) => setFormData({ ...formData, department: e.target.value })}
                 >
-                  <option value="">Select Department *</option>
-                  <option value="64f7125708d7c35d8354154f">Computer Science</option>
-                  <option value="64f7125708d7c35d83541550">Information Technology</option>
-                  <option value="64f7125708d7c35d83541551">Software Engineering</option>
+                  <option value="">Chọn Khoa *</option>
+                  {departments.map((dept) => (
+                    <option key={dept._id} value={dept._id}>
+                      {dept.name}
+                    </option>
+                  ))}
                 </select>
               </div>
 

@@ -17,7 +17,7 @@ const router = express.Router();
 router.get('/', getUsers);
 
 // @route: GET /api/v1/users/:id
-router.get('/:id', getUserById);
+router.get('/:id', protect, getUserById);
 
 // @route: POST /api/v1/users
 router.post('/', createUser);

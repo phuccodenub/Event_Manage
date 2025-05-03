@@ -1,5 +1,6 @@
 import apiClient from '../api/apiClient';
 import type { Department } from '@/types';
+import type { Department as DepartmentType } from '../types';
 
 const departmentService = {
   getAllDepartments: async () => {
@@ -67,6 +68,64 @@ const departmentService = {
       return response.data.data;
     } catch (error) {
       console.error('Error fetching department head:', error);
+      throw error;
+    }
+  },
+
+  getDepartmentDetail: async (id: string): Promise<DepartmentType> => {
+    try {
+      const response = await apiClient.get(`/departments/${id}`);
+      return response.data.data;
+    } catch (error) {
+      console.error('Error fetching department detail:', error);
+      throw error;
+    }
+  },
+
+  followDepartment: async (id: string): Promise<void> => {
+    try {
+      await apiClient.post(`/departments/${id}/follow`);
+    } catch (error) {
+      console.error('Error following department:', error);
+      throw error;
+    }
+  },
+
+  unfollowDepartment: async (id: string): Promise<void> => {
+    try {
+      await apiClient.post(`/departments/${id}/unfollow`);
+    } catch (error) {
+      console.error('Error unfollowing department:', error);
+      throw error;
+    }
+  },
+
+  getEvents: async (id: string, params?: any) => {
+    try {
+      const response = await apiClient.get(`/departments/${id}/events`, { params });
+      return response.data.data;
+    } catch (error) {
+      console.error('Error fetching department events:', error);
+      throw error;
+    }
+  },
+
+  getAnnouncements: async (id: string, params?: any) => {
+    try {
+      const response = await apiClient.get(`/departments/${id}/announcements`, { params });
+      return response.data.data;
+    } catch (error) {
+      console.error('Error fetching department announcements:', error);
+      throw error;
+    }
+  },
+
+  getMembers: async (id: string, params?: any) => {
+    try {
+      const response = await apiClient.get(`/departments/${id}/members`, { params });
+      return response.data.data;
+    } catch (error) {
+      console.error('Error fetching department members:', error);
       throw error;
     }
   }

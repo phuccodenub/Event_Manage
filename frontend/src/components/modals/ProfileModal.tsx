@@ -20,10 +20,10 @@ const ProfileModal: React.FC<ProfileModalProps> = ({
 }) => {
   const navigate = useNavigate();
 
-  if (!isOpen) return null;
+  if (!isOpen || !userData) return null;
 
   const handleNavigateToProfile = () => {
-    navigate('/profile');
+    navigate(`/profile/${userData._id}`);
     onClose();
   };
 

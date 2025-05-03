@@ -38,6 +38,13 @@ const EVENT_CATEGORIES = {
   other: 'Khác'
 };
 
+const ONLINE_PLATFORMS = {
+  'Zoom': 'Zoom',
+  'Google Meet': 'Google Meet',
+  'Microsoft Teams': 'Microsoft Teams',
+  'Other': 'Khác'
+};
+
 const AddEventModal = ({ isOpen, onClose }: Props) => {
   const { user } = useAuth();
   const { addEvent, fetchEvents } = useEvents();
@@ -111,40 +118,62 @@ const AddEventModal = ({ isOpen, onClose }: Props) => {
     try {
       setLoading(true);
       
+      // Validate dates
+      const startDate = new Date(data.startDate);
+      const endDate = new Date(data.endDate);
+      
+      if (endDate <= startDate) {
+        toast.error('Thời gian kết thúc phải sau thời gian bắt đầu');
+        return;
+      }
+
       const formDataToSubmit = new FormData();
 
-      // Handle event creation
-      formDataToSubmit.append('title', data.title);
-      formDataToSubmit.append('description', data.description);
+      // Basic event information
+      formDataToSubmit.append('title', data.title.trim());
+      formDataToSubmit.append('description', data.description.trim());
       formDataToSubmit.append('category', data.category);
       formDataToSubmit.append('department', data.department);
-      formDataToSubmit.append('startDate', data.startDate);
-      formDataToSubmit.append('endDate', data.endDate);
       formDataToSubmit.append('eventType', data.eventType);
       formDataToSubmit.append('organizer', user?._id || '');
       
-      // Add capacity handling
+      // Format dates to ISO string
+      formDataToSubmit.append('startDate', startDate.toISOString());
+      formDataToSubmit.append('endDate', endDate.toISOString());
+
+      // Handle capacity
       if (data.capacity && parseInt(data.capacity) > 0) {
-        formDataToSubmit.append('capacity', data.capacity);
+        formDataToSubmit.append('capacity', data.capacity.toString());
       }
 
-      const location = {
-        ...(data.eventType !== 'online' ? { 
-          physical: {
-            address: data.physicalAddress,
-            room: data.physicalRoom
-          }
-        } : {}),
-        ...(data.eventType !== 'offline' ? { 
-          online: {
-            platform: data.onlinePlatform || 'other',
-            meetingLink: data.meetingLink
-          }
-        } : {})
-      };
+      // Handle location based on event type
+      const location: any = {};
+      
+      if (data.eventType === 'offline' || data.eventType === 'hybrid') {
+        if (!data.physicalAddress) {
+          toast.error('Vui lòng nhập địa chỉ cho sự kiện trực tiếp');
+          return;
+        }
+        location.physical = {
+          address: data.physicalAddress.trim(),
+          room: data.physicalRoom ? data.physicalRoom.trim() : undefined
+        };
+      }
+
+      if (data.eventType === 'online' || data.eventType === 'hybrid') {
+        if (!data.meetingLink || !data.onlinePlatform) {
+          toast.error('Vui lòng nhập đầy đủ thông tin cho sự kiện trực tuyến');
+          return;
+        }
+        location.online = {
+          platform: data.onlinePlatform,
+          meetingLink: data.meetingLink.trim()
+        };
+      }
+
       formDataToSubmit.append('location', JSON.stringify(location));
 
-      // Upload and append images
+      // Handle images
       if (selectedImages.length > 0) {
         try {
           const uploadedFiles = await uploadService.uploadEventImages(selectedImages);
@@ -154,7 +183,8 @@ const AddEventModal = ({ isOpen, onClose }: Props) => {
           });
         } catch (uploadError) {
           console.error('Error uploading images:', uploadError);
-          throw new Error('Failed to upload images');
+          toast.error('Có lỗi khi tải ảnh lên');
+          return;
         }
       }
 
@@ -391,10 +421,9 @@ const AddEventModal = ({ isOpen, onClose }: Props) => {
                 {...register('onlinePlatform', { required: 'Vui lòng chọn nền tảng' })}
                 className="w-full rounded-lg border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500"
               >
-                <option value="zoom">Zoom</option>
-                <option value="meet">Google Meet</option>
-                <option value="teams">Microsoft Teams</option>
-                <option value="other">Khác</option>
+                {Object.entries(ONLINE_PLATFORMS).map(([value, label]) => (
+                  <option key={value} value={value}>{label}</option>
+                ))}
               </select>
             </div>
 

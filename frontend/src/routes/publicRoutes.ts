@@ -18,6 +18,7 @@ import Mobile from "@/pages/footer/Mobile";
 import More from "@/pages/footer/More";
 import PostDetails from "@/pages/PostDetails";
 import NotFound from "@/pages/NotFound";
+import DepartmentDetail from "@/pages/DepartmentDetail";
 
 const PublicRoutes = () => {
   return React.createElement(
@@ -28,7 +29,7 @@ const PublicRoutes = () => {
     React.createElement(Route, { path: "/events", component: Events }),
     React.createElement(Route, { path: "/community", component: Community }),
     React.createElement(Route, { path: "/notifications", component: AllNotifications }),
-    React.createElement(Route, { path: "/profile", component: Profile }),
+    React.createElement(Route, { path: "/profile/:id", component: Profile }),
     React.createElement(Route, { path: "/setting", component: Setting }),
     React.createElement(Route, { path: "/about", component: About }),
     React.createElement(Route, { path: "/accessibility", component: Accessibility }),
@@ -41,6 +42,7 @@ const PublicRoutes = () => {
     React.createElement(Route, { path: "/more", component: More }),
     React.createElement(Route, { path: "/events/:id", component: PostDetails }),
     React.createElement(Route, { path: "/announcements/:id", component: PostDetails }),
+    React.createElement(Route, { path: "/department/:id", component: DepartmentDetail }),
     React.createElement(Route, { path: "*", component: NotFound })
   );
 };

@@ -251,7 +251,7 @@ const Login = () => {
             </div>
           </div>
 
-          <div className="grid grid-cols-3 gap-3">
+          <div className="grid grid-cols-2 gap-3">
             <button 
               className="flex justify-center items-center py-2.5 border border-gray-200 rounded-xl hover:bg-gray-50 transition-colors"
               onClick={() => {
@@ -288,15 +288,15 @@ const Login = () => {
             >
               <img src="/icons/facebook.svg" alt="Facebook" className="h-6 w-6" />
             </FacebookLogin>
-            <button className="flex justify-center items-center py-2.5 border border-gray-200 rounded-xl hover:bg-gray-50 transition-colors">
+            {/* <button className="flex justify-center items-center py-2.5 border border-gray-200 rounded-xl hover:bg-gray-50 transition-colors">
               <img src="/icons/microsoft.svg" alt="Microsoft" className="h-6 w-6" />
-            </button>
+            </button> */}
           </div>
 
           <p className="text-center text-sm text-gray-600">
             Chưa có tài khoản?{' '}
-            <a href="/register" className="font-medium text-orange-600 hover:text-orange-700">
-              Đăng ký ngay
+            <a href="#" className="font-medium text-orange-600 hover:text-orange-700">
+              Thì thôi đừng đăng nhập nữa
             </a>
           </p>
         </div>
