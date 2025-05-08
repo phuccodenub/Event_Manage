@@ -7,7 +7,11 @@
     "dev": "vite",
     "build": "tsc -b && vite build",
     "lint": "eslint .",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "dev:host": "vite --host",
+    "dev:https": "vite --host --https",
+    "cert": "node .cert/create-cert.js",
+    "dev:secure": "npm run cert && npm run dev"
   },
   "dependencies": {
     "@greatsumini/react-facebook-login": "^3.4.0",
@@ -22,6 +26,7 @@
     "date-fns": "^4.1.0",
     "framer-motion": "^12.9.2",
     "google-auth-library": "^9.15.1",
+    "html5-qrcode": "^2.3.8",
     "jwt-decode": "^4.0.0",
     "lodash": "^4.17.21",
     "lucide-react": "^0.488.0",

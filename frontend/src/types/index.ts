@@ -120,7 +120,22 @@ export interface Department {
   name: string;
   code: string;
   description?: string;
+  head?: {
+    _id: string;
+    fullName: string;
+    avatar?: Avatar;
+  };
+  administrators?: Array<{
+    _id: string;
+    fullName: string;
+    avatar?: Avatar;
+  }>;
+  moderators?: Array<{
+    _id: string;
+    fullName: string;
+    avatar?: Avatar;
+  }>;
   isActive: boolean;
-  createdAt: string;
-  updatedAt: string;
+  createdAt?: string;
+  updatedAt?: string;
 }

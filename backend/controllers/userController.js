@@ -7,20 +7,25 @@ const { uploadToCloudinary, deleteFromCloudinary } = require('../utils/cloudinar
 // @access: Private/Admin
 exports.getUsers = async (req, res, next) => {
   try {
-    const { roles } = req.query;
-    let query = {};
+    const query = User.find();
 
-    if (roles) {
-      query.role = { $in: roles.split(',') };
+    // Nếu có filter role
+    if (req.query.roles) {
+      const roles = req.query.roles.split(',');
+      query.where('role').in(roles);
     }
 
-    const users = await User.find(query).select('-password');
+    // Select các trường cần thiết
+    query.select('-password -__v');
+
+    const users = await query.exec();
+
     res.status(200).json({
       success: true,
       data: users
     });
   } catch (error) {
-    next(new ErrorResponse('Error fetching users', 500));
+    next(error);
   }
 };
 

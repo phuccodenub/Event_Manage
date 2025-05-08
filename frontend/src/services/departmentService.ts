@@ -128,6 +128,29 @@ const departmentService = {
       console.error('Error fetching department members:', error);
       throw error;
     }
+  },
+
+  updateDepartmentRoles: async (
+    departmentId: string,
+    role: 'administrators' | 'moderators',
+    userId: string,
+    action: 'add' | 'remove'
+  ): Promise<Department> => {
+    try {
+      const response = await apiClient.put(`/departments/${departmentId}/roles`, {
+        role,
+        userId,
+        action
+      });
+      return response.data.data;
+    } catch (error: any) {
+      throw new Error(error.response?.data?.message || 'Failed to update department roles');
+    }
+  },
+
+  getDepartmentMembers: async (departmentId: string) => {
+    const response = await apiClient.get(`/departments/${departmentId}/members`);
+    return response.data.data;
   }
 };
 

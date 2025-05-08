@@ -25,15 +25,13 @@ const eventService = {
   },
 
   getEventById: async (eventId: string) => {
-    const response = await apiClient.get(`/events/${eventId}`);
-    const event = response.data?.data;
-
-    // Ensure participants is always an array
-    if (event && !Array.isArray(event.participants)) {
-      event.participants = [];
+    try {
+      const response = await apiClient.get(`/events/${eventId}`);
+      return response.data;
+    } catch (error) {
+      console.error('Error fetching event:', error);
+      throw error;
     }
-
-    return event;
   },
 
   createEvent: async (eventData: FormData) => {

@@ -28,6 +28,7 @@ interface EventContextType {
   error: string | null;  // Thêm state error
   departmentEvents: Event[];
   fetchDepartmentEvents: (departmentId: string) => Promise<void>;
+  fetchEventById: (eventId: string) => Promise<Event | null>; // Thêm fetchEventById
 }
 
 const EventContext = createContext<EventContextType | undefined>(undefined);
@@ -134,6 +135,19 @@ export const EventProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     }
   }, []);
 
+  const fetchEventById = useCallback(async (eventId: string) => {
+    try {
+      const response = await eventService.getEventById(eventId);
+      if (response.success) {
+        return response.data;
+      }
+      return null;
+    } catch (error) {
+      console.error('Error fetching event:', error);
+      return null;
+    }
+  }, []);
+
   return (
     <EventContext.Provider value={{ 
       events, 
@@ -150,7 +164,8 @@ export const EventProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       loading,
       error,
       departmentEvents,
-      fetchDepartmentEvents
+      fetchDepartmentEvents,
+      fetchEventById
     }}>
       {children}
     </EventContext.Provider>

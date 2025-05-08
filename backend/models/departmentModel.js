@@ -20,6 +20,14 @@ const departmentSchema = new mongoose.Schema({
     type: mongoose.Schema.Types.ObjectId,
     ref: 'User'
   },
+  administrators: [{
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User'
+  }],
+  moderators: [{
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User'
+  }],
   eventManagers: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'User'
@@ -29,6 +37,14 @@ const departmentSchema = new mongoose.Schema({
     default: true
   }
 }, { timestamps: true });
+
+// Middleware để đảm bảo không có trùng lặp users trong các roles
+departmentSchema.pre('save', function(next) {
+  // Remove duplicates
+  this.administrators = [...new Set(this.administrators)];
+  this.moderators = [...new Set(this.moderators)];
+  next();
+});
 
 module.exports = mongoose.model('Department', departmentSchema);
 

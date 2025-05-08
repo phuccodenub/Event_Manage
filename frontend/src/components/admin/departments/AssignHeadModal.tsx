@@ -1,47 +1,96 @@
-import React, { useState, Fragment } from 'react';
-import { Dialog, Transition, Combobox } from '@headlessui/react';
-import { XIcon, UserCircleIcon, SearchIcon, CheckIcon } from '@heroicons/react/outline';
+import React, { useState, Fragment, useEffect } from 'react';
+import { Dialog, Transition } from '@headlessui/react';
+import { XIcon, UserCircleIcon, SearchIcon } from '@heroicons/react/outline';
 import type { User } from '@/types';
 import { useUserList } from '@/hooks/useUserList';
+import { useDepartment } from '@/context/DepartmentContext';
+import { toast } from 'react-toastify';
+
+const UserAvatar = ({ user }: { user: User }) => {
+  if (user.avatar?.url) {
+    return (
+      <img 
+        src={user.avatar.url} 
+        alt={user.fullName} 
+        className="h-10 w-10 rounded-full object-cover"
+      />
+    );
+  }
+
+  return (
+    <svg
+      className="h-10 w-10 rounded-full bg-gray-200 p-2 text-gray-400"
+      fill="currentColor"
+      viewBox="0 0 24 24"
+      xmlns="http://www.w3.org/2000/svg"
+    >
+      <path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z" />
+    </svg>
+  );
+};
 
 interface AssignHeadModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onAssign: (userId: string) => Promise<void>;
-  currentHeadId?: string;
+  departmentId: string;
   departmentName: string;
 }
 
-const AssignHeadModal = ({ isOpen, onClose, onAssign, currentHeadId, departmentName }: AssignHeadModalProps) => {
+const AssignHeadModal = ({ isOpen, onClose, departmentId, departmentName }: AssignHeadModalProps) => {
   const [query, setQuery] = useState('');
-  const [selectedUser, setSelectedUser] = useState<User | null>(null);
-  const [isComboboxOpen, setIsComboboxOpen] = useState(false);
-  const { users, loading } = useUserList(['teacher', 'admin']); // Fetch both teachers and admins
+  const { users, loading } = useUserList(['teacher', 'admin']);
+  const { departments, updateDepartmentHead, fetchDepartments } = useDepartment();
 
-  const filteredUsers = query === ''
-    ? users // Show all users when no query
-    : users.filter((user) =>
+  // Fetch departments when modal opens
+  useEffect(() => {
+    if (isOpen) {
+      fetchDepartments();
+    }
+  }, [isOpen, fetchDepartments]);
+
+  const currentDepartment = React.useMemo(() => {
+    console.log('Fetching department details:', {
+      departmentId,
+      departments: departments.map(d => ({ id: d._id, name: d.name, head: d.head }))
+    });
+    return departments.find(dept => dept._id === departmentId);
+  }, [departments, departmentId]);
+
+  const currentHead = React.useMemo(() => {
+    const head = currentDepartment?.head;
+    console.log('Current Head:', {
+      head,
+      departmentInfo: currentDepartment 
+    });
+    return head || null;
+  }, [currentDepartment]);
+
+  const filteredUsers = React.useMemo(() => {
+    return users.filter(user => {
+      if (user._id === currentHead?._id) return false;
+
+      if (currentDepartment?.administrators?.some(admin => admin._id === user._id)) return false;
+      if (currentDepartment?.moderators?.some(mod => mod._id === user._id)) return false;
+
+      return query === '' ||
         user.fullName.toLowerCase().includes(query.toLowerCase()) ||
-        user.email.toLowerCase().includes(query.toLowerCase())
-      );
+        user.userId?.toLowerCase().includes(query.toLowerCase());
+    });
+  }, [users, currentHead, currentDepartment, query]);
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (selectedUser) {
-      await onAssign(selectedUser._id);
+  const handleAssign = async (userId: string) => {
+    try {
+      await updateDepartmentHead(departmentId, userId);
+      await fetchDepartments();
       onClose();
+      toast.success('Phân công trưởng khoa thành công');
+    } catch (error: any) {
+      toast.error(error.message || 'Có lỗi xảy ra');
     }
   };
 
-  // Add timeout to handle click events on options
-  const handleBlur = () => {
-    setTimeout(() => {
-      setIsComboboxOpen(false);
-    }, 100); // Delay để cho phép click option hoàn tất
-  };
-
   return (
-    <Transition appear show={isOpen} as={Fragment}>
+    <Transition show={isOpen} as={Fragment}>
       <Dialog as="div" className="relative z-50" onClose={onClose}>
         <Transition.Child
           as={Fragment}
@@ -52,126 +101,108 @@ const AssignHeadModal = ({ isOpen, onClose, onAssign, currentHeadId, departmentN
           leaveFrom="opacity-100"
           leaveTo="opacity-0"
         >
-          <div className="fixed inset-0 bg-black bg-opacity-50" />
+          <div className="fixed inset-0 bg-black/50 backdrop-blur-sm" />
         </Transition.Child>
 
         <div className="fixed inset-0 overflow-y-auto">
           <div className="flex min-h-full items-center justify-center p-4">
-            <Dialog.Panel className="w-full max-w-md transform overflow-hidden rounded-2xl bg-white p-6 shadow-xl transition-all min-h-[600px] flex flex-col justify-between">
-              <div className="flex-1">
-                <div className="flex items-center justify-between border-b pb-4">
-                  <div className="flex items-center space-x-2">
-                    <UserCircleIcon className="h-6 w-6 text-blue-600" />
-                    <Dialog.Title className="text-lg font-semibold text-gray-900">
-                      Phân công trưởng khoa
-                    </Dialog.Title>
-                  </div>
-                  <button onClick={onClose} className="rounded-full p-1 hover:bg-gray-100">
-                    <XIcon className="h-5 w-5 text-gray-500" />
-                  </button>
+            <Dialog.Panel className="w-full max-w-6xl transform rounded-xl bg-white shadow-xl transition-all">
+              <div className="flex items-center justify-between p-4 border-b">
+                <div className="flex items-center space-x-2">
+                  <UserCircleIcon className="h-6 w-6 text-blue-600" />
+                  <Dialog.Title className="text-lg font-semibold">
+                    Phân công trưởng khoa - {departmentName}
+                  </Dialog.Title>
                 </div>
-
-                <div className="mt-4 flex-1">
-                  <p className="text-sm text-gray-500 mb-4">
-                    Chọn trưởng khoa cho {departmentName}
-                  </p>
-
-                  <Combobox value={selectedUser} onChange={setSelectedUser}>
-                    <div className="relative">
-                      <div className="relative w-full">
-                        <Combobox.Input
-                          className="w-full rounded-lg border border-gray-300 px-3 py-2 pl-10 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                          displayValue={(user: User) => user?.fullName || ''}
-                          onChange={(event) => setQuery(event.target.value)}
-                          onFocus={() => setIsComboboxOpen(true)}
-                          onBlur={handleBlur}
-                          placeholder="Tìm giảng viên..."
-                        />
-                        <SearchIcon className="h-5 w-5 text-gray-400 absolute left-3 top-2.5" />
-                      </div>
-                      <Transition
-                        show={isComboboxOpen}
-                        leave="transition ease-in duration-100"
-                        leaveFrom="opacity-100"
-                        leaveTo="opacity-0"
-                        afterLeave={() => setQuery('')}
-                      >
-                        <Combobox.Options 
-                          static 
-                          className="absolute mt-1 max-h-80 w-full overflow-auto rounded-md bg-white py-1 shadow-lg ring-1 ring-black ring-opacity-5 focus:outline-none"
-                        >
-                          {loading ? (
-                            <div className="px-4 py-2 text-sm text-gray-500">Loading...</div>
-                          ) : filteredUsers.length === 0 ? (
-                            <div className="px-4 py-2 text-sm text-gray-500">Không tìm thấy giảng viên</div>
-                          ) : (
-                            filteredUsers.map((user) => (
-                              <Combobox.Option
-                                key={user._id}
-                                value={user}
-                                className={({ active }) =>
-                                  `relative cursor-pointer select-none py-2 px-4 ${
-                                    active ? 'bg-blue-600 text-white' : 'text-gray-900'
-                                  }`
-                                }
-                              >
-                                {({ selected, active }) => (
-                                  <div className="flex items-center justify-between">
-                                    <div className="flex items-center gap-3">
-                                      {user.avatar?.url ? (
-                                        <img 
-                                          src={user.avatar.url} 
-                                          alt={user.fullName}
-                                          className="h-8 w-8 rounded-full object-cover"
-                                        />
-                                      ) : (
-                                        <div className="h-8 w-8 rounded-full bg-gray-200 flex items-center justify-center">
-                                          <UserCircleIcon className="h-6 w-6 text-gray-400" />
-                                        </div>
-                                      )}
-                                      <div>
-                                        <span className={`block truncate ${selected ? 'font-medium' : 'font-normal'}`}>
-                                          {user.fullName}
-                                        </span>
-                                        <span className={`block truncate text-sm ${
-                                          active ? 'text-blue-200' : 'text-gray-500'
-                                        }`}>
-                                          {user.email}
-                                        </span>
-                                      </div>
-                                    </div>
-                                    {selected && (
-                                      <CheckIcon className={`h-5 w-5 ${active ? 'text-white' : 'text-blue-600'}`} />
-                                    )}
-                                  </div>
-                                )}
-                              </Combobox.Option>
-                            ))
-                          )}
-                        </Combobox.Options>
-                      </Transition>
-                    </div>
-                  </Combobox>
-                </div>
+                <button onClick={onClose} className="p-2 hover:bg-gray-100 rounded-full">
+                  <XIcon className="h-5 w-5" />
+                </button>
               </div>
 
-              <div className="pt-4 border-t mt-auto">
-                <div className="flex justify-end gap-3">
-                  <button
-                    type="button"
-                    onClick={onClose}
-                    className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50"
-                  >
-                    Hủy
-                  </button>
-                  <button
-                    type="button"
-                    onClick={handleSubmit}
-                    disabled={!selectedUser}
-                    className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    Phân công
-                  </button>
+              <div className="grid grid-cols-2 gap-4 p-4">
+                {/* Left Column - Current Head */}
+                <div>
+                  <h3 className="text-sm font-medium text-gray-700 mb-3 mt-6">
+                    Trưởng khoa hiện tại
+                  </h3>
+                  <div className="space-y-2 max-h-[600px] overflow-y-auto border rounded-lg p-4">
+                    {currentHead ? (
+                      <div className="flex items-center space-x-3 p-3 rounded-lg border bg-gray-50">
+                        <UserAvatar user={currentHead} />
+                        <div>
+                          <div className="font-medium">{currentHead.fullName}</div>
+                          <div className="text-sm text-gray-500 flex items-center gap-2">
+                            <span>#{currentHead.userId || 'N/A'}</span>
+                            <span className={`px-2 py-0.5 rounded-full text-xs
+                              ${currentHead.role === 'admin' ? 'bg-red-100 text-red-800' : 
+                                'bg-blue-100 text-blue-800'}`}
+                            >
+                              {currentHead.role === 'admin' ? 'Admin' : 'Giảng viên'}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="text-center py-8 text-gray-500">
+                        Chưa có trưởng khoa
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Right Column - Available Users */}
+                <div>
+                  <div className="mb-3">
+                    <div className="relative">
+                      <SearchIcon className="h-5 w-5 absolute left-3 top-1/2 -translate-y-1/4 text-gray-400" />
+                      <input
+                        type="text"
+                        placeholder="Tìm kiếm giảng viên..."
+                        className="w-full pl-10 pr-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        value={query}
+                        onChange={(e) => setQuery(e.target.value)}
+                      />
+                    </div>
+                  </div>
+
+                  <div className="space-y-2 max-h-[600px] overflow-y-auto border rounded-lg p-2">
+                    {loading ? (
+                      <div className="text-center py-4 text-gray-500">Đang tải...</div>
+                    ) : filteredUsers.length === 0 ? (
+                      <div className="text-center py-4 text-gray-500">
+                        Không tìm thấy giảng viên phù hợp
+                      </div>
+                    ) : (
+                      filteredUsers.map((user) => (
+                        <div
+                          key={user._id}
+                          className="flex items-center justify-between p-3 rounded-lg border hover:bg-gray-50"
+                        >
+                          <div className="flex items-center space-x-3">
+                            <UserAvatar user={user} />
+                            <div>
+                              <div className="font-medium">{user.fullName}</div>
+                              <div className="text-sm text-gray-500 flex items-center gap-2">
+                                <span>#{user.userId || 'N/A'}</span>
+                                <span className={`px-2 py-0.5 rounded-full text-xs
+                                  ${user.role === 'admin' ? 'bg-red-100 text-red-800' : 
+                                    'bg-blue-100 text-blue-800'}`}
+                                >
+                                  {user.role === 'admin' ? 'Admin' : 'Giảng viên'}
+                                </span>
+                              </div>
+                            </div>
+                          </div>
+                          <button
+                            onClick={() => handleAssign(user._id)}
+                            className="px-3 py-1 text-sm text-blue-600 hover:bg-blue-50 rounded-lg"
+                          >
+                            Chọn
+                          </button>
+                        </div>
+                      ))
+                    )}
+                  </div>
                 </div>
               </div>
             </Dialog.Panel>

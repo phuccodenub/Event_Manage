@@ -8,7 +8,8 @@ const {
   updateDepartment,
   deleteDepartment,
   assignDepartmentHead,  // Add this
-  getDepartmentHead     // Add this
+  getDepartmentHead,     // Add this
+  updateDepartmentRoles  // Add this
 } = require('../controllers/departmentController');
 
 // Department routes
@@ -25,5 +26,8 @@ router.route('/:id')
 router.route('/:id/head')
   .get(getDepartmentHead)
   .put(protect, authorize('admin'), assignDepartmentHead);
+
+// Add new route for managing roles
+router.put('/:id/roles', protect, authorize('admin'), updateDepartmentRoles);
 
 module.exports = router;

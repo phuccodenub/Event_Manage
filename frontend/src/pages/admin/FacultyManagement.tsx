@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { 
   PlusIcon, PencilIcon, TrashIcon, 
-  CheckCircleIcon, XCircleIcon, UserCircleIcon, 
+  CheckCircleIcon, XCircleIcon, UserCircleIcon,
+  UserGroupIcon, // Add this import
   SearchIcon, FilterIcon 
 } from '@heroicons/react/outline';
 import departmentService from '@/services/departmentService';
@@ -10,6 +11,7 @@ import type { AdminDepartment } from '@/types/admin';
 import AddDepartmentModal from '@/components/admin/departments/AddDepartmentModal';
 import EditDepartmentModal from '@/components/admin/departments/EditDepartmentModal';
 import AssignHeadModal from '@/components/admin/departments/AssignHeadModal';
+import ManageRolesModal from '@/components/admin/departments/ManageRolesModal';
 
 const COLUMN_WIDTHS = {
   code: 'w-[120px] min-w-[120px] max-w-[120px]',
@@ -33,6 +35,8 @@ const FacultyManagement = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [isAssignHeadModalOpen, setIsAssignHeadModalOpen] = useState(false);
   const [selectedDepartmentForHead, setSelectedDepartmentForHead] = useState<AdminDepartment | null>(null);
+  const [isManageRolesModalOpen, setIsManageRolesModalOpen] = useState(false);
+  const [selectedDepartmentForRoles, setSelectedDepartmentForRoles] = useState<AdminDepartment | null>(null);
   const [filters, setFilters] = useState<FilterState>({
     search: '',
     status: 'all',
@@ -101,6 +105,27 @@ const FacultyManagement = () => {
     } catch (error: any) {
       toast.error(error.response?.data?.message || 'Có lỗi xảy ra khi phân công trưởng khoa');
     }
+  };
+
+  const handleRoleUpdate = async (role: 'administrators' | 'moderators', userId: string, action: 'add' | 'remove') => {
+    try {
+      if (!selectedDepartmentForRoles) return;
+      await departmentService.updateDepartmentRoles(
+        selectedDepartmentForRoles._id, 
+        role,
+        userId,
+        action
+      );
+      await fetchDepartments(); // Refresh data
+    } catch (error: any) {
+      throw new Error(error.response?.data?.message || 'Có lỗi xảy ra khi cập nhật vai trò');
+    }
+  };
+
+  const handleAssignHeadClick = (dept: AdminDepartment) => {
+    console.log('Opening AssignHead modal with department:', dept);
+    setSelectedDepartmentForHead(dept);
+    setIsAssignHeadModalOpen(true);
   };
 
   const filteredDepartments = departments.filter(dept => {
@@ -242,8 +267,18 @@ const FacultyManagement = () => {
                         <button 
                           onClick={(e) => {
                             e.stopPropagation();
-                            setSelectedDepartmentForHead(dept);
-                            setIsAssignHeadModalOpen(true);
+                            setSelectedDepartmentForRoles(dept);
+                            setIsManageRolesModalOpen(true);
+                          }}
+                          className="text-orange-600 hover:text-orange-800"
+                          title="Quản lý vai trò"
+                        >
+                          <UserGroupIcon className="h-5 w-5 inline" />
+                        </button>
+                        <button 
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleAssignHeadClick(dept);
                           }}
                           className="text-blue-600 hover:text-blue-800"
                           title="Phân công trưởng khoa"
@@ -320,9 +355,17 @@ const FacultyManagement = () => {
         <AssignHeadModal
           isOpen={isAssignHeadModalOpen}
           onClose={() => setIsAssignHeadModalOpen(false)}
-          onAssign={handleAssignHead}
-          currentHeadId={selectedDepartmentForHead.head?._id}
+          departmentId={selectedDepartmentForHead._id}
           departmentName={selectedDepartmentForHead.name}
+        />
+      )}
+
+      {selectedDepartmentForRoles && (
+        <ManageRolesModal
+          isOpen={isManageRolesModalOpen}
+          onClose={() => setIsManageRolesModalOpen(false)}
+          department={selectedDepartmentForRoles}
+          onUpdateRole={handleRoleUpdate}
         />
       )}
     </div>

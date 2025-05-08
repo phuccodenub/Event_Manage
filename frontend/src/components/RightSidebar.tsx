@@ -54,13 +54,20 @@ const RightSidebar: React.FC = () => {
                   onClick={() => setLocation(`/events/${event._id}`)}
                 >
                   <h3 className="text-lg font-semibold text-gray-700 mb-2">{event.title}</h3>
+                  {/* {event.description && (
+                    <p className="text-sm text-gray-600 mb-2 line-clamp-3">
+                      {event.description}
+                    </p>
+                  )} */}
                   <div className="flex items-center text-sm text-gray-600 mb-2">
                     <CalendarIcon className="w-5 h-5 mr-2" />
                     <span>{event.date}</span>
                   </div>
                   <div className="flex items-center text-sm text-gray-600 mb-4">
-                    <LocationMarkerIcon className="w-5 h-5 mr-2" />
-                    <span>{event.location?.physical?.address + ' - ' + event.location?.physical?.room || 'Địa điểm không xác định'}</span>
+                    <LocationMarkerIcon className="w-5 h-5 mr-2 flex-shrink-0" />
+                    <span className="line-clamp-1">
+                      {event.location?.physical?.address + ' - ' + event.location?.physical?.room || 'Địa điểm không xác định'}
+                    </span>
                   </div>
                 </div>
                 <div 
