@@ -9,12 +9,20 @@ const {
   deleteEvent,
   joinEvent,
   leaveEvent,
-  getEventParticipants
+  getEventParticipants,
+  getEventRegistrationForm,
+  getFormSubmissions
 } = require('../controllers/eventController');
 const Event = require('../models/eventModel'); // Assuming Event model is imported
 
 // Participants routes (đặt trước các routes dùng :id)
 router.get('/:id/participants', protect, getEventParticipants);
+
+// Add this new route
+router.get('/:id/registration-form', getEventRegistrationForm);
+
+// Add submissions route
+router.get('/:id/submissions', protect, getFormSubmissions);
 
 router.route('/')
   .get(getAllEvents)

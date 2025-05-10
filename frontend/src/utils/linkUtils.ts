@@ -1,4 +1,7 @@
-export const formatDescriptionWithLinks = (text: string) => {
+export const formatDescriptionWithLinks = (text: string | null | undefined) => {
+  // Return empty array if text is null/undefined/empty
+  if (!text) return [];
+
   // Regex để tìm URLs và bit.ly links
   const urlRegex = /(https?:\/\/[^\s]+|bit\.ly\/[a-zA-Z0-9_-]+)/gi;
   

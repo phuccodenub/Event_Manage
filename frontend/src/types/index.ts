@@ -20,6 +20,15 @@ export interface User {
   avatar?: Avatar;
 }
 
+export interface FormField {
+  fieldId: string;
+  label: string;
+  type: string;
+  required: boolean;
+  options?: { label: string; value: string }[];
+  placeholder?: string;
+}
+
 export interface Event {
   _id: string;
   title: string;
@@ -54,6 +63,10 @@ export interface Event {
     avatar?: string;
   };
   status: 'sắp diễn ra' | 'đang diễn ra' | 'đã kết thúc' | 'đã hủy';
+  needsRegistrationForm: boolean;
+  registrationForm?: {
+    fields: FormField[];
+  };
 }
 
 export interface Announcement {

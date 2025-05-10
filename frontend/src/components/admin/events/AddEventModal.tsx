@@ -10,6 +10,7 @@ import notificationService from '@/services/notificationService';
 import { useAuth } from '@/context/AuthContext';
 import { useEvents } from '@/context/EventContext';
 import { motion } from 'framer-motion';
+import type { FormField } from '@/types';
 
 interface Props {
   isOpen: boolean;
@@ -45,6 +46,16 @@ const ONLINE_PLATFORMS = {
   'Other': 'Khác'
 };
 
+const FIELD_TYPES = {
+  text: 'Văn bản ngắn',
+  textarea: 'Văn bản dài',
+  number: 'Số',
+  email: 'Email',
+  radio: 'Radio buttons',
+  checkbox: 'Checkbox',
+  date: 'Ngày'
+};
+
 const AddEventModal = ({ isOpen, onClose }: Props) => {
   const { user } = useAuth();
   const { addEvent, fetchEvents } = useEvents();
@@ -53,6 +64,7 @@ const AddEventModal = ({ isOpen, onClose }: Props) => {
   const [previews, setPreviews] = useState<string[]>([]);
   const [departments, setDepartments] = useState<Department[]>([]);
   const [currentStep, setCurrentStep] = useState(1);
+  const [customFields, setCustomFields] = useState<FormField[]>([]);
   const { register, handleSubmit, watch, formState: { errors }, reset } = useForm();
   const eventType = watch('eventType', 'offline');
 
@@ -113,6 +125,31 @@ const AddEventModal = ({ isOpen, onClose }: Props) => {
       document.removeEventListener('paste', handleImagePaste);
     };
   }, []);
+
+  const handleAddField = (type: string) => {
+    const newField: FormField = {
+      fieldId: `field_${Date.now()}`,
+      label: 'Câu hỏi mới',
+      type,
+      required: false
+    };
+
+    if (['select', 'radio', 'checkbox'].includes(type)) {
+      newField.options = [{ label: 'Tùy chọn 1', value: '1' }];
+    }
+
+    setCustomFields([...customFields, newField]);
+  };
+
+  const handleUpdateField = (index: number, updates: Partial<FormField>) => {
+    const newFields = [...customFields];
+    newFields[index] = { ...newFields[index], ...updates };
+    setCustomFields(newFields);
+  };
+
+  const handleDeleteField = (index: number) => {
+    setCustomFields(fields => fields.filter((_, i) => i !== index));
+  };
 
   const handleFormSubmit = async (data: any) => {
     try {
@@ -188,6 +225,10 @@ const AddEventModal = ({ isOpen, onClose }: Props) => {
         }
       }
 
+      // Add registration form data
+      formDataToSubmit.append('needsRegistrationForm', 'true');
+      formDataToSubmit.append('formFields', JSON.stringify(customFields));
+
       // Create event
       const newEvent = await eventService.createEvent(formDataToSubmit);
       
@@ -221,16 +262,20 @@ const AddEventModal = ({ isOpen, onClose }: Props) => {
   };
 
   const goToNextStep = () => {
-    if (!watch('title') || !watch('description') || !watch('category') || !watch('department') || 
-        !watch('startDate') || !watch('endDate')) {
-      toast.error('Vui lòng điền đầy đủ thông tin bắt buộc');
-      return;
+    if (currentStep === 1) {
+      if (!watch('title') || !watch('description') || !watch('category') || !watch('department') || 
+          !watch('startDate') || !watch('endDate')) {
+        toast.error('Vui lòng điền đầy đủ thông tin bắt buộc');
+        return;
+      }
+      setCurrentStep(2);
+    } else if (currentStep === 2) {
+      setCurrentStep(3);
     }
-    setCurrentStep(2);
   };
 
   const goToPreviousStep = () => {
-    setCurrentStep(1);
+    setCurrentStep(currentStep - 1);
   };
 
   const renderStepOne = () => (
@@ -530,6 +575,148 @@ const AddEventModal = ({ isOpen, onClose }: Props) => {
           Quay lại
         </button>
         <button
+          type="button"
+          onClick={(e) => {
+            e.preventDefault();
+            if (eventType === 'online' && (!watch('onlinePlatform') || !watch('meetingLink'))) {
+              toast.error('Vui lòng nhập đầy đủ thông tin cho sự kiện trực tuyến');
+              return;
+            }
+            if ((eventType === 'offline' || eventType === 'hybrid') && !watch('physicalAddress')) {
+              toast.error('Vui lòng nhập địa chỉ cho sự kiện trực tiếp');
+              return;
+            }
+            goToNextStep();
+          }}
+          className="px-4 py-2 text-sm font-medium text-white bg-orange-600 hover:bg-orange-700 rounded-lg"
+        >
+          Tiếp tục
+        </button>
+      </div>
+    </div>
+  );
+
+  const renderStepThree = () => (
+    <div className="space-y-6">
+      <div className="flex gap-2 mb-4">
+        {Object.entries(FIELD_TYPES).map(([type, label]) => (
+          <button
+            key={type}
+            type="button" // Thêm type="button" để ngăn submit
+            onClick={(e) => {
+              e.preventDefault(); // Thêm để đảm bảo không submit
+              handleAddField(type);
+            }}
+            className="px-3 py-1 text-sm bg-orange-100 hover:bg-orange-200 
+                     text-orange-700 rounded-full transition-colors"
+          >
+            + {label}
+          </button>
+        ))}
+      </div>
+
+      <div className="space-y-4">
+        {customFields.map((field, index) => (
+          <div
+            key={field.fieldId}
+            className="p-4 bg-white rounded-lg shadow-sm border 
+                     border-gray-200 hover:border-orange-300 
+                     transition-colors"
+          >
+            <div className="grid gap-4">
+              <div className="flex justify-between">
+                <input
+                  type="text"
+                  value={field.label}
+                  onChange={(e) => handleUpdateField(index, { label: e.target.value })}
+                  className="text-lg font-medium bg-transparent border-none 
+                           focus:outline-none focus:ring-2 focus:ring-orange-500/20 
+                           rounded px-2 py-1 w-full"
+                  placeholder="Nhập câu hỏi..."
+                />
+                <button
+                  onClick={() => handleDeleteField(index)}
+                  className="text-gray-400 hover:text-red-500"
+                >
+                  <XIcon className="h-5 w-5" />
+                </button>
+              </div>
+
+              {['radio', 'checkbox'].includes(field.type) && (
+                <div className="space-y-2">
+                  {field.options?.map((option, optionIndex) => (
+                    <div key={optionIndex} className="flex items-center gap-2">
+                      <input
+                        type="text"
+                        value={option.label}
+                        onChange={(e) => {
+                          e.preventDefault(); // Thêm để ngăn submit
+                          const newOptions = [...(field.options || [])];
+                          newOptions[optionIndex] = {
+                            ...newOptions[optionIndex],
+                            label: e.target.value,
+                            value: e.target.value
+                          };
+                          handleUpdateField(index, { options: newOptions });
+                        }}
+                        className="border-gray-300 rounded-md focus:border-orange-500 
+                                 focus:ring-orange-500/20"
+                        placeholder={`Tùy chọn ${optionIndex + 1}`}
+                      />
+                      <button
+                        type="button" // Thêm type="button"
+                        onClick={(e) => {
+                          e.preventDefault();
+                          const newOptions = field.options?.filter((_, i) => i !== optionIndex);
+                          handleUpdateField(index, { options: newOptions });
+                        }}
+                        className="text-gray-400 hover:text-red-500"
+                      >
+                        <XIcon className="h-4 w-4" />
+                      </button>
+                    </div>
+                  ))}
+                  <button
+                    type="button" // Thêm type="button"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      const newOptions = [...(field.options || [])];
+                      newOptions.push({ label: '', value: '' });
+                      handleUpdateField(index, { options: newOptions });
+                    }}
+                    className="text-sm text-orange-600 hover:text-orange-700"
+                  >
+                    + Thêm tùy chọn
+                  </button>
+                </div>
+              )}
+
+              <div className="flex items-center gap-4 mt-2">
+                <label className="flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    checked={field.required}
+                    onChange={(e) => handleUpdateField(index, { required: e.target.checked })}
+                    className="text-orange-600 rounded border-gray-300 
+                             focus:ring-orange-500"
+                  />
+                  <span className="text-sm text-gray-600">Bắt buộc</span>
+                </label>
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      <div className="pt-6 border-t flex justify-end gap-3">
+        <button
+          type="button"
+          onClick={() => setCurrentStep(2)}
+          className="px-4 py-2 text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 border border-gray-300 rounded-lg"
+        >
+          Quay lại
+        </button>
+        <button
           type="submit"
           disabled={loading}
           className="px-4 py-2 text-sm font-medium text-white bg-orange-600 hover:bg-orange-700 rounded-lg disabled:opacity-50"
@@ -571,7 +758,7 @@ const AddEventModal = ({ isOpen, onClose }: Props) => {
                     Tạo sự kiện mới
                   </Dialog.Title>
                   <p className="text-sm text-gray-500 mt-1">
-                    Bước {currentStep} / 2
+                    Bước {currentStep} / 3
                   </p>
                 </div>
                 <button onClick={onClose} className="text-gray-400 hover:text-gray-500">
@@ -580,7 +767,9 @@ const AddEventModal = ({ isOpen, onClose }: Props) => {
               </div>
 
               <form onSubmit={handleSubmit(handleFormSubmit)} className="space-y-6">
-                {currentStep === 1 ? renderStepOne() : renderStepTwo()}
+                {currentStep === 1 && renderStepOne()}
+                {currentStep === 2 && renderStepTwo()}
+                {currentStep === 3 && renderStepThree()}
               </form>
             </Dialog.Panel>
           </div>

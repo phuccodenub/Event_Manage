@@ -59,6 +59,9 @@ interface Event {
   status: 'upcoming' | 'ongoing' | 'completed' | 'cancelled';
   creator: string;
   createdAt: Date;
+  registrationForm?: {
+    fields: FormField[];
+  };
 }
 
 // Interface for Announcement
@@ -187,7 +190,8 @@ const Home: React.FC = () => {
           ...event,
           participants: event.participants.map((p: any) => 
             typeof p === 'string' ? p : p._id.toString()
-          )
+          ),
+          registrationForm: event.registrationForm || undefined
         }));
 
         const sortedEvents = sortEvents(formattedEvents);
@@ -304,14 +308,11 @@ const Home: React.FC = () => {
             <div className="absolute right-0 top-8 w-48 bg-white rounded-lg shadow-lg border border-gray-200 py-1 z-20">
               {/* Show View Details for everyone */}
               <button
-                onClick={() => {
-                  // Handle view details action
-                  setActiveDropdown(null);
-                }}
+                onClick={() => navigate(`/events/${item._id}/submissions`)}
                 className="w-full px-4 py-2 text-left text-sm hover:bg-gray-100 flex items-center gap-2"
               >
                 <MdInfoOutline className="text-blue-600" />
-                <span>View details</span>
+                <span>Xem danh sách đăng ký</span>
               </button>
 
               {/* Edit and Delete only for creators and admins */}
@@ -620,6 +621,7 @@ const Home: React.FC = () => {
               startDate={event.startDate}
               endDate={event.endDate}
               status={event.status}
+              registrationForm={event.registrationForm}
               onJoinSuccess={() => {
                 updateEventParticipants(event._id, user?._id, true);
               }}

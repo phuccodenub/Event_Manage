@@ -74,12 +74,22 @@ const eventService = {
     await apiClient.delete(`/events/${eventId}`);
   },
 
-  joinEvent: async (eventId: string) => {
+  getEventForm: async (eventId: string) => {
     try {
-      const response = await apiClient.post(`/events/${eventId}/join`);
+      const response = await apiClient.get(`/events/${eventId}/registration-form`);
       return response.data;
     } catch (error) {
-      throw new Error(error.response?.data?.message || 'Failed to join event');
+      console.error('Error fetching registration form:', error);
+      throw error;
+    }
+  },
+
+  joinEvent: async (eventId: string, formData?: any) => {
+    try {
+      const response = await apiClient.post(`/events/${eventId}/join`, formData);
+      return response.data;
+    } catch (error) {
+      throw error;
     }
   },
 
@@ -109,6 +119,26 @@ const eventService = {
       return response.data;
     } catch (error) {
       console.error('Error fetching events:', error);
+      throw error;
+    }
+  },
+
+  getEventSubmissions: async (eventId: string) => {
+    try {
+      const response = await apiClient.get(`/events/${eventId}/submissions`);
+      return response.data;
+    } catch (error) {
+      console.error('Error fetching submissions:', error);
+      throw error;
+    }
+  },
+
+  getFormSubmissions: async (eventId: string) => {
+    try {
+      const response = await apiClient.get(`/events/${eventId}/submissions`);
+      return response.data;
+    } catch (error) {
+      console.error('Error fetching submissions:', error);
       throw error;
     }
   },

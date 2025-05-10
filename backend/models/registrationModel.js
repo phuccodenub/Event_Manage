@@ -30,8 +30,24 @@ const registrationSchema = new mongoose.Schema({
       max: 5
     },
     comment: String
+  },
+  formData: {
+    type: Map,
+    of: mongoose.Schema.Types.Mixed, // Change from String to Mixed to support arrays
+    default: () => new Map() // Make sure to initialize as empty Map
   }
 }, { timestamps: true });
+
+// Add toJSON transform
+registrationSchema.set('toJSON', {
+  transform: function(doc, ret) {
+    if (ret.formData) {
+      ret.formResponses = Object.fromEntries(ret.formData);
+      delete ret.formData;
+    }
+    return ret;
+  }
+});
 
 // Ensure one user can only register once for an event
 registrationSchema.index({ event: 1, user: 1 }, { unique: true });

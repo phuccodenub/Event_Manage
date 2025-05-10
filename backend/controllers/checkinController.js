@@ -2,25 +2,51 @@ const Checkin = require('../models/checkinModel');
 const Event = require('../models/eventModel');
 const User = require('../models/userModel');
 const Registration = require('../models/registrationModel');
+const Department = require('../models/departmentModel');
 const ErrorResponse = require('../utils/errorResponse');
+
+const canAccessCheckin = async (user, event) => {
+  // System admin has full access
+  if (user.role === 'admin') return true;
+
+  // Get department details if exists
+  if (event.department) {
+    const department = await Department.findById(event.department);
+    if (!department) return false;
+
+    return (
+      // Department head
+      user._id.toString() === department.head?.toString() ||
+      // Department admin
+      department.administrators.includes(user._id.toString()) ||
+      // Department moderator
+      department.moderators.includes(user._id.toString())
+    );
+  }
+
+  return false;
+};
 
 exports.checkinUser = async (req, res, next) => {
   try {
     const { eventId, studentId } = req.body;
     const checkinMethod = req.body.method || 'manual';
 
-    // Kiểm tra event và quyền checkin
     const event = await Event.findById(eventId).populate('department');
     if (!event) {
-      return next(new ErrorResponse('Event not found', 404));
+      return res.status(404).json({ 
+        success: false, 
+        error: 'EVENT_NOT_FOUND' 
+      });
     }
 
-    const canCheckin = req.user.role === 'admin' || 
-                      (req.user.department === event.department._id.toString() && 
-                       ['moderator', 'admin'].includes(req.user.role));
-                       
-    if (!canCheckin) {
-      return next(new ErrorResponse('Not authorized to perform checkin', 403));
+    // Check access permission
+    const hasAccess = await canAccessCheckin(req.user, event);
+    if (!hasAccess) {
+      return res.status(403).json({ 
+        success: false, 
+        error: 'PERMISSION_DENIED' 
+      });
     }
 
     // Kiểm tra xem đã checkin chưa
@@ -89,11 +115,28 @@ exports.checkinUser = async (req, res, next) => {
 
 exports.getEventCheckins = async (req, res, next) => {
   try {
-    const { eventId } = req.params;
+    const event = await Event.findById(req.params.eventId)
+      .populate('department');
 
-    const checkins = await Checkin.find({ event: eventId })
-      .populate('user', 'fullName userId email avatar')
-      .populate('checkedBy', 'fullName')
+    if (!event) {
+      return res.status(404).json({ 
+        success: false, 
+        error: 'EVENT_NOT_FOUND' 
+      });
+    }
+
+    // Check access permission
+    const hasAccess = await canAccessCheckin(req.user, event);
+    if (!hasAccess) {
+      return res.status(403).json({ 
+        success: false, 
+        error: 'PERMISSION_DENIED' 
+      });
+    }
+
+    const checkins = await Checkin.find({ event: req.params.eventId })
+      .populate('user')
+      .populate('checkedBy')
       .sort('-checkinTime');
 
     res.status(200).json({

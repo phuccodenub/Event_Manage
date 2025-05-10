@@ -10,7 +10,7 @@ export default defineConfig({
     'import.meta.env.VITE_GOOGLE_CLIENT_ID': JSON.stringify('788152514554-aj7mee21mj8gm9dc9070ikoeg6u4urtp.apps.googleusercontent.com'),
   },
   optimizeDeps: {
-    exclude: ['@react-oauth/google']
+    exclude: ['@react-oauth/google', 'xlsx']
   },
   server: {
     host: true,

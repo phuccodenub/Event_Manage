@@ -82,7 +82,7 @@ app.use(fileUpload({
 app.use(cors({
   origin: ['http://localhost:5173', process.env.CLIENT_URL].filter(Boolean),
   credentials: true,
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
   allowedHeaders: ['Content-Type', 'Authorization']
 }));
 

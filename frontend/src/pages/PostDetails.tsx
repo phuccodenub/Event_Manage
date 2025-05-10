@@ -45,10 +45,10 @@ const PostDetails: React.FC = () => {
         setLoading(true);
         if (isEventPage) {
           const data = await eventService.getEventById(id);
-          setPost(data);
+          setPost(data.data);
         } else {
           const data = await announcementService.getAnnouncementById(id);
-          setPost(data);
+          setPost(data.data);
         }
       } catch (err) {
         setError('Error fetching post details');

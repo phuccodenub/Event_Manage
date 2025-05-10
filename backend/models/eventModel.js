@@ -150,6 +150,22 @@ const eventSchema = new mongoose.Schema({
     type: mongoose.Schema.Types.ObjectId,
     ref: 'User',
     required: true
+  },
+  needsRegistrationForm: {
+    type: Boolean,
+    default: false
+  },
+  registrationForm: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'RegistrationForm'
+  },
+  needsVolunteers: {
+    type: Boolean,
+    default: false
+  },
+  maxVolunteers: {
+    type: Number,
+    default: 0
   }
 }, { timestamps: true });
 

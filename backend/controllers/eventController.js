@@ -5,6 +5,7 @@ const NotificationService = require('../utils/notificationService');
 const Registration = require('../models/registrationModel'); // Import Registration model
 const mongoose = require('mongoose'); // Import mongoose for transactions
 const User = require('../models/userModel'); // Import User model
+const RegistrationForm = require('../models/registrationFormModel'); // Import RegistrationForm model
 
 // @desc: Get all events
 // @route: GET /api/v1/events
@@ -64,6 +65,11 @@ exports.createEvent = async (req, res, next) => {
       eventData.location = JSON.parse(eventData.location);
     }
 
+    // Handle registration form if needed
+    eventData.needsRegistrationForm = req.body.needsRegistrationForm === 'true';
+    eventData.needsVolunteers = req.body.needsVolunteers === 'true';
+    eventData.maxVolunteers = parseInt(req.body.maxVolunteers) || 0;
+
     // Handle images array from form data
     const images = [];
     // Check if we have image data in the request
@@ -79,7 +85,50 @@ exports.createEvent = async (req, res, next) => {
       eventData.images = images;
     }
 
+    // Create event first
     const event = await Event.create(eventData);
+
+    // If registration form is needed, create it
+    if (eventData.needsRegistrationForm) {
+      try {
+        const formFields = req.body.formFields ? JSON.parse(req.body.formFields) : [];
+        const registrationForm = await RegistrationForm.create({
+          event: event._id,
+          fields: formFields.length > 0 ? formFields : [
+            // Default fields if none provided
+            {
+              fieldId: 'fullName',
+              label: 'Họ và tên',
+              type: 'text',
+              required: true,
+              placeholder: 'Nhập họ và tên'
+            },
+            {
+              fieldId: 'studentId',
+              label: 'MSSV',
+              type: 'text',
+              required: true,
+              placeholder: 'Nhập mã số sinh viên'
+            },
+            {
+              fieldId: 'email',
+              label: 'Email',
+              type: 'email',
+              required: true,
+              placeholder: 'Nhập email'
+            }
+          ],
+          createdBy: req.user.id
+        });
+
+        // Update event with form reference
+        event.registrationForm = registrationForm._id;
+        await event.save();
+      } catch (formError) {
+        console.error('Error creating registration form:', formError);
+      }
+    }
+
     await event.populate('creator');
     
     res.status(201).json({
@@ -262,27 +311,39 @@ exports.joinEvent = async (req, res, next) => {
       return next(new ErrorResponse('Already joined this event', 400));
     }
 
-    // Thực hiện các thao tác cập nhật trong một transaction
     const session = await mongoose.startSession();
     session.startTransaction();
 
     try {
-      // 1. Thêm user vào danh sách participants của event
+      // Thêm form responses vào registration record
+      const registrationData = {
+        event: event._id,
+        user: req.user._id,
+        status: 'approved',
+        formData: new Map() // Tạo Map mới để lưu form data
+      };
+
+      // Nếu có form responses thì lưu vào formData
+      if (req.body.formResponses) {
+        Object.entries(req.body.formResponses).forEach(([key, value]) => {
+          // Xử lý đặc biệt cho checkbox - lưu array vào Map
+          if (Array.isArray(value)) {
+            registrationData.formData.set(key, value);
+          } else {
+            registrationData.formData.set(key, value);
+          }
+        });
+      }
+
+      // Tạo registration record với form data
+      await Registration.create([registrationData], { session });
+
+      // Thêm user vào participants
       event.participants.addToSet(req.user._id);
       await event.save({ session });
 
-      // 2. Cập nhật registeredEvents của user
+      // Cập nhật registeredEvents của user
       await User.updateRegisteredEvents(req.user._id, event._id, 'join');
-
-      // 3. Tạo registration record
-      await Registration.create([{
-        event: event._id,
-        user: req.user._id,
-        status: 'approved'
-      }], { session });
-
-      // 4. Gửi thông báo
-      await NotificationService.createEventJoinNotification(event, req.user);
 
       await session.commitTransaction();
       
@@ -296,7 +357,6 @@ exports.joinEvent = async (req, res, next) => {
     } finally {
       session.endSession();
     }
-
   } catch (error) {
     next(error);
   }
@@ -419,5 +479,129 @@ exports.getEventParticipants = async (req, res, next) => {
   } catch (error) {
     console.error('Error in getEventParticipants:', error);
     next(error);
+  }
+};
+
+// @desc: Update event registration form
+exports.updateEventForm = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const { fields } = req.body;
+
+    const event = await Event.findById(id);
+    if (!event) {
+      return next(new ErrorResponse('Event not found', 404));
+    }
+
+    let form;
+    if (event.registrationForm) {
+      // Update existing form
+      form = await RegistrationForm.findByIdAndUpdate(
+        event.registrationForm,
+        { fields },
+        { new: true }
+      );
+    } else {
+      // Create new form
+      form = await RegistrationForm.create({
+        event: event._id,
+        fields,
+        createdBy: req.user.id
+      });
+      event.registrationForm = form._id;
+      await event.save();
+    }
+
+    res.status(200).json({
+      success: true,
+      data: form
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// @desc: Get event registration form
+exports.getEventRegistrationForm = async (req, res) => {
+  try {
+    const event = await Event.findById(req.params.id)
+      .populate('registrationForm') // Add this populate
+      .select('registrationForm needsRegistrationForm');
+
+    if (!event) {
+      return res.status(404).json({
+        success: false,
+        message: 'Event not found'
+      });
+    }
+
+    // Return the populated registration form if it exists
+    if (event.needsRegistrationForm && event.registrationForm) {
+      return res.status(200).json({
+        success: true,
+        data: {
+          fields: event.registrationForm.fields || []
+        }
+      });
+    }
+
+    // Return empty fields if no form exists
+    return res.status(200).json({
+      success: true,
+      data: { fields: [] }
+    });
+
+  } catch (error) {
+    console.error('Error getting registration form:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Internal server error'
+    });
+  }
+};
+
+exports.getFormSubmissions = async (req, res) => {
+  try {
+    const event = await Event.findById(req.params.id);
+    if (!event) {
+      return res.status(404).json({
+        success: false,
+        message: 'Event not found'
+      });
+    }
+
+    // Kiểm tra quyền (chỉ organizer và admin mới xem được)
+    if (event.organizer.toString() !== req.user._id.toString() 
+        && req.user.role !== 'admin') {
+      return res.status(403).json({
+        success: false,
+        message: 'Not authorized to view submissions'
+      });
+    }
+
+    const submissions = await Registration.find({ event: event._id })
+      .populate('user')
+      .select('formData createdAt status') // Make sure formData is included
+      .sort({ createdAt: -1 });
+
+    // Format data to include form responses
+    const formattedSubmissions = submissions.map(sub => ({
+      _id: sub._id,
+      user: sub.user,
+      status: sub.status,
+      createdAt: sub.createdAt,
+      formResponses: sub.formData || {} // Include the form responses
+    }));
+
+    res.status(200).json({
+      success: true,
+      data: formattedSubmissions
+    });
+  } catch (error) {
+    console.error('Error getting form submissions:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error getting submissions'
+    });
   }
 };
