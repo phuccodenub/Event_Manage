@@ -5,18 +5,33 @@ class NotificationService {
   static async createNotification(data) {
     try {
       const notification = await NotificationModel.create(data);
+      
+      // Gửi thông báo qua socket.io
+      if (data.recipient) {
+        const recipientSocket = global.userSockets.get(data.recipient.toString());
+        if (recipientSocket) {
+          recipientSocket.emit('newNotification', notification);
+        }
+      }
+      
       return notification;
     } catch (error) {
-      console.error('Error creating notification:', error);
+      console.error('Lỗi khi tạo thông báo:', error);
       throw error;
     }
   }
 
   static async createMassNotification(recipients, data) {
     try {
+      // Lọc danh sách người nhận, loại bỏ người gửi để tránh tự gửi thông báo cho chính mình
       const filteredRecipients = recipients.filter(
-        recipientId => recipientId.toString() !== data.sender.toString()
+        recipientId => recipientId && recipientId.toString() !== data.sender.toString()
       );
+
+      // Nếu không có người nhận hợp lệ, trả về mảng rỗng
+      if (filteredRecipients.length === 0) {
+        return [];
+      }
 
       const notifications = filteredRecipients.map(recipient => ({
         recipient,
@@ -24,57 +39,84 @@ class NotificationService {
       }));
       
       const created = await NotificationModel.insertMany(notifications);
+      
+      // Gửi thông báo qua socket.io cho từng người nhận
+      for (const notification of created) {
+        const recipientSocket = global.userSockets.get(notification.recipient.toString());
+        if (recipientSocket) {
+          try {
+            // Populate sender information before emitting
+            const populatedNotification = await NotificationModel.findById(notification._id)
+              .populate('sender', 'fullName avatar');
+              
+            recipientSocket.emit('newNotification', populatedNotification);
+          } catch (err) {
+            console.error('Lỗi khi gửi thông báo hàng loạt:', err);
+          }
+        }
+      }
+      
       return created;
     } catch (error) {
-      console.error('Error creating mass notifications:', error);
+      console.error('Lỗi khi tạo thông báo hàng loạt:', error);
       throw error;
     }
   }
 
   static async createEventJoinNotification(event, participant) {
     try {
-      console.log('Creating event join notification:', {
+      console.log('Đang tạo thông báo tham gia sự kiện:', {
         event: event._id,
         participant: participant._id
       });
 
       // Thông báo cho người tổ chức
-      await NotificationModel.create({
+      const organizerNotification = await NotificationModel.create({
         recipient: event.creator,
-        sender: participant._id,
+        sender: participant,
         type: 'event_joined',
-        title: 'New Event Participant',
+        title: `${participant.fullName} đã đăng ký tham gia sự kiện.`,
         message: `${participant.fullName} đã đăng ký tham gia sự kiện "${event.title}"`,
         relatedModel: 'Event',
         relatedId: event._id,
         link: `/events/${event._id}/participants`
       });
+      
+      // Gửi thông báo qua socket cho người tổ chức
+      const organizerSocket = global.userSockets.get(event.creator.toString());
+      if (organizerSocket) {
+        console.log('Đang gửi thông báo đến người tổ chức:', event.creator);
+        
+        // Populate sender information before emitting
+        const populatedNotification = await NotificationModel.findById(organizerNotification._id)
+          .populate('sender', 'fullName avatar');
+          
+        organizerSocket.emit('newNotification', populatedNotification);
+        
+        // Cập nhật số lượng thông báo chưa đọc
+        const unreadCount = await NotificationModel.countDocuments({
+          recipient: event.creator,
+          read: false
+        });
+        organizerSocket.emit('unreadCount', { count: unreadCount });
+      }
 
-      // Thông báo cho người tham gia
-      await NotificationModel.create({
-        recipient: participant._id,
-        sender: event.creator,
-        type: 'event_confirmation',
-        title: 'Event Registration Confirmed',
-        message: `Bạn đã đăng ký tham gia sự kiện "${event.title}" thành công`,
-        relatedModel: 'Event',
-        relatedId: event._id,
-        link: `/events/${event._id}`
-      });
+      // Không gửi thông báo cho người tham gia về việc họ tham gia sự kiện
 
     } catch (error) {
-      console.error('Error in createEventJoinNotification:', error);
+      console.error('Lỗi trong createEventJoinNotification:', error);
       throw error;
     }
   }
 
   static async createEventLeaveNotification(event, participant) {
     try {
-      await this.createNotification({
+      // Thông báo cho người tổ chức
+      const organizerNotification = await NotificationModel.create({
         recipient: event.creator,
-        sender: participant._id,
+        sender: participant,
         type: 'event_left',
-        title: 'Event Participant Left',
+        title: `${participant.fullName} đã đăng ký tham gia sự kiện.`,
         message: `${participant.fullName} đã hủy đăng ký tham gia sự kiện "${event.title}"`,
         relatedModel: 'Event',
         relatedId: event._id,
@@ -82,19 +124,45 @@ class NotificationService {
         icon: 'user-minus',
         priority: 'medium'
       });
+      
+      // Gửi thông báo qua socket cho người tổ chức
+      const organizerSocket = global.userSockets.get(event.creator.toString());
+      if (organizerSocket) {
+        console.log('Đang gửi thông báo rời đi đến người tổ chức:', event.creator);
+        
+        // Populate sender information before emitting
+        const populatedNotification = await NotificationModel.findById(organizerNotification._id)
+          .populate('sender', 'fullName avatar');
+        
+        organizerSocket.emit('newNotification', populatedNotification);
+        
+        // Cập nhật số lượng thông báo chưa đọc
+        const unreadCount = await NotificationModel.countDocuments({
+          recipient: event.creator,
+          read: false
+        });
+        organizerSocket.emit('unreadCount', { count: unreadCount });
+      }
+      
+      // Không gửi thông báo cho người tham gia về việc họ đã rời khỏi sự kiện
     } catch (error) {
-      console.error('Error creating event leave notification:', error);
+      console.error('Lỗi khi tạo thông báo rời khỏi sự kiện:', error);
       throw error;
     }
   }
 
   static async createEventReminderNotification(event) {
     try {
-      // Gửi nhắc nhở cho tất cả người tham gia
-      await this.createMassNotification(event.participants, {
+      // Lọc danh sách người tham gia, loại bỏ người tạo sự kiện nếu họ cũng là người tham gia
+      const filteredParticipants = event.participants.filter(
+        participantId => participantId.toString() !== event.creator.toString()
+      );
+      
+      // Gửi nhắc nhở cho tất cả người tham gia (trừ người tạo)
+      const notifications = await this.createMassNotification(filteredParticipants, {
         sender: event.creator,
         type: 'event_reminder',
-        title: 'Event Reminder',
+        title: 'Nhắc nhở sự kiện',
         message: `Sự kiện "${event.title}" sẽ diễn ra trong 24 giờ tới`,
         relatedModel: 'Event',
         relatedId: event._id,
@@ -102,8 +170,32 @@ class NotificationService {
         icon: 'clock',
         priority: 'high'
       });
+      
+      // Gửi thông báo qua socket.io cho từng người tham gia
+      for (const notification of notifications) {
+        const recipientSocket = global.userSockets.get(notification.recipient.toString());
+        if (recipientSocket) {
+          try {
+            // Populate sender information before emitting
+            const populatedNotification = await NotificationModel.findById(notification._id)
+              .populate('sender', 'fullName avatar');
+              
+            recipientSocket.emit('newNotification', populatedNotification);
+            
+            // Cập nhật số lượng thông báo chưa đọc
+            const count = await NotificationModel.countDocuments({
+              recipient: notification.recipient,
+              read: false
+            });
+            
+            recipientSocket.emit('unreadCount', { count });
+          } catch (err) {
+            console.error('Lỗi khi gửi thông báo nhắc nhở:', err);
+          }
+        }
+      }
     } catch (error) {
-      console.error('Error creating event reminder notification:', error);
+      console.error('Lỗi khi tạo thông báo nhắc nhở sự kiện:', error);
       throw error;
     }
   }

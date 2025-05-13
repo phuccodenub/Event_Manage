@@ -2,25 +2,28 @@ import React, { useState, useEffect } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { IoSearchOutline, IoNotificationsOutline, IoHomeOutline, IoPeopleOutline, IoCalendarOutline } from 'react-icons/io5';
 import { IoMdArrowDropdown } from 'react-icons/io';
-import { CgProfile } from 'react-icons/cg';
-import { IoSettingsOutline, IoLogOutOutline } from 'react-icons/io5';
+import { useAuth } from '../context/AuthContext';
 import authService from '../services/authService';
-import notificationService from '../services/notificationService';
 import NotificationDropdown from './NotificationDropdown';
 import ProfileModal from './modals/ProfileModal';
-import { User } from '../types';
 import { useNotifications } from '../context/NotificationContext';
-
-interface UserData extends User {
-  // any additional properties specific to Header
-}
+import { useUnreadCount } from '../hooks/useUnreadCount';
 
 const Header: React.FC = () => {
   const location = useLocation();
   const [showProfileMenu, setShowProfileMenu] = useState(false);
-  const [userData, setUserData] = useState<UserData | null>(null);
   const [showNotifications, setShowNotifications] = useState(false);
-  const { unreadCount } = useNotifications(); // Chỉ lấy unreadCount từ context
+  const { fetchNotifications } = useNotifications();
+  const { unreadCount, refreshUnreadCount } = useUnreadCount();
+  const { user: userData, loading: userLoading } = useAuth();
+
+  // Fetch notifications on initial load
+  useEffect(() => {
+    if (!userLoading && userData) {
+      fetchNotifications();
+      refreshUnreadCount();
+    }
+  }, [fetchNotifications, refreshUnreadCount]);
 
   const navigation = [
     { path: '/', label: 'Trang chủ', icon: IoHomeOutline },
@@ -28,25 +31,9 @@ const Header: React.FC = () => {
     { path: '/community', label: 'Cộng đồng', icon: IoPeopleOutline },
   ];
 
-  useEffect(() => {
-    const fetchUserData = async () => {
-      try {
-        const user = await authService.getProfile();
-        console.log('User data:', user); // Để debug
-        if (user) {
-          setUserData(user);
-        }
-      } catch (error) {
-        console.error('Error fetching user data:', error);
-      }
-    };
-    fetchUserData();
-  }, []);
-
   const handleLogout = async () => {
     try {
       await authService.logout();
-      setUserData(null); // Clear user data
       window.location.href = '/login';
     } catch (error) {
       console.error('Logout failed:', error);
@@ -145,8 +132,8 @@ const Header: React.FC = () => {
               >
                 <div className="relative">
                   <IoNotificationsOutline className="text-xl" />
-                  {typeof unreadCount === 'number' && unreadCount > 0 && (
-                    <span className="absolute -top-1 -right-1 w-4 h-4 bg-red-500 text-white text-xs rounded-full flex items-center justify-center">
+                  {unreadCount > 0 && (
+                    <span className="absolute -top-1 -right-1 w-4 h-4 bg-red-500 text-white text-xs rounded-full flex items-center justify-center notification-badge">
                       {unreadCount > 99 ? '99+' : unreadCount}
                     </span>
                   )}
@@ -163,48 +150,48 @@ const Header: React.FC = () => {
             </div>
 
             {/* User Profile Button and Modal */}
-            <div className="flex items-center ml-2 relative">
-              <button 
-                id="profile-button"
-                className="relative"
-                onClick={toggleProfileMenu}
-              >
-                {/* Profile Picture */}
-                <div className="w-10 h-10 rounded-full bg-gray-200 ring-2 ring-gray-200 flex items-center justify-center overflow-hidden">
-                  {userData && userData.avatar && userData.avatar.url ? (
-                    <img 
-                      src={userData.avatar.url}
-                      alt={userData.fullName || ''}
-                      className="w-full h-full object-cover"
-                      onError={(e) => {
-                        const target = e.target as HTMLImageElement;
-                        target.src = '/default-avatar.png';
-                      }}
+            {!userLoading && userData && (
+              <div className="flex items-center ml-2 relative">
+                <button 
+                  id="profile-button"
+                  className="relative"
+                  onClick={toggleProfileMenu}
+                >
+                  {/* Profile Picture */}
+                  <div className="w-10 h-10 rounded-full bg-gray-200 ring-2 ring-gray-200 flex items-center justify-center overflow-hidden">
+                    {userData.avatar?.url ? (
+                      <img 
+                        src={userData.avatar.url}
+                        alt={userData.fullName || ''}
+                        className="w-full h-full object-cover"
+                        onError={(e) => {
+                          const target = e.target as HTMLImageElement;
+                          target.src = '/default-avatar.png';
+                        }}
+                      />
+                    ) : (
+                      <div className="w-full h-full bg-orange-600 flex items-center justify-center text-white font-medium">
+                        {userData.fullName?.charAt(0)?.toUpperCase() || '?'}
+                      </div>
+                    )}
+                  </div>
+                  {/* Dropdown Button - Positioned absolute to overlay on avatar */}
+                  <div className={`absolute -bottom-1 -right-1 w-5 h-5 rounded-full bg-gray-200 flex items-center justify-center ${showProfileMenu ? 'bg-gray-300' : ''}`}>
+                    <IoMdArrowDropdown 
+                      className={`text-base text-gray-600 transition-transform duration-200 ${showProfileMenu ? 'rotate-180' : ''}`}
                     />
-                  ) : (
-                    <div className="w-full h-full bg-orange-600 flex items-center justify-center text-white font-medium">
-                      {userData?.fullName?.charAt(0)?.toUpperCase() || '?'}
-                    </div>
-                  )}
-                </div>
-                {/* Dropdown Button - Positioned absolute to overlay on avatar */}
-                <div className={`absolute -bottom-1 -right-1 w-5 h-5 rounded-full bg-gray-200 flex items-center justify-center ${showProfileMenu ? 'bg-gray-300' : ''}`}>
-                  <IoMdArrowDropdown 
-                    className={`text-base text-gray-600 transition-transform duration-200 ${showProfileMenu ? 'rotate-180' : ''}`}
-                  />
-                </div>
-              </button>
+                  </div>
+                </button>
 
-              {/* Profile Modal */}
-              {userData && (
+                {/* Profile Modal */}
                 <ProfileModal 
                   isOpen={showProfileMenu}
                   userData={userData}
                   onClose={() => setShowProfileMenu(false)}
                   onLogout={handleLogout}
                 />
-              )}
-            </div>
+              </div>
+            )}
           </nav>
         </div>
       </header>

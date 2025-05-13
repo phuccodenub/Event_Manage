@@ -56,7 +56,15 @@ const Login = () => {
       console.log("Login successful, user data:", user);
       navigate("/", { replace: true });
     } catch (err: any) {
-      setError(err.message || "Login failed");
+      console.error('Login error:', err);
+      // Xử lý các trường hợp lỗi khác nhau
+      if (err.status === 401) {
+        setError("Tên đăng nhập hoặc mật khẩu không đúng");
+      } else if (err.status === 429) {
+        setError("Quá nhiều lần đăng nhập thất bại, vui lòng thử lại sau");
+      } else {
+        setError(err.message || "Đăng nhập thất bại, vui lòng thử lại sau");
+      }
     }
   };
 

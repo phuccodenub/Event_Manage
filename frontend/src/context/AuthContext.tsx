@@ -1,43 +1,54 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext } from 'react';
 import { useLocation } from "wouter";
 import { User } from '../types';
-import authService from '../services/authService';
+import { useUserData } from '../hooks/useUserData';
 
 interface AuthContextType {
   user: User | null;
   loading: boolean;
   error: string | null;
+  refetchUserData: () => Promise<unknown>;
+  isAuthenticated: boolean;
 }
 
 const AuthContext = createContext<AuthContextType>({
   user: null,
   loading: true,
-  error: null
+  error: null,
+  refetchUserData: async () => undefined,
+  isAuthenticated: false
 });
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [user, setUser] = useState<User | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
   const [, setLocation] = useLocation();
+  const { user, loading, error, refetchUserData } = useUserData();
+  
+  // Xác định xem người dùng đã xác thực hay chưa
+  const isAuthenticated = !!user;
 
-  useEffect(() => {
-    const loadUser = async () => {
-      try {
-        const userData = await authService.getProfile();
-        setUser(userData);
-      } catch (err) {
-        setError('Failed to load user');
-        setLocation('/login');
-      } finally {
-        setLoading(false);
-      }
-    };
-    loadUser();
-  }, [setLocation]);
+  // Redirect to login if auth fails
+  React.useEffect(() => {
+    const currentPath = window.location.pathname;
+    if (!loading && 
+        !user && 
+        !currentPath.includes('/login') && 
+        !currentPath.includes('/register')) {
+      console.log('Redirecting to login page - no authenticated user found');
+      setLocation('/login');
+    }
+  }, [user, loading, setLocation]);
+
+  // Cast to ensure user is either User or null (not undefined)
+  const userData: User | null = user || null;
 
   return (
-    <AuthContext.Provider value={{ user, loading, error }}>
+    <AuthContext.Provider value={{ 
+      user: userData, 
+      loading, 
+      error, 
+      refetchUserData,
+      isAuthenticated
+    }}>
       {children}
     </AuthContext.Provider>
   );

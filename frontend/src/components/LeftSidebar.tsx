@@ -1,40 +1,30 @@
-import React, { useEffect, useState } from 'react';
-import authService from '../services/authService';
-import { User } from '../types';
+import React from 'react';
+import { useAuth } from '../context/AuthContext';
 import { 
   IoSchoolOutline, 
   IoMailOutline, 
   IoCallOutline, 
   IoCalendarOutline, 
-  IoLocationOutline, 
   IoBusinessOutline, // Changed from IoBuildingOutline
   IoCheckmarkCircle
 } from 'react-icons/io5';
 
 const LeftSidebar: React.FC = () => {
-  const [userInfo, setUserInfo] = useState<User | null>(null);
+  const { user: userInfo, loading } = useAuth();
 
-  useEffect(() => {
-    const fetchUserInfo = async () => {
-      const user = await authService.getProfile();
-      if (user) {
-        setUserInfo(user);
-      }
-    };
-    fetchUserInfo();
-  }, []);
-
-  if (!userInfo) {
-    return <div className="animate-pulse">
-      <div className="bg-white rounded-lg shadow-md overflow-hidden">
-        <div className="h-16 bg-gray-200"></div>
-        <div className="p-4">
-          <div className="w-20 h-20 bg-gray-200 rounded-full mx-auto -mt-10"></div>
-          <div className="h-4 bg-gray-200 rounded mt-4 mx-auto w-1/2"></div>
-          <div className="h-3 bg-gray-200 rounded mt-2 mx-auto w-1/3"></div>
+  if (loading || !userInfo) {
+    return (
+      <div className="animate-pulse">
+        <div className="bg-white rounded-lg shadow-md overflow-hidden">
+          <div className="h-16 bg-gray-200"></div>
+          <div className="p-4">
+            <div className="w-20 h-20 bg-gray-200 rounded-full mx-auto -mt-10"></div>
+            <div className="h-4 bg-gray-200 rounded mt-4 mx-auto w-1/2"></div>
+            <div className="h-3 bg-gray-200 rounded mt-2 mx-auto w-1/3"></div>
+          </div>
         </div>
       </div>
-    </div>;
+    );
   }
 
   return (

@@ -1,66 +1,56 @@
 import React, { useState } from 'react';
 import Header from '../components/Header';
-import { IoSchoolOutline, IoPeopleOutline, IoNewspaperOutline, IoTrendingUpOutline, IoCalendarOutline, IoChatbubblesOutline } from 'react-icons/io5';
+import LeftSidebar from '../components/LeftSidebar';
+import { IoSchoolOutline, IoPeopleOutline, IoNewspaperOutline, IoTrendingUpOutline, IoCalendarOutline, IoChatbubblesOutline, IoLocationOutline } from 'react-icons/io5';
 import { FaGraduationCap, FaUserGraduate } from 'react-icons/fa';
+import { useCommunityData } from '../hooks/useCommunityData';
 
 const Community = () => {
   const [selectedTab, setSelectedTab] = useState('groups');
+  
+  // Use our React Query hook to fetch and cache data
+  const { 
+    communityGroups, 
+    discussions, 
+    upcomingEvents,
+    isLoading
+  } = useCommunityData();
 
-  // Data mẫu cho các nhóm cộng đồng
-  const communityGroups = [
-    {
-      id: 1,
-      name: 'Khoa Công nghệ thông tin',
-      members: 1200,
-      avatar: '/images/it-faculty.jpg',
-      description: 'Cộng đồng sinh viên CNTT HUTECH',
-      recentActivity: 'Đang thảo luận về Hackathon 2024'
-    },
-    {
-      id: 2,
-      name: 'CLB Lập trình HUTECH',
-      members: 450,
-      avatar: '/images/coding-club.jpg',
-      description: 'Nơi giao lưu và học hỏi lập trình',
-      recentActivity: 'Workshop React.js sắp diễn ra'
-    },
-    // ...thêm các nhóm khác
-  ];
+  // Show loading state if data is being fetched
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-gray-50">
+        <Header />
+        
+        {/* Hero Section - Consistent with Events.tsx style */}
+        <div className="relative bg-orange-600 text-white py-16 overflow-hidden">
+          <div className="container mx-auto px-4 relative">
+            <span className="inline-block py-1 px-3 bg-orange-500 rounded-full text-sm mb-4">Cộng đồng</span>
+            <h1 className="text-5xl font-bold mb-4 leading-tight">Cộng đồng HUTECH</h1>
+            <p className="text-xl opacity-90 max-w-2xl">Kết nối - Chia sẻ - Phát triển</p>
+          </div>
+        </div>
 
-  // Data mẫu cho các thảo luận
-  const discussions = [
-    {
-      id: 1,
-      title: 'Chia sẻ kinh nghiệm thực tập tại FPT Software',
-      author: 'Nguyễn Văn A',
-      avatar: '/images/user1.jpg',
-      tags: ['Thực tập', 'IT', 'Kinh nghiệm'],
-      replies: 23,
-      views: 156,
-      lastActivity: '5 phút trước'
-    },
-    // ...thêm các thảo luận khác
-  ];
-
-  // Data mẫu cho sự kiện sắp diễn ra
-  const upcomingEvents = [
-    {
-      id: 1,
-      title: 'Ngày hội việc làm IT HUTECH 2024',
-      date: '15/04/2024',
-      time: '08:00 AM',
-      location: 'Hội trường A',
-      participants: 320,
-      banner: '/images/job-fair.jpg'
-    },
-    // ...thêm các sự kiện khác
-  ];
+        {/* Loading Placeholder */}
+        <div className="container mx-auto px-4 py-10">
+          <div className="animate-pulse space-y-6">
+            <div className="h-12 bg-gray-200 rounded"></div>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+              <div className="h-60 bg-gray-200 rounded"></div>
+              <div className="h-60 bg-gray-200 rounded"></div>
+              <div className="h-60 bg-gray-200 rounded"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gray-50">
       <Header />
       
-      {/* Hero Section - Updated to match Events.tsx style */}
+      {/* Hero Section - Consistent with Events.tsx style */}
       <div className="relative bg-orange-600 text-white py-16 overflow-hidden">
         <div className="absolute inset-0 opacity-10">
           <div className="absolute inset-0" style={{
@@ -74,64 +64,72 @@ const Community = () => {
         </div>
       </div>
 
+      {/* Navigation Tabs - Positioned to overlap with Hero */}
+      <div className="container mx-auto px-4 -mt-8 mb-8 relative z-10">
+        <div className="bg-white rounded-2xl shadow-lg border border-gray-100 overflow-hidden">
+          <div className="grid grid-cols-3">
+            {[
+              { id: 'groups', label: 'Nhóm', icon: IoPeopleOutline },
+              { id: 'discussions', label: 'Thảo luận', icon: IoChatbubblesOutline },
+              { id: 'events', label: 'Sự kiện', icon: IoCalendarOutline }
+            ].map((tab, idx) => (
+              <button
+                key={tab.id}
+                onClick={() => setSelectedTab(tab.id)}
+                className={`
+                  flex items-center justify-center space-x-2 py-4 px-2
+                  relative transition-all duration-200
+                  ${idx !== 2 ? 'border-r border-gray-100' : ''}
+                  ${selectedTab === tab.id 
+                    ? 'text-orange-600 bg-orange-50/80' 
+                    : 'text-gray-600 hover:text-orange-600 hover:bg-orange-50/50'
+                  }
+                `}
+              >
+                <tab.icon className="text-xl" />
+                <span className="font-medium">{tab.label}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+      </div>
+
       {/* Main Container */}
       <div className="container mx-auto px-4">
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-          {/* Left Column */}
+        <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
+          {/* Left Sidebar */}
+          <LeftSidebar />
+          
+          {/* Main Content */}
           <div className="lg:col-span-2 space-y-6">
-            {/* Navigation Tabs */}
-            <div className="relative -mt-8">
-              <div className="bg-white rounded-2xl shadow-lg border border-gray-100 overflow-hidden">
-                <div className="grid grid-cols-3">
-                  {[
-                    { id: 'groups', label: 'Nhóm', icon: IoPeopleOutline },
-                    { id: 'events', label: 'Sự kiện', icon: IoCalendarOutline },
-                    { id: 'discussions', label: 'Thảo luận', icon: IoChatbubblesOutline }
-                  ].map((tab, idx) => (
-                    <button
-                      key={tab.id}
-                      onClick={() => setSelectedTab(tab.id)}
-                      className={`
-                        flex items-center justify-center space-x-2 py-4 px-2
-                        relative transition-all duration-200
-                        ${idx !== 2 ? 'border-r border-gray-100' : ''}
-                        ${selectedTab === tab.id 
-                          ? 'text-orange-600 bg-orange-50/80' 
-                          : 'text-gray-600 hover:text-orange-600 hover:bg-orange-50/50'
-                        }
-                      `}
-                    >
-                      <tab.icon className="text-xl" />
-                      <span className="font-medium">{tab.label}</span>
-                    </button>
-                  ))}
-                </div>
-              </div>
-            </div>
-
-            {/* Main Content */}
+            {/* Tab Content */}
             <div className="space-y-6">
               {selectedTab === 'groups' && (
                 <div className="space-y-6">
                   {communityGroups.map(group => (
-                    <div key={group.id} className="bg-white rounded-lg shadow p-6 hover:shadow-md transition-shadow">
+                    <div key={group.id} className="bg-white rounded-lg shadow-md p-6 hover:shadow-lg transition-shadow">
                       <div className="flex items-start space-x-4">
-                        <div className="w-16 h-16 rounded-lg bg-gray-200 flex-shrink-0" />
+                        <div className="w-16 h-16 rounded-lg bg-orange-100 flex-shrink-0 overflow-hidden">
+                          {/* Group avatar would go here */}
+                          <div className="w-full h-full bg-orange-600 flex items-center justify-center text-white font-bold">
+                            {group.name.charAt(0)}
+                          </div>
+                        </div>
                         <div className="flex-grow">
-                          <h3 className="text-xl font-semibold">{group.name}</h3>
+                          <h3 className="text-xl font-semibold text-gray-900">{group.name}</h3>
                           <p className="text-gray-600 text-sm mt-1">{group.description}</p>
                           <div className="flex items-center space-x-4 mt-3">
-                            <span className="text-sm text-gray-500">
-                              <IoPeopleOutline className="inline mr-1" />
-                              {group.members} thành viên
+                            <span className="text-sm text-gray-500 flex items-center">
+                              <IoPeopleOutline className="mr-1" />
+                              {group.members.toLocaleString()} thành viên
                             </span>
-                            <span className="text-sm text-gray-500">
-                              <IoNewspaperOutline className="inline mr-1" />
+                            <span className="text-sm text-gray-500 flex items-center">
+                              <IoNewspaperOutline className="mr-1" />
                               {group.recentActivity}
                             </span>
                           </div>
                         </div>
-                        <button className="bg-orange-600 text-white px-4 py-2 rounded-lg hover:bg-orange-700 transition-colors">
+                        <button className="bg-orange-600 text-white px-4 py-2 rounded-lg hover:bg-orange-700 transition-colors text-sm font-medium">
                           Tham gia
                         </button>
                       </div>
@@ -143,24 +141,39 @@ const Community = () => {
               {selectedTab === 'discussions' && (
                 <div className="space-y-6">
                   {discussions.map(discussion => (
-                    <div key={discussion.id} className="bg-white rounded-lg shadow p-6">
+                    <div key={discussion.id} className="bg-white rounded-lg shadow-md p-6 hover:shadow-lg transition-shadow">
                       <div className="flex items-start space-x-4">
-                        <div className="w-10 h-10 rounded-full bg-gray-200 flex-shrink-0" />
+                        <div className="w-10 h-10 rounded-full bg-orange-100 flex-shrink-0 overflow-hidden">
+                          {/* User avatar would go here */}
+                          <div className="w-full h-full bg-orange-600 flex items-center justify-center text-white font-bold">
+                            {discussion.author.charAt(0)}
+                          </div>
+                        </div>
                         <div className="flex-grow">
-                          <h3 className="text-lg font-semibold hover:text-orange-600 cursor-pointer">
+                          <h3 className="text-lg font-semibold text-gray-900 hover:text-orange-600 cursor-pointer">
                             {discussion.title}
                           </h3>
+                          <p className="text-sm text-gray-500 mt-1">Đăng bởi: {discussion.author}</p>
                           <div className="flex flex-wrap gap-2 mt-2">
                             {discussion.tags.map(tag => (
-                              <span key={tag} className="bg-gray-100 text-gray-600 text-sm px-2 py-1 rounded">
+                              <span key={tag} className="bg-orange-50 text-orange-600 text-xs px-2 py-1 rounded-full">
                                 {tag}
                               </span>
                             ))}
                           </div>
                           <div className="flex items-center space-x-4 mt-3 text-sm text-gray-500">
-                            <span>{discussion.replies} bình luận</span>
-                            <span>{discussion.views} lượt xem</span>
-                            <span>Cập nhật {discussion.lastActivity}</span>
+                            <span className="flex items-center">
+                              <IoChatbubblesOutline className="mr-1" />
+                              {discussion.replies} bình luận
+                            </span>
+                            <span className="flex items-center">
+                              <IoTrendingUpOutline className="mr-1" />
+                              {discussion.views} lượt xem
+                            </span>
+                            <span className="flex items-center">
+                              <IoCalendarOutline className="mr-1" />
+                              {discussion.lastActivity}
+                            </span>
                           </div>
                         </div>
                       </div>
@@ -172,8 +185,8 @@ const Community = () => {
               {selectedTab === 'events' && (
                 <div className="space-y-6">
                   {upcomingEvents.map(event => (
-                    <div key={event.id} className="bg-white rounded-lg shadow overflow-hidden group">
-                      <div className="h-48 bg-gray-200 relative overflow-hidden">
+                    <div key={event.id} className="bg-white rounded-lg shadow-md overflow-hidden group hover:shadow-lg transition-shadow">
+                      <div className="h-48 bg-orange-100 relative overflow-hidden">
                         {/* Event banner image would go here */}
                         <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent" />
                         <div className="absolute bottom-0 left-0 p-6 text-white">
@@ -198,11 +211,11 @@ const Community = () => {
                               {event.time}
                             </p>
                             <p className="flex items-center mt-2">
-                              <IoSchoolOutline className="mr-2" />
+                              <IoLocationOutline className="mr-2" />
                               {event.location}
                             </p>
                           </div>
-                          <button className="bg-orange-600 text-white px-6 py-2 rounded-lg hover:bg-orange-700 transition-colors">
+                          <button className="bg-orange-600 text-white px-6 py-2 rounded-lg hover:bg-orange-700 transition-colors text-sm font-medium">
                             Đăng ký
                           </button>
                         </div>
@@ -215,10 +228,10 @@ const Community = () => {
           </div>
 
           {/* Right Sidebar */}
-          <div className="relative -mt-8 space-y-6">
+          <div className="space-y-6">
             {/* Quick Stats */}
-            <div className="bg-white rounded-2xl shadow-lg border border-gray-100 p-6">
-              <h2 className="text-xl font-semibold mb-4">Thống kê cộng đồng</h2>
+            <div className="bg-white rounded-lg shadow-md p-6">
+              <h2 className="text-lg font-semibold mb-4 text-gray-900">Thống kê cộng đồng</h2>
               <div className="grid grid-cols-2 gap-4">
                 <div className="text-center p-4 bg-orange-50 rounded-lg">
                   <IoPeopleOutline className="text-3xl text-orange-600 mx-auto" />
@@ -234,24 +247,38 @@ const Community = () => {
             </div>
 
             {/* Featured Members */}
-            <div className="bg-white rounded-lg shadow p-6">
-              <h2 className="text-xl font-semibold mb-4">Thành viên tích cực</h2>
+            <div className="bg-white rounded-lg shadow-md p-6">
+              <h2 className="text-lg font-semibold mb-4 text-gray-900">Thành viên tích cực</h2>
               <div className="space-y-4">
-                {/* Featured member items would go here */}
+                {[1, 2, 3].map((i) => (
+                  <div key={i} className="flex items-center space-x-3">
+                    <div className="w-10 h-10 rounded-full bg-orange-100 flex items-center justify-center text-orange-600 font-medium">
+                      {String.fromCharCode(64 + i)}
+                    </div>
+                    <div>
+                      <div className="font-medium text-gray-900">Người dùng {i}</div>
+                      <div className="text-xs text-gray-500">{10 - i} đóng góp tuần này</div>
+                    </div>
+                  </div>
+                ))}
               </div>
             </div>
 
             {/* Quick Links */}
-            <div className="bg-white rounded-lg shadow p-6">
-              <h2 className="text-xl font-semibold mb-4">Liên kết nhanh</h2>
-              <nav className="space-y-2">
-                <a href="#" className="flex items-center space-x-2 text-gray-600 hover:text-orange-600">
-                  <FaGraduationCap />
-                  <span>Trang Đào tạo</span>
+            <div className="bg-white rounded-lg shadow-md p-6">
+              <h2 className="text-lg font-semibold mb-4 text-gray-900">Liên kết nhanh</h2>
+              <nav className="space-y-3">
+                <a href="#" className="flex items-center space-x-2 text-gray-600 hover:text-orange-600 transition-colors">
+                  <FaGraduationCap className="text-orange-500" />
+                  <span>Trang Đào tạo HUTECH</span>
                 </a>
-                <a href="#" className="flex items-center space-x-2 text-gray-600 hover:text-orange-600">
-                  <FaUserGraduate />
+                <a href="#" className="flex items-center space-x-2 text-gray-600 hover:text-orange-600 transition-colors">
+                  <FaUserGraduate className="text-orange-500" />
                   <span>Portal Sinh viên</span>
+                </a>
+                <a href="#" className="flex items-center space-x-2 text-gray-600 hover:text-orange-600 transition-colors">
+                  <IoSchoolOutline className="text-orange-500" />
+                  <span>Thư viện HUTECH</span>
                 </a>
               </nav>
             </div>

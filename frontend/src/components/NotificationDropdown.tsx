@@ -1,4 +1,4 @@
-import React, { useRef, useEffect, useMemo } from 'react';
+import React, { useRef, useEffect, useMemo, useState } from 'react';
 import { IoTimeOutline, IoCheckmarkCircleOutline, IoCalendarOutline, IoLocationOutline, IoNotificationsOffOutline, IoFlameOutline } from 'react-icons/io5';
 import { Link, useNavigate } from 'react-router-dom';
 import { toast } from 'react-toastify';
@@ -10,9 +10,24 @@ interface NotificationDropdownProps {
 }
 
 const NotificationDropdown: React.FC<NotificationDropdownProps> = ({ isOpen, onClose }) => {
-  const { notifications, markAllAsRead, markAsRead } = useNotifications();
+  const { notifications, markAllAsRead, markAsRead, fetchNotifications } = useNotifications();
   const navigate = useNavigate();
   const dropdownRef = useRef<HTMLDivElement>(null);
+  const [isProcessing, setIsProcessing] = useState(false);
+
+  // Fetch notifications when dropdown opens
+  useEffect(() => {
+    if (isOpen) {
+      fetchNotifications();
+      
+      // Thêm interval để cập nhật thường xuyên khi dropdown đang mở
+      const interval = setInterval(() => {
+        fetchNotifications();
+      }, 5000); // Cập nhật mỗi 5 giây khi dropdown đang mở
+      
+      return () => clearInterval(interval);
+    }
+  }, [isOpen, fetchNotifications]);
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -31,11 +46,17 @@ const NotificationDropdown: React.FC<NotificationDropdownProps> = ({ isOpen, onC
   }, [isOpen, onClose]);
 
   const handleMarkAllAsRead = async () => {
+    if (isProcessing) return;
+    
     try {
+      setIsProcessing(true);
       await markAllAsRead();
       toast.success('Đã đánh dấu tất cả là đã đọc');
     } catch (error) {
       toast.error('Có lỗi xảy ra khi cập nhật thông báo');
+      console.error('Error marking all as read:', error);
+    } finally {
+      setIsProcessing(false);
     }
   };
 
@@ -44,9 +65,19 @@ const NotificationDropdown: React.FC<NotificationDropdownProps> = ({ isOpen, onC
     [notifications]
   );
 
+  // Tính số thông báo chưa đọc
+  const unreadNotifications = useMemo(() => 
+    notifications.filter(n => !n.read).length,
+    [notifications]
+  );
+
   const handleNotificationClick = async (notification: any) => {
+    if (isProcessing || notification.read) return;
+    
     try {
+      setIsProcessing(true);
       await markAsRead(notification._id);
+      
       if (notification.relatedModel && notification.relatedId) {
         const path = notification.relatedModel.toLowerCase();
         navigate(`/${path}s/${notification.relatedId}`);
@@ -57,6 +88,8 @@ const NotificationDropdown: React.FC<NotificationDropdownProps> = ({ isOpen, onC
       }
     } catch (error) {
       console.error('Error handling notification click:', error);
+    } finally {
+      setIsProcessing(false);
     }
   };
 
@@ -74,7 +107,7 @@ const NotificationDropdown: React.FC<NotificationDropdownProps> = ({ isOpen, onC
                 <span className="absolute -top-1 -right-1 flex h-4 w-4">
                   <span className="absolute inline-flex h-full w-full rounded-full bg-orange-500 opacity-50 animate-ping"></span>
                   <span className="relative inline-flex rounded-full h-4 w-4 bg-orange-600 text-[10px] text-white items-center justify-center font-medium">
-                    {notifications.filter((n) => !n.read).length}
+                    {unreadNotifications}
                   </span>
                 </span>
               </div>

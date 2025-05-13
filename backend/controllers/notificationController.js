@@ -129,24 +129,58 @@ exports.createMassNotification = async (req, res, next) => {
       select: 'fullName avatar'
     });
 
+    // Theo dõi người dùng đã nhận thông báo
+    const notifiedUsers = new Set();
+
     // Emit to each recipient
     populatedNotifications.forEach(notification => {
-      const recipientSocket = global.userSockets.get(notification.recipient.toString());
-      if (recipientSocket) {
-        recipientSocket.emit('newNotification', notification);
+      try {
+        const recipientId = notification.recipient.toString();
+        const recipientSocket = global.userSockets.get(recipientId);
         
-        // Also update unread count
-        getUnreadCount(notification.recipient).then(count => {
-          recipientSocket.emit('unreadCount', { count });
-        });
+        if (recipientSocket) {
+          console.log(`Gửi thông báo "${type}" đến người dùng ${recipientId}`);
+          recipientSocket.emit('newNotification', notification);
+          
+          // Đánh dấu người dùng đã nhận thông báo
+          notifiedUsers.add(recipientId);
+          
+          // Also update unread count
+          getUnreadCount(recipientId).then(count => {
+            recipientSocket.emit('unreadCount', { count });
+          });
+        } else {
+          console.log(`Người dùng ${recipientId} không trực tuyến để nhận thông báo "${type}"`);
+        }
+      } catch (error) {
+        console.error(`Lỗi khi gửi thông báo đến người dùng ${notification.recipient}:`, error);
       }
     });
+
+    // Broadcast thông báo sự kiện mới CHỈ cho những người dùng chưa nhận được thông báo
+    if (type === 'new_event') {
+      console.log('Phát thông báo về sự kiện mới đến những người dùng kết nối chưa nhận thông báo');
+      const firstNotification = populatedNotifications[0];
+      
+      if (firstNotification) {
+        // Thay vì dùng global.io.emit (gửi cho tất cả)
+        // Duyệt qua tất cả socket và gửi cho những người chưa nhận
+        for (const [userId, socket] of global.userSockets.entries()) {
+          // Bỏ qua người tạo thông báo và những người đã nhận thông báo
+          if (userId !== req.user._id.toString() && !notifiedUsers.has(userId)) {
+            console.log(`Broadcast thông báo sự kiện mới đến người dùng ${userId}`);
+            socket.emit('newNotification', firstNotification);
+          }
+        }
+      }
+    }
 
     res.status(201).json({
       success: true,
       data: notifications
     });
   } catch (error) {
+    console.error('Lỗi khi tạo thông báo hàng loạt:', error);
     next(error);
   }
 };

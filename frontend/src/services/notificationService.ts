@@ -1,6 +1,7 @@
 import apiClient from '../api/apiClient';
 
-interface MassNotificationData {
+// Sửa lỗi "defined but never used" bằng cách export interface
+export interface MassNotificationData {
   type: 'event' | 'announcement' | 'system';
   title: string;
   message: string;
@@ -25,23 +26,53 @@ const notificationService = {
   },
 
   getUnreadCount: async () => {
-    const response = await apiClient.get('/notifications/unread');
-    return response.data;
+    try {
+      const response = await apiClient.get('/notifications/unread');
+      
+      // API trả về { success: true, data: number }
+      if (response.data && typeof response.data.data === 'number') {
+        return {
+          success: response.data.success,
+          data: response.data.data,
+          unreadCount: response.data.data // Thêm trường unreadCount cho tương thích ngược
+        };
+      }
+      
+      return { success: false, data: 0, unreadCount: 0 };
+    } catch (error) {
+      console.error('Error fetching unread count:', error);
+      return { success: false, data: 0, unreadCount: 0 };
+    }
   },
 
   markAsRead: async (notificationId: string) => {
-    const response = await apiClient.put(`/notifications/${notificationId}/read`);
-    return response.data;
+    try {
+      const response = await apiClient.put(`/notifications/${notificationId}/read`);
+      return response.data;
+    } catch (error) {
+      console.error('Error marking notification as read:', error);
+      throw error;
+    }
   },
 
   markAllAsRead: async () => {
-    const response = await apiClient.put('/notifications/read-all');
-    return response.data;
+    try {
+      const response = await apiClient.put('/notifications/read-all');
+      return response.data;
+    } catch (error) {
+      console.error('Error marking all notifications as read:', error);
+      throw error;
+    }
   },
 
   deleteNotification: async (notificationId: string) => {
-    const response = await apiClient.delete(`/notifications/${notificationId}`);
-    return response.data;
+    try {
+      const response = await apiClient.delete(`/notifications/${notificationId}`);
+      return response.data;
+    } catch (error) {
+      console.error('Error deleting notification:', error);
+      throw error;
+    }
   },
 
   createMassNotification: async (data: {

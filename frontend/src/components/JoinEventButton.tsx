@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../context/AuthContext';
+import { useNotifications, getSocketStatus } from '../context/NotificationContext';
 import eventService from '../services/eventService';
 import { toast } from 'react-toastify';
 import FormModal from './events/FormModal';
@@ -37,6 +38,7 @@ const JoinEventButton: React.FC<JoinEventButtonProps> = ({
   registrationForm
 }) => {
   const { user } = useAuth();
+  const { fetchNotifications } = useNotifications();
   const [isLoading, setIsLoading] = useState(false);
   const [hasJoined, setHasJoined] = useState(false);
   const [showForm, setShowForm] = useState(false);
@@ -90,6 +92,23 @@ const JoinEventButton: React.FC<JoinEventButtonProps> = ({
     return Object.keys(errors).length === 0;
   };
 
+  // Hàm kiểm tra trạng thái socket và cập nhật thông báo
+  const updateNotifications = async () => {
+    try {
+      // Kiểm tra trạng thái socket
+      const socketStatus = getSocketStatus();
+      console.log('Socket status:', socketStatus);
+      
+      // Thêm độ trễ nhỏ để đảm bảo server đã xử lý xong notification
+      await new Promise(resolve => setTimeout(resolve, 500));
+      
+      // Tải lại thông báo để cập nhật UI
+      await fetchNotifications();
+    } catch (error) {
+      console.error('Failed to update notifications:', error);
+    }
+  };
+
   const handleJoin = async () => {
     if (!user) {
       toast.error('Vui lòng đăng nhập để tham gia sự kiện');
@@ -112,6 +131,10 @@ const JoinEventButton: React.FC<JoinEventButtonProps> = ({
       await eventService.joinEvent(eventId);
       setHasJoined(true);
       onJoinSuccess?.();
+      
+      // Cập nhật thông báo ngay lập tức
+      await updateNotifications();
+      
       toast.success('Đăng ký tham gia sự kiện thành công!');
     } catch (error: any) {
       toast.error(error.response?.data?.message || 'Có lỗi xảy ra khi đăng ký');
@@ -126,6 +149,10 @@ const JoinEventButton: React.FC<JoinEventButtonProps> = ({
       await eventService.leaveEvent(eventId);
       setHasJoined(false);
       onLeaveSuccess?.();
+      
+      // Cập nhật thông báo ngay lập tức
+      await updateNotifications();
+      
       toast.success('Đã hủy đăng ký tham gia sự kiện!');
     } catch (error: any) {
       toast.error(error.message || 'Có lỗi xảy ra khi hủy đăng ký');
@@ -144,6 +171,10 @@ const JoinEventButton: React.FC<JoinEventButtonProps> = ({
       setHasJoined(true);
       setShowForm(false);
       onJoinSuccess?.();
+      
+      // Cập nhật thông báo ngay lập tức
+      await updateNotifications();
+      
       toast.success('Đăng ký tham gia sự kiện thành công!');
     } catch (error: any) {
       toast.error(error.response?.data?.message || 'Có lỗi xảy ra khi đăng ký');

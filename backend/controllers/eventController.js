@@ -345,6 +345,9 @@ exports.joinEvent = async (req, res, next) => {
       // Cập nhật registeredEvents của user
       await User.updateRegisteredEvents(req.user._id, event._id, 'join');
 
+      // 4. Gửi thông báo
+      await NotificationService.createEventJoinNotification(event, req.user);
+
       await session.commitTransaction();
       
       res.status(200).json({
@@ -405,6 +408,16 @@ exports.leaveEvent = async (req, res, next) => {
       });
 
       await session.commitTransaction();
+      
+      // Gửi thông báo sau khi đã commit transaction thành công
+      try {
+        const participant = await User.findById(req.user._id);
+        await NotificationService.createEventLeaveNotification(event, participant);
+        console.log('Leave event notification sent');
+      } catch (notificationError) {
+        console.error('Error sending leave notification:', notificationError);
+        // Không throw lỗi ở đây để không ảnh hưởng đến response
+      }
       
       res.status(200).json({
         success: true,

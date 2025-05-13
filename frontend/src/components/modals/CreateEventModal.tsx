@@ -56,7 +56,7 @@ const FIELD_TYPES = {
   date: 'Ngày'
 };
 
-const AddEventModal = ({ isOpen, onClose }: Props) => {
+const CreateEventModal = ({ isOpen, onClose }: Props) => {
   const { user } = useAuth();
   const { addEvent, fetchEvents } = useEvents();
   const [loading, setLoading] = useState(false);
@@ -779,4 +779,4 @@ const AddEventModal = ({ isOpen, onClose }: Props) => {
   );
 };
 
-export default AddEventModal;
+export default CreateEventModal;
