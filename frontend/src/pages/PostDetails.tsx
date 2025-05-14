@@ -4,7 +4,7 @@ import Header from '../components/Header';
 import eventService from '../services/eventService';
 import announcementService from '../services/announcementService';
 import { Event, Announcement, isEvent } from '../types';
-import { IoCalendarOutline, IoPeopleOutline, IoLocationOutline, IoDesktopOutline } from 'react-icons/io5';
+import { IoPeopleOutline, IoLocationOutline, IoDesktopOutline } from 'react-icons/io5';
 import { BsThreeDotsVertical, BsCalendarEvent, BsCalendarCheck } from 'react-icons/bs';
 import { MdEdit, MdDelete, MdContentCopy, MdPushPin, MdInfoOutline } from 'react-icons/md';
 import { useAuth } from '../context/AuthContext';
@@ -15,10 +15,12 @@ import { toast } from 'react-toastify';
 import JoinEventButton from '../components/JoinEventButton';
 import { useEvents } from '../context/EventContext';
 import { formatDescriptionWithLinks } from '@/utils/linkUtils';
+import Certificate from '../components/Certificate';
+import { UserIcon } from '@heroicons/react/outline';
 
 const PostDetails: React.FC = () => {
   const { id } = useParams();
-  const [location] = useLocation();
+  const [location, navigate] = useLocation();
   const { user } = useAuth();
   const { updateEventParticipants } = useEvents();
   const [post, setPost] = useState<Event | Announcement | null>(null);
@@ -41,48 +43,64 @@ const PostDetails: React.FC = () => {
 
   useEffect(() => {
     const fetchPostDetails = async () => {
+      if (!id) return;
+      
       try {
         setLoading(true);
         if (isEventPage) {
           const data = await eventService.getEventById(id);
-          setPost(data.data);
+          if (data?.data) {
+            setPost(data.data);
+          } else {
+            setError('Event not found');
+          }
         } else {
-          const data = await announcementService.getAnnouncementById(id);
-          setPost(data.data);
+          try {
+            const data = await announcementService.getAnnouncementById(id);
+            console.log('Announcement data received:', data);
+            if (data) {
+              setPost(data);
+            } else {
+              setError('Announcement not found');
+            }
+          } catch (error) {
+            console.error('Error fetching announcement:', error);
+            setError('Failed to load announcement');
+          }
         }
       } catch (err) {
+        console.error('Error fetching details:', err);
         setError('Error fetching post details');
-        console.error(err);
       } finally {
         setLoading(false);
       }
     };
 
-    if (id) {
-      fetchPostDetails();
-    }
+    fetchPostDetails();
   }, [id, isEventPage]);
 
   useEffect(() => {
-    if (post && isEvent(post)) {
+    if (post && isEvent(post) && post.participants) {
       setCurrentParticipants(post.participants);
     }
   }, [post]);
 
   const handleParticipantUpdate = (isJoining: boolean) => {
-    if (!user?._id) return;
+    if (!user?._id || !id) return;
     
     // Cập nhật cả 2 state đồng thời
     setCurrentParticipants(prev => {
       if (isJoining) {
         return [...prev, user._id];
       } else {
-        return prev.filter(id => id !== user._id);
+        return prev.filter(participantId => participantId !== user._id);
       }
     });
 
     // Gọi update trong context để cập nhật danh sách người tham gia
-    updateEventParticipants(id, user._id, isJoining);
+    if (user._id) {
+      updateEventParticipants(id, user._id, isJoining);
+    }
   };
 
   const renderDropdownMenu = (item: Event | Announcement, type: 'event' | 'announcement') => {
@@ -239,15 +257,13 @@ const PostDetails: React.FC = () => {
       <div className="bg-white rounded-lg shadow-sm overflow-hidden">
         <div className="flex items-center justify-between p-4 border-b border-[#EDEDED]">
           <div className="flex items-center">
-            <img
-              src={post.organizer?.avatar?.url || '/default-avatar.png'}
-              alt={post.organizer?.fullName || 'User'}
-              className="w-10 h-10 rounded-full object-cover"
-              onError={(e) => {
-                const target = e.target as HTMLImageElement;
-                target.src = '/default-avatar.png';
-              }}
-            />
+            {post.organizer?.avatar && typeof post.organizer.avatar === 'object' && 'url' in post.organizer.avatar ? (
+              <img src={post.organizer.avatar.url} alt="" className="w-10 h-10 rounded-full object-cover flex-shrink-0" />
+            ) : (
+              <div className="w-10 h-10 rounded-full bg-gray-100 flex items-center justify-center flex-shrink-0">
+                <UserIcon className="w-6 h-6 text-gray-400" />
+              </div>
+            )}
             <div className="ml-3">
               <h3 className="text-sm font-semibold text-[#000000]">
                 {post.organizer?.fullName || 'Anonymous'}
@@ -262,7 +278,7 @@ const PostDetails: React.FC = () => {
               </h3>
               <div className="flex items-center gap-2">
                 <span className="text-xs text-gray-500 hover:text-orange-600 cursor-pointer">
-                  {formatTimeAgo(post.createdAt)}
+                  {post.createdAt ? formatTimeAgo(post.createdAt) : ''}
                 </span>
                 <div className="flex items-center gap-3">
                   {(post.eventType === 'offline' || post.eventType === 'hybrid') && 
@@ -357,15 +373,13 @@ const PostDetails: React.FC = () => {
       >
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center">
-            <img
-              src={announcement.creator?.avatar?.url || '/default-avatar.png'}
-              alt={announcement.creator?.fullName}
-              className="w-10 h-10 rounded-full object-cover"
-              onError={(e) => {
-                const target = e.target as HTMLImageElement;
-                target.src = '/default-avatar.png';
-              }}
-            />
+            {announcement.organizer?.avatar && typeof announcement.organizer.avatar === 'object' && 'url' in announcement.organizer.avatar ? (
+              <img src={announcement.organizer.avatar.url} alt="" className="w-10 h-10 rounded-full object-cover flex-shrink-0" />
+            ) : (
+              <div className="w-10 h-10 rounded-full bg-gray-100 flex items-center justify-center flex-shrink-0">
+                <UserIcon className="w-6 h-6 text-gray-400" />
+              </div>
+            )}
             <div className="ml-3">
               <h3 className="font-semibold">{announcement.creator?.fullName}</h3>
               <p className="text-sm text-gray-500">
@@ -470,6 +484,7 @@ interface EventSidebarProps {
 const EventSidebar: React.FC<EventSidebarProps> = ({ event, currentParticipants, handleParticipantUpdate }) => {
   const { user } = useAuth();
   const { currentParticipantList, fetchParticipants } = useEvents();
+  const [, navigate] = useLocation();
 
   // Fetch participants when component mounts or event changes
   useEffect(() => {
@@ -477,6 +492,16 @@ const EventSidebar: React.FC<EventSidebarProps> = ({ event, currentParticipants,
       fetchParticipants(event._id);
     }
   }, [event._id, fetchParticipants]);
+
+  // Check if the event has ended to show certificate section
+  const isEventEnded = new Date(event.endDate) < new Date();
+  const isUserParticipant = user && currentParticipants.includes(user._id);
+
+  // Check if user has permission to access check-in page
+  const canAccessCheckin = 
+    user?.role === 'admin' || // Admin system
+    (event.creator?._id === user?._id) || // Event creator
+    (event.organizer?._id === user?._id); // Event organizer
 
   return (
     <div className="sticky top-20 space-y-4">
@@ -495,16 +520,47 @@ const EventSidebar: React.FC<EventSidebarProps> = ({ event, currentParticipants,
           </span>
         </div>
 
-        <JoinEventButton
-          eventId={event._id}
-          participants={currentParticipants}
-          startDate={event.startDate}
-          endDate={event.endDate}
-          status={event.status}
-          onJoinSuccess={() => handleParticipantUpdate(true)}
-          onLeaveSuccess={() => handleParticipantUpdate(false)}
-        />
+        <div className="flex flex-col space-y-3">
+          <JoinEventButton
+            eventId={event._id}
+            participants={currentParticipants}
+            startDate={event.startDate}
+            endDate={event.endDate}
+            status={event.status}
+            onJoinSuccess={() => handleParticipantUpdate(true)}
+            onLeaveSuccess={() => handleParticipantUpdate(false)}
+          />
+
+          {/* Check-in Button for authorized users */}
+          {canAccessCheckin && (
+            <button
+              onClick={() => navigate(`/events/${event._id}/checkin`)}
+              className="flex items-center justify-center gap-2 py-2.5 border border-blue-600 text-blue-600 rounded-lg hover:bg-blue-50 transition-colors"
+            >
+              <i className="fas fa-clipboard-check"></i>
+              Điểm danh sự kiện
+            </button>
+          )}
+        </div>
       </div>
+
+      {/* Certificate Section - Show only for ended events if user participated */}
+      {isEventEnded && isUserParticipant && user && (
+        <div className="bg-white rounded-2xl shadow-sm p-6">
+          <h3 className="text-xl font-bold text-gray-900 mb-4">Chứng nhận</h3>
+          <div className="mb-4">
+            <p className="text-gray-600">
+              Nhận chứng nhận tham gia sự kiện của bạn.
+            </p>
+          </div>
+          <div className="mt-3">
+            <Certificate 
+              eventId={event._id} 
+              userId={user._id} 
+            />
+          </div>
+        </div>
+      )}
 
       <div className="bg-white rounded-2xl shadow-sm p-6">
         <h3 className="text-xl font-bold text-gray-900 mb-4">Người tham gia</h3>
@@ -516,15 +572,13 @@ const EventSidebar: React.FC<EventSidebarProps> = ({ event, currentParticipants,
           {currentParticipantList.length > 0 ? (
             currentParticipantList.map((participant) => (
               <div key={participant._id} className="flex items-center gap-3">
-                <img
-                  src={participant.avatar?.url || '/default-avatar.png'}
-                  alt={participant.fullName}
-                  className="w-10 h-10 rounded-full object-cover border border-gray-200"
-                  onError={(e) => {
-                    const target = e.target as HTMLImageElement;
-                    target.src = '/default-avatar.png';
-                  }}
-                />
+                {participant.avatar?.url ? (
+                  <img src={participant.avatar.url} alt="" className="w-10 h-10 rounded-full object-cover flex-shrink-0" />
+                ) : (
+                  <div className="w-10 h-10 rounded-full bg-gray-100 flex items-center justify-center flex-shrink-0">
+                    <UserIcon className="w-6 h-6 text-gray-400" />
+                  </div>
+                )}
                 <div>
                   <p className="text-sm font-medium text-gray-900">
                     {participant.fullName}

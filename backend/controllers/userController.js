@@ -1,6 +1,7 @@
 const User = require('../models/userModel');
 const ErrorResponse = require('../utils/errorResponse');
 const { uploadToCloudinary, deleteFromCloudinary } = require('../utils/cloudinary');
+const Event = require('../models/eventModel');
 
 // @desc: Get all users (with optional role filtering)
 // @route: GET /api/v1/users
@@ -50,6 +51,43 @@ exports.getUserById = async (req, res, next) => {
     });
   } catch (error) {
     next(new ErrorResponse('Error fetching user', 500));
+  }
+};
+
+// @desc: Get user's events
+// @route: GET /api/v1/users/:id/events
+// @access: Private
+exports.getUserEvents = async (req, res, next) => {
+  try {
+    // Kiểm tra xem người dùng tồn tại không
+    const user = await User.findById(req.params.id);
+    
+    if (!user) {
+      return next(new ErrorResponse('Không tìm thấy người dùng', 404));
+    }
+    
+    // Kiểm tra quyền truy cập - chỉ cho phép người dùng xem sự kiện của họ hoặc admin
+    if (req.user.id !== req.params.id && req.user.role !== 'admin') {
+      return next(new ErrorResponse('Không có quyền truy cập', 403));
+    }
+    
+    // Lấy danh sách sự kiện mà người dùng đã đăng ký
+    const registeredEventIds = user.registeredEvents || [];
+    
+    // Lấy chi tiết của các sự kiện đã đăng ký
+    const events = await Event.find({ _id: { $in: registeredEventIds } })
+      .populate('department', 'name')
+      .populate('organizer', 'fullName')
+      .sort({ startDate: -1 });
+    
+    res.status(200).json({
+      success: true,
+      count: events.length,
+      data: events
+    });
+  } catch (error) {
+    console.error('Error fetching user events:', error);
+    next(new ErrorResponse('Lỗi khi lấy danh sách sự kiện', 500));
   }
 };
 

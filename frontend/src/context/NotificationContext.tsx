@@ -20,7 +20,7 @@ export interface Notification {
   recipient: string;
   title: string;
   message: string;
-  type: 'event' | 'announcement' | 'system' | 'event_joined' | 'event_confirmation' | 'event_reminder' | 'event_left' | 'event_left_confirmation' | 'new_event';
+  type: 'event' | 'announcement' | 'system' | 'event_joined' | 'event_confirmation' | 'event_reminder' | 'event_left' | 'event_left_confirmation' | 'new_event' | 'new_announcement';
   read: boolean;
   createdAt: string;
   priority: 'low' | 'medium' | 'high';
@@ -130,6 +130,7 @@ export const NotificationProvider = ({ children }: { children: React.ReactNode }
 
     socketInstance.on('newNotification', (data) => {
       console.log('New notification received:', data);
+      console.log('Notification type:', data.type);
       
       // Trực tiếp cập nhật state mà không sử dụng Timeout
       // NGAY LẬP TỨC invalidate queries để refresh data
@@ -144,7 +145,7 @@ export const NotificationProvider = ({ children }: { children: React.ReactNode }
       if (data.type === 'event' || data.type === 'announcement' || data.type === 'system' || 
           data.type === 'event_joined' || data.type === 'event_confirmation' || 
           data.type === 'event_reminder' || data.type === 'event_left' || 
-          data.type === 'event_left_confirmation' || data.type === 'new_event') {
+          data.type === 'event_left_confirmation' || data.type === 'new_event' || data.type === 'new_announcement') {
         // Format the toast message for different notification types
         let toastMessage = `${data.title || 'Thông báo mới'}`;
         if (data.message) {
@@ -203,15 +204,27 @@ export const NotificationProvider = ({ children }: { children: React.ReactNode }
             );
             break;
           case 'announcement':
-            toast.info(toastMessage, {
-              position: 'top-right',
-              autoClose: 5000,
-              hideProgressBar: false,
-              closeOnClick: true,
-              pauseOnHover: true,
-              draggable: true,
-              className: 'notification-toast notification-announcement'
-            });
+          case 'new_announcement':
+            toast(
+              <EventNotification 
+                key={data._id || new Date().getTime()}
+                title={data.title || 'Thông báo mới'}
+                message={data.message || ''}
+                time={new Date(data.createdAt || new Date())}
+                type="event"
+                sender={data.sender}
+              />,
+              {
+                position: 'bottom-left',
+                autoClose: 5000,
+                hideProgressBar: true,
+                closeOnClick: true,
+                pauseOnHover: true,
+                draggable: true,
+                className: 'notification-toast notification-announcement',
+                containerId: 'event-notifications'
+              }
+            );
             break;
           default:
             toast.info(toastMessage, {

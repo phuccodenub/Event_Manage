@@ -45,6 +45,7 @@ export const EventProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     try {
       const response = await eventService.getEventParticipants(eventId);
       setCurrentParticipantList(response.data);
+      console.log('response.data participants: ', response.data);
     } catch (error) {
       console.error('Error fetching participants:', error);
     }

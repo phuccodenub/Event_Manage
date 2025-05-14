@@ -21,6 +21,7 @@ import NotFound from "@/pages/NotFound";
 import DepartmentDetail from "@/pages/DepartmentDetail";
 import EventCheckin from "@/pages/EventCheckin";
 import SubmissionsPage from "@/pages/SubmissionsPage";
+import Certificates from "@/pages/Certificates";
 
 const PublicRoutes = () => {
   return React.createElement(
@@ -47,6 +48,8 @@ const PublicRoutes = () => {
     React.createElement(Route, { path: "/department/:id", component: DepartmentDetail }),
     React.createElement(Route, { path: "/events/:id/checkin", component: EventCheckin }),
     React.createElement(Route, { path: "/events/:id/submissions", component: SubmissionsPage }),
+    React.createElement(Route, { path: "/certificates", component: Certificates }),
+    React.createElement(Route, { path: "/certificates/:userId", component: Certificates }),
     React.createElement(Route, { path: "*", component: NotFound })
   );
 };

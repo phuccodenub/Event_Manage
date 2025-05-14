@@ -33,8 +33,9 @@ export interface Event {
   _id: string;
   title: string;
   description: string;
-  startDate: Date;
-  endDate: Date;
+  startDate: Date | string;
+  endDate: Date | string;
+  createdAt?: Date | string;
   eventType: 'offline' | 'online' | 'hybrid';
   location: {
     physical?: {
@@ -44,6 +45,8 @@ export interface Event {
     online?: {
       platform: string;
       meetingLink: string;
+      meetingId?: string;
+      password?: string;
     };
   };
   images: Array<{
@@ -54,15 +57,25 @@ export interface Event {
     _id: string;
     fullName: string;
     email: string;
-    avatar?: string;
+    avatar?: {
+      url: string;
+      public_id?: string;
+    } | string;
+  };
+  department?: {
+    _id: string;
+    name: string;
   };
   participants: string[];
   creator: {
     _id: string;
     fullName: string;
-    avatar?: string;
+    avatar?: {
+      url: string;
+      public_id?: string;
+    } | string;
   };
-  status: 'sắp diễn ra' | 'đang diễn ra' | 'đã kết thúc' | 'đã hủy';
+  status: 'upcoming' | 'ongoing' | 'completed' | 'cancelled' | 'sắp diễn ra' | 'đang diễn ra' | 'đã kết thúc' | 'đã hủy';
   needsRegistrationForm: boolean;
   registrationForm?: {
     fields: FormField[];
@@ -75,6 +88,10 @@ export interface Announcement {
   content: string;
   category: string;
   priority: number;
+  images?: Array<{
+    public_id: string;
+    url: string;
+  }>;
   creator: {
     _id: string;
     fullName: string;
@@ -82,7 +99,7 @@ export interface Announcement {
     avatar?: {
       public_id: string;
       url: string;
-    };
+    } | string;
   };
   department?: {
     _id: string;
@@ -91,7 +108,7 @@ export interface Announcement {
   expiresAt: string;
   status: 'active' | 'expired' | 'archived';
   createdAt: string;
-  updatedAt: string;
+  updatedAt?: string;
 }
 
 export interface BasePost {

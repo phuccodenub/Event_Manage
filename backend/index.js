@@ -144,6 +144,7 @@ const announcementRoutes = require('./routes/announcementRoutes');
 const notificationRoutes = require('./routes/notificationRoutes');
 const departmentRoutes = require('./routes/departmentRoutes');
 const checkinRoutes = require('./routes/checkinRoutes');
+const certificateRoutes = require('./routes/certificateRoutes');
 
 // Mount routers
 app.use(`${API_PREFIX}/auth`, authRoutes);
@@ -154,6 +155,7 @@ app.use(`${API_PREFIX}/announcements`, announcementRoutes);
 app.use(`${API_PREFIX}/notifications`, notificationRoutes);
 app.use(`${API_PREFIX}/departments`, departmentRoutes);
 app.use(`${API_PREFIX}/checkins`, checkinRoutes);
+app.use(`${API_PREFIX}/certificates`, certificateRoutes);
 
 // Error handler
 app.use(errorHandler);

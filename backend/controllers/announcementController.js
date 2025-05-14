@@ -1,6 +1,8 @@
 const Announcement = require('../models/announcementModel');
 const ErrorResponse = require('../utils/errorResponse');
 const { uploadToCloudinary, deleteFromCloudinary } = require('../utils/cloudinary');
+const NotificationService = require('../utils/notificationService');
+const User = require('../models/userModel');
 
 exports.getAllAnnouncements = async (req, res, next) => {
   try {
@@ -42,6 +44,34 @@ exports.createAnnouncement = async (req, res, next) => {
     const announcement = await Announcement.create(announcementData);
     await announcement.populate('creator');
     await announcement.populate('department');
+
+    // Gửi thông báo hàng loạt khi tạo announcement mới
+    try {
+      // Lấy tất cả người dùng trừ người tạo để gửi thông báo
+      const users = await User.find({ 
+        _id: { $ne: req.user.id },
+        role: { $ne: 'admin' } // Không gửi cho admin
+      }).select('_id');
+      const recipients = users.map(user => user._id);
+
+      // Tạo các thông báo
+      await NotificationService.createMassNotification(recipients, {
+        sender: req.user.id,
+        type: 'new_announcement',
+        title: 'Thông báo mới',
+        message: `${req.user.fullName} đã đăng thông báo mới: "${announcement.title}"`,
+        relatedModel: 'Announcement',
+        relatedId: announcement._id,
+        link: `/announcements/${announcement._id}`,
+        icon: 'megaphone',
+        priority: announcement.priority >= 4 ? 'high' : 'medium'
+      });
+
+      console.log(`Đã gửi thông báo về announcement mới đến ${recipients.length} người dùng`);
+    } catch (notificationError) {
+      console.error('Lỗi khi gửi thông báo announcement mới:', notificationError);
+      // Không dừng xử lý nếu gửi thông báo lỗi
+    }
 
     res.status(201).json({
       success: true,

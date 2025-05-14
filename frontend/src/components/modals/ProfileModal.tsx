@@ -1,7 +1,7 @@
 import React from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { CgProfile } from 'react-icons/cg';
-import { IoSettingsOutline, IoLogOutOutline } from 'react-icons/io5';
+import { IoSettingsOutline, IoLogOutOutline, IoRibbonOutline } from 'react-icons/io5';
 import { MdAdminPanelSettings } from 'react-icons/md';
 import { User } from '../../types';
 
@@ -74,12 +74,21 @@ const ProfileModal: React.FC<ProfileModalProps> = ({
             <span className="text-xs text-gray-500">Thông tin cá nhân</span>
           </div>
         </button>
+        
+        <MenuItem 
+          to={`/profile/${userData._id}#certificates`}
+          icon={IoRibbonOutline}
+          title="Chứng nhận"
+          subtitle="Chứng nhận đã nhận"
+        />
+        
         <MenuItem 
           to="/setting"
           icon={IoSettingsOutline}
           title="Cài đặt"
           subtitle="Tài khoản & Bảo mật"
         />
+        
         <div className="border-t border-gray-100 my-1" />
         
         {/* Admin Panel - Only show for admin users */}
@@ -109,7 +118,17 @@ const ProfileModal: React.FC<ProfileModalProps> = ({
 };
 
 // Helper MenuItem component
-const MenuItem = ({ to, icon: Icon, title, subtitle }: any) => (
+const MenuItem = ({ 
+  to, 
+  icon: Icon, 
+  title, 
+  subtitle 
+}: { 
+  to: string; 
+  icon: React.ComponentType; 
+  title: string; 
+  subtitle: string; 
+}) => (
   <Link to={to} className="w-full px-4 py-2 flex items-center space-x-3 hover:bg-gray-50 transition-colors">
     <Icon className="text-gray-600 text-xl" />
     <div className="flex flex-col items-start">

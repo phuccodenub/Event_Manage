@@ -21,6 +21,7 @@ import { toast } from 'react-toastify';
 import { useEvents } from '../context/EventContext';
 import JoinEventButton from '../components/JoinEventButton';
 import { formatDescriptionWithLinks } from '@/utils/linkUtils';
+import { UserIcon } from '@heroicons/react/outline';
 
 // Interface for Event
 interface Event {
@@ -391,15 +392,13 @@ const Home: React.FC = () => {
     >
       <div className="flex items-center justify-between mb-4">
         <div className="flex items-center">
-          <img
-            src={announcement.creator?.avatar?.url || '/default-avatar.png'}
-            alt={announcement.creator?.fullName}
-            className="w-10 h-10 rounded-full object-cover"
-            onError={(e) => {
-              const target = e.target as HTMLImageElement;
-              target.src = '/default-avatar.png';
-            }}
-          />
+          {announcement.creator?.avatar?.url ? (
+            <img src={announcement.creator?.avatar.url} alt="" className="w-10 h-10 rounded-full object-cover flex-shrink-0" />
+          ) : (
+            <div className="w-10 h-10 rounded-full bg-gray-100 flex items-center justify-center flex-shrink-0">
+              <UserIcon className="w-6 h-6 text-gray-400" />
+            </div>
+          )}
           <div className="ml-3">
             <h3 className="font-semibold">{announcement.creator?.fullName}</h3>
             <p 
@@ -495,7 +494,7 @@ const Home: React.FC = () => {
     >
       <div className="flex items-center justify-between p-4 border-b border-[#EDEDED]">
         <div className="flex items-center">
-          <img
+          {/* <img
             src={event.organizer?.avatar?.url || '/default-avatar.png'}
             alt={event.organizer?.fullName || 'User'}
             className="w-10 h-10 rounded-full object-cover"
@@ -503,7 +502,14 @@ const Home: React.FC = () => {
               const target = e.target as HTMLImageElement;
               target.src = '/default-avatar.png';
             }}
-          />
+          /> */}
+          {event.organizer?.avatar?.url ? (
+            <img src={event.organizer?.avatar.url} alt="" className="w-10 h-10 rounded-full object-cover flex-shrink-0" />
+          ) : (
+            <div className="w-10 h-10 rounded-full bg-gray-100 flex items-center justify-center flex-shrink-0">
+              <UserIcon className="w-6 h-6 text-gray-400" />
+            </div>
+          )}
           <div className="ml-3">
             <h3 className="text-sm font-semibold text-[#000000]">
               {event.organizer?.fullName || 'Anonymous'}
@@ -661,15 +667,13 @@ const Home: React.FC = () => {
         <section className="col-span-1 lg:col-span-6 mb-10">
           <div className="bg-white rounded-lg shadow-sm p-4 mb-4">
             <div className="flex items-start space-x-2">
-              <img
-                src={user?.avatar?.url || '/default-avatar.png'}
-                alt={user?.fullName || 'User avatar'}
-                className="w-12 h-12 rounded-full object-cover"
-                onError={(e) => {
-                  const target = e.target as HTMLImageElement;
-                  target.src = '/default-avatar.png';
-                }}
-              />
+              {user?.avatar?.url ? (
+                <img src={user.avatar.url} alt="" className="w-12 h-12 rounded-full object-cover flex-shrink-0" />
+              ) : (
+                <div className="w-12 h-12 rounded-full bg-gray-100 flex items-center justify-center flex-shrink-0">
+                  <UserIcon className="w-6 h-6 text-gray-400" />
+                </div>
+              )}
               <div onClick={() => setIsModalOpen(true)} className="flex-grow cursor-pointer">
                 <div className="bg-gray-100 hover:bg-gray-200 rounded-full py-3.5 px-4 transition-colors">
                   <p className="text-[#666666]">Chia sẻ sự kiện với cộng đồng của bạn...</p>

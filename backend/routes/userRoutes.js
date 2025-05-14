@@ -7,7 +7,8 @@ const {
   deleteUser,
   updateAvatar,
   deleteAvatar,
-  resetUserPassword
+  resetUserPassword,
+  getUserEvents
 } = require('../controllers/userController');
 const { protect, authorize } = require('../middleware/auth');
 
@@ -18,6 +19,9 @@ router.get('/', getUsers);
 
 // @route: GET /api/v1/users/:id
 router.get('/:id', protect, getUserById);
+
+// @route: GET /api/v1/users/:id/events
+router.get('/:id/events', protect, getUserEvents);
 
 // @route: POST /api/v1/users
 router.post('/', createUser);

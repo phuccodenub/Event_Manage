@@ -1,6 +1,20 @@
 import apiClient from '../api/apiClient';
 import { User } from '../types';
 
+interface ApiError {
+  success?: boolean;
+  message?: string;
+  error?: string;
+  status?: number;
+  response?: {
+    data?: {
+      message?: string;
+      error?: string;
+    };
+    status?: number;
+  };
+}
+
 const userService = {
   getProfile: async (): Promise<User | null> => {
     const response = await apiClient.get('/users/me');
@@ -112,6 +126,36 @@ const userService = {
   resetPassword: async (userId: string): Promise<any> => {
     const response = await apiClient.post(`/users/${userId}/reset-password`);
     return response.data;
+  },
+
+  getUserEvents: async (userId: string) => {
+    try {
+      console.log(`Đang tải danh sách sự kiện cho user: ${userId}`);
+      const response = await apiClient.get(`/users/${userId}/events`);
+      
+      if (!response.data?.success) {
+        throw { 
+          success: false, 
+          message: response.data?.message || 'Không thể tải danh sách sự kiện',
+          error: response.data?.error || 'Unknown error'
+        };
+      }
+      
+      return response.data?.data || [];
+    } catch (error: unknown) {
+      const apiError = error as ApiError;
+      console.error('Error fetching user events:', apiError);
+      
+      if (apiError.response?.status === 404) {
+        throw { ...apiError, message: 'Không tìm thấy người dùng hoặc sự kiện' };
+      }
+      
+      if (apiError.response?.status === 403) {
+        throw { ...apiError, message: 'Không có quyền xem sự kiện của người dùng này' };
+      }
+      
+      throw apiError;
+    }
   }
 };
 
