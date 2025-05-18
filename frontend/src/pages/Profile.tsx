@@ -2,127 +2,195 @@ import React, { useState, useEffect } from 'react';
 import { useRoute, useLocation } from "wouter";
 import Header from '../components/Header';
 import { IoCamera, IoSchoolOutline, IoMailOutline, IoCallOutline, IoCalendarOutline, 
-  IoLocationOutline, IoPencil, IoShieldCheckmark, IoEye, IoArrowBack, IoRibbon } from 'react-icons/io5';
-import authService from '../services/authService';
+  IoLocationOutline, IoPencil, IoShieldCheckmark, IoEye, IoArrowBack, IoDocumentTextOutline, IoCheckmarkCircle } from 'react-icons/io5';
 import AvatarUploadModal from '../components/modals/AvatarUploadModal';
 import ProfileEditModal from '../components/modals/ProfileEditModal';
 import userService from '../services/userService';
 import { toast } from 'react-toastify';
-import { User } from '../types';
+import { User, Event } from '../types';
 import { useAuth } from '../context/AuthContext';
 import Certificate from '../components/Certificate';
-import eventService from '../services/eventService';
+import certificateService from '../services/certificateService';
+
+// Kiểu dữ liệu cho chứng nhận
+interface Certificate {
+  eventId: string;
+  eventName: string;
+  eventDate: string;
+  type: 'participant' | 'collaborator';
+}
 
 const Profile = () => {
   const [, params] = useRoute("/profile/:id");
   const [, setLocation] = useLocation();
-  const { user: currentUser } = useAuth();
+  const { user: currentUser, refetchUserData } = useAuth();
   const [activeSection, setActiveSection] = useState<string>('personal');
-  const [activeTab, setActiveTab] = useState<'profile' | 'events' | 'certificates'>('profile');
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
   const [isEditModalOpen, setIsEditModalOpen] = useState<boolean>(false);
   const [isAvatarModalOpen, setIsAvatarModalOpen] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
-  const [participatedEvents, setParticipatedEvents] = useState<any[]>([]);
-  const [userCertificates, setUserCertificates] = useState<{eventId: string, eventName: string, eventDate: string}[]>([]);
-  const [loadingEvents, setLoadingEvents] = useState<boolean>(false);
+  const [userCertificates, setUserCertificates] = useState<Certificate[]>([]);
   const [loadingCertificates, setLoadingCertificates] = useState<boolean>(false);
   const [isOwner, setIsOwner] = useState(false);
+  const [dataLoaded, setDataLoaded] = useState(false);
 
+  // Tải dữ liệu người dùng và chứng chỉ
   useEffect(() => {
-    const fetchUserData = async () => {
+    const fetchData = async () => {
+      if (!params?.id) {
+        setError("User ID not provided");
+        setLoading(false);
+        return;
+      }
+
       try {
         setLoading(true);
-        const userId = params?.id;
-        if (!userId) {
-          setError("User ID not provided");
-          setLoading(false);
-          return;
-        }
-
-        const userData = await userService.getUserById(userId);
+        
+        // Tải thông tin người dùng
+        const userData = await userService.getUserById(params.id);
         setUser(userData);
         
-        // Nếu đang xem tab sự kiện, tải danh sách sự kiện đã tham gia
-        if (activeTab === 'events') {
-          fetchParticipatedEvents(userId);
+        // Kiểm tra quyền sở hữu
+        setIsOwner(currentUser?._id === userData._id);
+        
+        // Tải chứng chỉ nếu user có id hợp lệ
+        if (userData && userData._id) {
+          await loadCertificates(userData._id);
         }
         
-        // Nếu đang xem tab chứng nhận, tải danh sách chứng nhận
-        if (activeTab === 'certificates') {
-          fetchUserCertificates(userId);
-        }
-
-        // Check if current user is the profile owner
-        setIsOwner(currentUser?._id === userData._id);
+        // Đánh dấu là đã tải xong dữ liệu
+        setDataLoaded(true);
       } catch (error) {
-        console.error("Error fetching user data:", error);
+        console.error("Error fetching profile data:", error);
         setError("Lỗi khi tải dữ liệu người dùng");
       } finally {
         setLoading(false);
       }
     };
+    
+    fetchData();
+  }, [params?.id, currentUser?._id]);
 
-    fetchUserData();
-  }, [params?.id, activeTab]);
-
-  // Check for URL hash to set initial activeSection
-  useEffect(() => {
-    // Check if URL has a hash for section
-    const hash = window.location.hash;
-    if (hash) {
-      const section = hash.replace('#', '');
-      if (['personal', 'activities', 'certificates'].includes(section)) {
-        setActiveSection(section);
-        // Also set activeTab if needed
-        if (section === 'certificates') {
-          setActiveTab('certificates');
-        } else if (section === 'activities') {
-          setActiveTab('events');
-        }
-      }
-    }
-  }, []);
-
-  // Tải danh sách sự kiện người dùng đã tham gia
-  const fetchParticipatedEvents = async (userId: string) => {
-    try {
-      setLoadingEvents(true);
-      const response = await userService.getUserEvents(userId);
-      setParticipatedEvents(response);
-    } catch (error) {
-      console.error("Error fetching participated events:", error);
-      toast.error("Không thể tải danh sách sự kiện đã tham gia");
-    } finally {
-      setLoadingEvents(false);
-    }
-  };
-
-  // Tải danh sách chứng nhận của người dùng
-  const fetchUserCertificates = async (userId: string) => {
+  // Tải danh sách chứng nhận
+  const loadCertificates = async (userId: string) => {
     try {
       setLoadingCertificates(true);
-      // Lấy tất cả sự kiện đã tham gia
-      const response = await userService.getUserEvents(userId);
-      // Lọc các sự kiện đã kết thúc (có thể cấp chứng nhận)
-      const completedEvents = response.filter((event: any) => 
-        event.status === 'completed' && new Date(event.endDate) < new Date()
+      console.log(`Loading certificates for user: ${userId}`);
+      
+      // Lấy danh sách sự kiện
+      const events = await userService.getUserEvents(userId);
+      console.log(`Retrieved ${events.length} events for user`);
+      
+      // Lọc các sự kiện tiềm năng có chứng chỉ (đã kết thúc và đã tham gia)
+      const currentDate = new Date();
+      const potentialEvents = events.filter((event: Event) => {
+        if (!event.endDate) {
+          return false;
+        }
+        
+        const endDate = new Date(event.endDate);
+        const hasEnded = endDate < currentDate;
+        const hasParticipated = event.participants?.includes(userId);
+        const hasCollaborated = event.collaborators?.includes(userId);
+        
+        return hasEnded && (hasParticipated || hasCollaborated);
+      });
+      
+      console.log(`Found ${potentialEvents.length} potential events for certificates`);
+      
+      // Kiểm tra điều kiện nhận chứng nhận thông qua API
+      const eligibilityChecks = await Promise.all(
+        potentialEvents.map(async (event: Event) => {
+          try {
+            // Kiểm tra điều kiện chứng nhận participant
+            let participantEligible = false;
+            if (event.participants?.includes(userId)) {
+              try {
+                const participantCheck = await certificateService.verifyCertificateEligibility(
+                  event._id, 
+                  userId, 
+                  'participant'
+                );
+                participantEligible = participantCheck.data.canGenerateCertificate;
+                console.log(`Participant eligibility for ${event.title}:`, participantEligible);
+              } catch (err) {
+                console.log(`Failed to verify participant eligibility for ${event.title}:`, err);
+              }
+            }
+            
+            // Kiểm tra điều kiện chứng nhận collaborator
+            let collaboratorEligible = false;
+            if (event.collaborators?.includes(userId)) {
+              try {
+                const collaboratorCheck = await certificateService.verifyCertificateEligibility(
+                  event._id, 
+                  userId, 
+                  'collaborator'
+                );
+                collaboratorEligible = collaboratorCheck.data.canGenerateCertificate;
+                console.log(`Collaborator eligibility for ${event.title}:`, collaboratorEligible);
+              } catch (err) {
+                console.log(`Failed to verify collaborator eligibility for ${event.title}:`, err);
+              }
+            }
+            
+            return {
+              event,
+              participantEligible,
+              collaboratorEligible
+            };
+          } catch (error) {
+            console.log(`Error verifying certificates for event ${event._id}:`, error);
+            return { event, participantEligible: false, collaboratorEligible: false };
+          }
+        })
       );
       
-      // Chuyển thành danh sách chứng nhận
-      setUserCertificates(completedEvents.map((event: any) => ({
-        eventId: event._id,
-        eventName: event.title,
-        eventDate: event.startDate
-      })));
+      // Chuyển đổi kết quả thành danh sách chứng nhận
+      const certificates: Certificate[] = [];
+      
+      eligibilityChecks.forEach(check => {
+        if (check.participantEligible) {
+          certificates.push({
+            eventId: check.event._id,
+            eventName: check.event.title,
+            eventDate: check.event.startDate,
+            type: 'participant'
+          });
+        }
+        
+        if (check.collaboratorEligible) {
+          certificates.push({
+            eventId: check.event._id,
+            eventName: check.event.title,
+            eventDate: check.event.startDate,
+            type: 'collaborator'
+          });
+        }
+      });
+      
+      console.log(`Final eligible certificates: ${certificates.length}`);
+      setUserCertificates(certificates);
     } catch (error) {
-      console.error("Error fetching user certificates:", error);
-      toast.error("Không thể tải danh sách chứng nhận");
+      console.error("Error loading certificates:", error);
+      setUserCertificates([]);
+      setError("Không thể tải chứng nhận");
     } finally {
       setLoadingCertificates(false);
     }
   };
+
+  // Check for URL hash to set initial activeSection
+  useEffect(() => {
+    const hash = window.location.hash;
+    if (hash) {
+      const section = hash.replace('#', '');
+      if (['personal', 'certificates'].includes(section)) {
+        setActiveSection(section);
+      }
+    }
+  }, []);
 
   const handleAvatarUpload = async (file: File) => {
     if (!isOwner) {
@@ -136,6 +204,12 @@ const Profile = () => {
       setUser(updatedUser);
       setIsAvatarModalOpen(false);
       toast.success('Avatar updated successfully');
+      
+      // Cập nhật thông tin user trong AuthContext để Header và các component khác cũng được cập nhật
+      if (isOwner) {
+        await refetchUserData();
+        console.log('User data refetched after avatar update');
+      }
     } catch (error: unknown) {
       console.error('Error uploading avatar:', error);
       const errorMessage = error instanceof Error ? error.message : 'Failed to update avatar';
@@ -162,32 +236,24 @@ const Profile = () => {
     setLocation('/events');
   };
 
+  // Chỉ chuyển tab, không tải dữ liệu
+  const handleSectionChange = (section: string) => {
+    setActiveSection(section);
+  };
+
   const sections = [
     { id: 'personal', label: 'Thông tin cá nhân' },
-    { id: 'activities', label: 'Hoạt động' },
     { id: 'certificates', label: 'Chứng nhận' }
   ];
 
-  // Xử lý đổi tab
-  const handleTabChange = (tab: 'profile' | 'events' | 'certificates') => {
-    setActiveTab(tab);
-    
-    // Tải dữ liệu tương ứng với tab mới
-    if (tab === 'events' && user?._id) {
-      fetchParticipatedEvents(user._id);
-    }
-    
-    if (tab === 'certificates' && user?._id) {
-      fetchUserCertificates(user._id);
-    }
-  };
-
-  if (loading) {
+  // Hiển thị trạng thái loading
+  if (loading && !dataLoaded) {
     return <div className="min-h-screen bg-gray-50 flex items-center justify-center">
       <div className="text-center">Loading profile...</div>
     </div>;
   }
 
+  // Hiển thị lỗi
   if (error) {
     return <div className="min-h-screen bg-gray-50 flex items-center justify-center">
       <div className="text-center text-red-600">{error}</div>
@@ -315,7 +381,7 @@ const Profile = () => {
                 {sections.map(section => (
                   <button
                     key={section.id}
-                    onClick={() => setActiveSection(section.id)}
+                    onClick={() => handleSectionChange(section.id)}
                     className={`py-4 relative text-sm font-medium ${
                       activeSection === section.id
                         ? 'text-orange-600'
@@ -414,10 +480,15 @@ const Profile = () => {
                     <div className="space-y-4">
                       <StatItem 
                         label="Sự kiện đã tham gia" 
+                        value={user?.uniqueEventCount?.toString() || "0"} 
+                        tooltip="Tổng số sự kiện đã tham gia (không trùng lặp)"
+                      />
+                      <StatItem 
+                        label="Đăng ký làm người tham dự" 
                         value={user?.registeredEvents?.length?.toString() || "0"} 
                       />
                       <StatItem 
-                        label="Sự kiện đã tổ chức" 
+                        label="Đăng ký làm CTV" 
                         value={user?.collaboratorEvents?.length?.toString() || "0"} 
                       />
                     </div>
@@ -439,17 +510,6 @@ const Profile = () => {
               </>
             )}
 
-            {activeSection === 'activities' && (
-              <div className="lg:col-span-3">
-                <div className="bg-white rounded-xl shadow-sm p-6">
-                  <h2 className="text-lg font-semibold text-gray-900 mb-4">Hoạt động gần đây</h2>
-                  <div className="text-center py-8 text-gray-500">
-                    Chưa có dữ liệu hoạt động
-                  </div>
-                </div>
-              </div>
-            )}
-
             {activeSection === 'certificates' && (
               <div className="lg:col-span-3">
                 <div className="bg-white rounded-xl shadow-sm p-6">
@@ -460,28 +520,49 @@ const Profile = () => {
                       <div className="inline-block animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-orange-500"></div>
                       <p className="mt-2 text-gray-500">Đang tải chứng nhận...</p>
                     </div>
+                  ) : error && error.includes("chứng nhận") ? (
+                    <div className="text-center py-8 text-red-500">
+                      <p>{error}</p>
+                      <button 
+                        onClick={() => user?._id && loadCertificates(user._id)}
+                        className="mt-3 px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition-colors text-sm"
+                      >
+                        Thử lại
+                      </button>
+                    </div>
                   ) : userCertificates.length > 0 ? (
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      {userCertificates.map((cert) => (
-                        <div key={cert.eventId} className="border border-gray-200 rounded-lg overflow-hidden bg-gray-50 hover:shadow-md transition-shadow">
-                          <div className="p-4">
-                            <h3 className="font-medium text-gray-900 mb-1">{cert.eventName}</h3>
-                            <p className="text-sm text-gray-500 mb-3">
-                              Ngày: {new Date(cert.eventDate).toLocaleDateString('vi-VN')}
-                            </p>
-                            {user && user._id && (
-                              <Certificate 
-                                eventId={cert.eventId} 
-                                userId={user._id} 
-                              />
-                            )}
+                    <div>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        {userCertificates.map((cert) => (
+                          <div 
+                            key={`${cert.eventId}-${cert.type}`} 
+                            className="border border-gray-200 rounded-lg overflow-hidden bg-gray-50 hover:shadow-md transition-shadow"
+                          >
+                            <div className="p-4">
+                              <h3 className="font-medium text-gray-900 mb-1">{cert.eventName}</h3>
+                              <p className="text-sm text-gray-500 mb-3">
+                                Ngày: {new Date(cert.eventDate).toLocaleDateString('vi-VN')}
+                              </p>
+                              <div className="flex items-center gap-2 text-sm">
+                                <div className="bg-green-100 text-green-700 px-2 py-1 rounded-full flex items-center">
+                                  <IoCheckmarkCircle className="mr-1" />
+                                  <span>{cert.type === 'participant' ? 'Đã tham gia' : 'Đã cộng tác'}</span>
+                                </div>
+                              </div>
+                              <p className="text-xs text-gray-500 mt-3">
+                                Để tải chứng nhận, vui lòng truy cập trang Chứng nhận
+                              </p>
+                            </div>
                           </div>
-                        </div>
-                      ))}
+                        ))}
+                      </div>
                     </div>
                   ) : (
                     <div className="text-center py-8 text-gray-500">
-                      Chưa có chứng nhận nào
+                      <div className="flex justify-center mb-4">
+                        <IoDocumentTextOutline className="text-5xl text-gray-300" />
+                      </div>
+                      {isOwner ? 'Bạn chưa có chứng nhận nào' : `${user?.fullName || 'Người dùng này'} chưa có chứng nhận nào`}
                     </div>
                   )}
                 </div>
@@ -544,11 +625,24 @@ const InfoField = ({
 );
 
 // Helper component for statistics
-const StatItem = ({ label, value }: { label: string; value: string }) => (
+const StatItem = ({ label, value, tooltip }: { label: string; value: string; tooltip?: string }) => (
   <div className="flex justify-between items-center">
-    <span className="text-sm text-gray-600">{label}</span>
+    <div className="flex items-center gap-2">
+      <span className="text-sm text-gray-600">{label}</span>
+      {tooltip && (
+        <span 
+          className="text-xs text-gray-400 cursor-help" 
+          title={tooltip}
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+          </svg>
+        </span>
+      )}
+    </div>
     <span className="font-semibold text-gray-900">{value}</span>
   </div>
 );
 
 export default Profile;
+

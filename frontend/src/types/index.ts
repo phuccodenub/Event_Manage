@@ -15,9 +15,10 @@ export interface User {
   gender: string;
   phone: string;
   birthday?: Date;
-  collaboratorEvents: any[];
-  registeredEvents: any[];
+  collaboratorEvents: string[];
+  registeredEvents: string[];
   avatar?: Avatar;
+  uniqueEventCount?: number;
 }
 
 export interface FormField {
@@ -67,6 +68,25 @@ export interface Event {
     name: string;
   };
   participants: string[];
+  collaborators: Array<string | {
+    user: string | {
+      _id: string;
+      fullName?: string;
+      email?: string;
+      avatar?: {
+        url: string;
+        public_id?: string;
+      };
+    };
+    status: 'pending' | 'approved' | 'rejected';
+    requestedAt: string;
+    approvedAt?: string;
+    approvedBy?: {
+      _id: string;
+      fullName: string;
+    };
+    rejectionReason?: string;
+  }>;
   creator: {
     _id: string;
     fullName: string;

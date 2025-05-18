@@ -13,23 +13,24 @@ import { vi } from 'date-fns/locale';
 import EventImageGrid from '../components/EventImageGrid';
 import { toast } from 'react-toastify';
 import JoinEventButton from '../components/JoinEventButton';
+import CollaborateEventButton from '../components/CollaborateEventButton';
 import { useEvents } from '../context/EventContext';
 import { formatDescriptionWithLinks } from '@/utils/linkUtils';
 import Certificate from '../components/Certificate';
 import { UserIcon } from '@heroicons/react/outline';
+import CollaboratorsList from '../components/CollaboratorsList';
 
 const PostDetails: React.FC = () => {
   const { id } = useParams();
   const [location, navigate] = useLocation();
   const { user } = useAuth();
-  const { updateEventParticipants } = useEvents();
+  const { updateEventParticipants, updateEventCollaborators } = useEvents();
   const [post, setPost] = useState<Event | Announcement | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [activeDropdown, setActiveDropdown] = useState<string | null>(null);
-  const [isJoining, setIsJoining] = useState(false);
   const [currentParticipants, setCurrentParticipants] = useState<string[]>([]);
-  const [isDescriptionExpanded, setIsDescriptionExpanded] = useState(false);
+  const [currentCollaborators, setCurrentCollaborators] = useState<string[]>([]);
   const [isExpanded, setIsExpanded] = useState(false);
 
   const isEventPage = location.includes('/events/');
@@ -80,8 +81,9 @@ const PostDetails: React.FC = () => {
   }, [id, isEventPage]);
 
   useEffect(() => {
-    if (post && isEvent(post) && post.participants) {
+    if (post && isEvent(post) && post.participants && post.collaborators) {
       setCurrentParticipants(post.participants);
+      setCurrentCollaborators(post.collaborators);
     }
   }, [post]);
 
@@ -90,7 +92,7 @@ const PostDetails: React.FC = () => {
     
     // Cập nhật cả 2 state đồng thời
     setCurrentParticipants(prev => {
-      if (isJoining) {
+      if (isJoining && user._id) {
         return [...prev, user._id];
       } else {
         return prev.filter(participantId => participantId !== user._id);
@@ -100,6 +102,22 @@ const PostDetails: React.FC = () => {
     // Gọi update trong context để cập nhật danh sách người tham gia
     if (user._id) {
       updateEventParticipants(id, user._id, isJoining);
+    }
+  };
+
+  const handleCollaboratorUpdate = (isJoining: boolean) => {
+    if (!user?._id || !id) return;
+    
+    setCurrentCollaborators(prev => {
+      if (isJoining && user._id) {
+        return [...prev, user._id];
+      } else {
+        return prev.filter(collaboratorId => collaboratorId !== user._id);
+      }
+    });
+
+    if (user._id) {
+      updateEventCollaborators(id, user._id, isJoining);
     }
   };
 
@@ -122,8 +140,19 @@ const PostDetails: React.FC = () => {
           toast.success('Đã xóa thông báo thành công');
         }
         navigate('/');
-      } catch (error: any) {
-        toast.error(error.response?.data?.message || `Lỗi khi xóa ${type === 'event' ? 'sự kiện' : 'thông báo'}`);
+      } catch (error: unknown) {
+        const errorMessage = error instanceof Error 
+          ? error.message 
+          : `Lỗi khi xóa ${type === 'event' ? 'sự kiện' : 'thông báo'}`;
+        
+        // Check for axios error structure
+        if (typeof error === 'object' && error !== null && 'response' in error) {
+          // @ts-expect-error - Handle axios error structure
+          const responseMessage = error.response?.data?.message;
+          toast.error(responseMessage || errorMessage);
+        } else {
+          toast.error(errorMessage);
+        }
       }
       setActiveDropdown(null);
     };
@@ -335,7 +364,16 @@ const PostDetails: React.FC = () => {
               <EventImageGrid 
                 images={post.images} 
                 title={post.title} 
-                event={post}
+                event={{
+                  title: post.title,
+                  description: post.description,
+                  organizer: {
+                    fullName: post.organizer.fullName,
+                    avatar: typeof post.organizer.avatar === 'object' && 'url' in post.organizer.avatar 
+                            ? post.organizer.avatar.url : undefined
+                  },
+                  createdAt: typeof post.createdAt === 'string' ? new Date(post.createdAt) : (post.createdAt || new Date())
+                }}
               />
             </div>
           )}
@@ -347,19 +385,36 @@ const PostDetails: React.FC = () => {
                 {currentParticipants.length} người tham gia
               </span>
             </div>
-            <JoinEventButton
-              eventId={post._id}
-              participants={currentParticipants}
-              startDate={post.startDate}
-              endDate={post.endDate}
-              status={post.status}
-              onJoinSuccess={() => {
-                handleParticipantUpdate(true);
-              }}
-              onLeaveSuccess={() => {
-                handleParticipantUpdate(false);
-              }}
-            />
+            <div className="flex items-center gap-2">
+              <JoinEventButton
+                eventId={post._id}
+                participants={currentParticipants}
+                startDate={typeof post.startDate === 'string' ? new Date(post.startDate) : post.startDate}
+                endDate={typeof post.endDate === 'string' ? new Date(post.endDate) : post.endDate}
+                status={post.status}
+                onJoinSuccess={() => {
+                  handleParticipantUpdate(true);
+                }}
+                onLeaveSuccess={() => {
+                  handleParticipantUpdate(false);
+                }}
+              />
+              
+              {/* Collaborator Button */}
+              {user && post && post.status !== 'cancelled' && post.status !== 'completed' && 
+                isEvent(post) && (
+                  <CollaborateEventButton 
+                    eventId={post._id}
+                    status={post.status}
+                    collaborators={currentCollaborators}
+                    startDate={typeof post.startDate === 'string' ? new Date(post.startDate) : post.startDate}
+                    endDate={typeof post.endDate === 'string' ? new Date(post.endDate) : post.endDate}
+                    onJoinSuccess={() => handleCollaboratorUpdate(true)}
+                    onLeaveSuccess={() => handleCollaboratorUpdate(false)}
+                  />
+                )
+              }
+            </div>
           </div>
         </div>
       </div>
@@ -373,8 +428,8 @@ const PostDetails: React.FC = () => {
       >
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center">
-            {announcement.organizer?.avatar && typeof announcement.organizer.avatar === 'object' && 'url' in announcement.organizer.avatar ? (
-              <img src={announcement.organizer.avatar.url} alt="" className="w-10 h-10 rounded-full object-cover flex-shrink-0" />
+            {announcement.creator?.avatar && typeof announcement.creator.avatar === 'object' && 'url' in announcement.creator.avatar ? (
+              <img src={announcement.creator.avatar.url} alt="" className="w-10 h-10 rounded-full object-cover flex-shrink-0" />
             ) : (
               <div className="w-10 h-10 rounded-full bg-gray-100 flex items-center justify-center flex-shrink-0">
                 <UserIcon className="w-6 h-6 text-gray-400" />
@@ -419,12 +474,10 @@ const PostDetails: React.FC = () => {
                 description: announcement.content,
                 organizer: {
                   fullName: announcement.creator.fullName,
-                  avatar: announcement.creator.avatar,
+                  avatar: typeof announcement.creator.avatar === 'object' && 'url' in announcement.creator.avatar 
+                         ? announcement.creator.avatar.url : undefined
                 },
-                createdAt: new Date(announcement.createdAt),
-                status: announcement.status,
-                category: announcement.category,
-                priority: announcement.priority
+                createdAt: new Date(announcement.createdAt)
               }}
             />
           </div>
@@ -462,7 +515,9 @@ const PostDetails: React.FC = () => {
                 <EventSidebar 
                   event={post as Event}
                   currentParticipants={currentParticipants}
+                  currentCollaborators={currentCollaborators}
                   handleParticipantUpdate={handleParticipantUpdate}
+                  handleCollaboratorUpdate={handleCollaboratorUpdate}
                 />
               ) : (
                 <AnnouncementSidebar announcement={post as Announcement} />
@@ -478,30 +533,54 @@ const PostDetails: React.FC = () => {
 interface EventSidebarProps {
   event: Event;
   currentParticipants: string[];
+  currentCollaborators: string[];
   handleParticipantUpdate: (isJoining: boolean) => void;
+  handleCollaboratorUpdate: (isJoining: boolean) => void;
 }
 
-const EventSidebar: React.FC<EventSidebarProps> = ({ event, currentParticipants, handleParticipantUpdate }) => {
+const EventSidebar: React.FC<EventSidebarProps> = ({ event, currentParticipants, currentCollaborators, handleParticipantUpdate, handleCollaboratorUpdate }) => {
   const { user } = useAuth();
-  const { currentParticipantList, fetchParticipants } = useEvents();
+  const { currentParticipantList, fetchParticipants, currentCollaboratorList, fetchCollaborators } = useEvents();
   const [, navigate] = useLocation();
+  const [certificateTab, setCertificateTab] = useState<'participant' | 'collaborator'>('participant');
 
   // Fetch participants when component mounts or event changes
   useEffect(() => {
     if (event._id) {
       fetchParticipants(event._id);
+      fetchCollaborators(event._id);
     }
-  }, [event._id, fetchParticipants]);
+  }, [event._id, fetchParticipants, fetchCollaborators]);
 
   // Check if the event has ended to show certificate section
   const isEventEnded = new Date(event.endDate) < new Date();
-  const isUserParticipant = user && currentParticipants.includes(user._id);
+  const isUserParticipant = user && user._id ? currentParticipants.includes(user._id) : false;
+  const isUserCollaborator = user && user._id ? currentCollaborators.includes(user._id) : false;
+  
+  // Check for admin privileges
+  const isAdmin = user?.role === 'admin';
+  const isEventCreator = event.creator?._id === user?._id;
+  const isEventOrganizer = event.organizer?._id === user?._id;
+  
+  // Set initial tab based on user roles
+  useEffect(() => {
+    if (isUserCollaborator && !isUserParticipant) {
+      setCertificateTab('collaborator');
+    } else if (isUserParticipant) {
+      setCertificateTab('participant');
+    }
+  }, [isUserParticipant, isUserCollaborator]);
+    
+  const handleCertificateTabChange = (tab: 'participant' | 'collaborator') => {
+    setCertificateTab(tab);
+  };
 
   // Check if user has permission to access check-in page
   const canAccessCheckin = 
-    user?.role === 'admin' || // Admin system
-    (event.creator?._id === user?._id) || // Event creator
-    (event.organizer?._id === user?._id); // Event organizer
+    isAdmin || // Admin system
+    isEventCreator || // Event creator
+    isEventOrganizer || // Event organizer
+    isUserCollaborator; // Event collaborator
 
   return (
     <div className="sticky top-20 space-y-4">
@@ -521,15 +600,28 @@ const EventSidebar: React.FC<EventSidebarProps> = ({ event, currentParticipants,
         </div>
 
         <div className="flex flex-col space-y-3">
-          <JoinEventButton
-            eventId={event._id}
-            participants={currentParticipants}
-            startDate={event.startDate}
-            endDate={event.endDate}
-            status={event.status}
-            onJoinSuccess={() => handleParticipantUpdate(true)}
-            onLeaveSuccess={() => handleParticipantUpdate(false)}
-          />
+          <div className="flex gap-3">
+            <JoinEventButton
+              eventId={event._id}
+              participants={currentParticipants}
+              startDate={typeof event.startDate === 'string' ? new Date(event.startDate) : event.startDate}
+              endDate={typeof event.endDate === 'string' ? new Date(event.endDate) : event.endDate}
+              status={event.status}
+              onJoinSuccess={() => handleParticipantUpdate(true)}
+              onLeaveSuccess={() => handleParticipantUpdate(false)}
+            />
+            
+            {/* Collaborator Button */}
+            {user && event.status !== 'cancelled' && event.status !== 'completed' && (
+              <CollaborateEventButton 
+                eventId={event._id}
+                status={event.status}
+                collaborators={currentCollaborators}
+                onJoinSuccess={() => handleCollaboratorUpdate(true)}
+                onLeaveSuccess={() => handleCollaboratorUpdate(false)}
+              />
+            )}
+          </div>
 
           {/* Check-in Button for authorized users */}
           {canAccessCheckin && (
@@ -544,24 +636,70 @@ const EventSidebar: React.FC<EventSidebarProps> = ({ event, currentParticipants,
         </div>
       </div>
 
-      {/* Certificate Section - Show only for ended events if user participated */}
-      {isEventEnded && isUserParticipant && user && (
+      {/* Certificate Section - Show for ended events if user participated or collaborated */}
+      {isEventEnded && (isUserParticipant || isUserCollaborator || isAdmin || isEventCreator || isEventOrganizer) && user && (
         <div className="bg-white rounded-2xl shadow-sm p-6">
           <h3 className="text-xl font-bold text-gray-900 mb-4">Chứng nhận</h3>
           <div className="mb-4">
             <p className="text-gray-600">
-              Nhận chứng nhận tham gia sự kiện của bạn.
+              Nhận chứng nhận cho sự kiện này.
             </p>
           </div>
-          <div className="mt-3">
-            <Certificate 
-              eventId={event._id} 
-              userId={user._id} 
-            />
+          
+          {/* Tabs for different certificate types */}
+          <div className="border-b border-gray-200 mb-6">
+            <nav className="-mb-px flex">
+              {/* Always show Participant tab for admins and managers */}
+              <button
+                onClick={() => handleCertificateTabChange('participant')}
+                className={`w-1/2 py-2 px-1 text-center border-b-2 ${
+                  certificateTab === 'participant' 
+                    ? 'border-orange-500 text-orange-600' 
+                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                } font-medium text-sm`}
+              >
+                <i className="fas fa-users mr-2"></i>
+                Người tham gia
+              </button>
+              
+              {/* Always show Collaborator tab for admins and managers */}
+              <button
+                onClick={() => handleCertificateTabChange('collaborator')}
+                className={`w-1/2 py-2 px-1 text-center border-b-2 ${
+                  certificateTab === 'collaborator' 
+                    ? 'border-green-500 text-green-600' 
+                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                } font-medium text-sm`}
+              >
+                <i className="fas fa-user-tie mr-2"></i>
+                Cộng tác viên
+              </button>
+            </nav>
+          </div>
+          
+          <div className={certificateTab !== 'participant' ? 'hidden' : ''}>
+            {user && user._id && (
+              <Certificate 
+                eventId={event._id} 
+                userId={user._id}
+                certificateType="participant"
+              />
+            )}
+          </div>
+          
+          <div className={certificateTab !== 'collaborator' ? 'hidden' : ''}>
+            {user && user._id && (
+              <Certificate 
+                eventId={event._id} 
+                userId={user._id}
+                certificateType="collaborator"
+              />
+            )}
           </div>
         </div>
       )}
 
+      {/* Participants Section */}
       <div className="bg-white rounded-2xl shadow-sm p-6">
         <h3 className="text-xl font-bold text-gray-900 mb-4">Người tham gia</h3>
         <p className="text-gray-600 mb-4">
@@ -591,10 +729,23 @@ const EventSidebar: React.FC<EventSidebarProps> = ({ event, currentParticipants,
             ))
           ) : (
             <p className="text-sm text-gray-500 italic">
-              Chưa có người tham gia
+              {/* Chưa có người tham gia */}
             </p>
           )}
         </div>
+      </div>
+      
+      {/* Collaborators Section */}
+      <div className="bg-white rounded-2xl shadow-sm p-6">
+        <h3 className="text-xl font-bold text-gray-900 mb-4">Cộng tác viên</h3>
+        <p className="text-gray-600 mb-4">
+          {currentCollaboratorList.length || 0} người đã tham gia
+        </p>
+
+        {/* Usar el nuevo componente de lista de colaboradores */}
+        {event._id && (
+          <CollaboratorsList eventId={event._id} />
+        )}
       </div>
     </div>
   );

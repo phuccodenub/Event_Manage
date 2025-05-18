@@ -1,7 +1,7 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import { MdImage, MdEdit, MdDelete, MdContentCopy, MdPushPin, MdInfoOutline } from 'react-icons/md';
 import { BiCalendarEvent } from 'react-icons/bi';
-import { IoLocationOutline, IoDesktopOutline } from 'react-icons/io5';
+import { IoLocationOutline, IoDesktopOutline, IoRefreshOutline } from 'react-icons/io5';
 import { BsThreeDotsVertical, BsCalendarEvent, BsCalendarCheck } from 'react-icons/bs';
 import Header from '../components/Header';
 import LeftSidebar from '../components/LeftSidebar';
@@ -12,7 +12,7 @@ import CreateEventModal from '../components/modals/CreateEventModal';
 import EventImageGrid from '../components/EventImageGrid';
 import EditEventModal from '../components/modals/EditEventModal';
 import EditAnnouncementModal from '../components/modals/EditAnnouncementModal';
-import { Event } from '../types';
+import { Event, Announcement } from '../types';
 import { useAuth } from '../context/AuthContext';
 import { formatDistanceToNow } from 'date-fns';
 import { vi } from 'date-fns/locale';
@@ -20,80 +20,36 @@ import { useNavigate } from 'react-router-dom';
 import { toast } from 'react-toastify';
 import { useEvents } from '../context/EventContext';
 import JoinEventButton from '../components/JoinEventButton';
+import CollaborateEventButton from '../components/CollaborateEventButton';
 import { formatDescriptionWithLinks } from '@/utils/linkUtils';
 import { UserIcon } from '@heroicons/react/outline';
 
-// Interface for Event
-interface Event {
-  _id: string;
-  title: string;
-  description: string;
-  startDate: Date;
-  endDate: Date;
-  eventType: 'offline' | 'online' | 'hybrid';
-  location: {
-    physical?: {
-      address: string;
-      room: string;
-    };
-    online?: {
-      platform: string;
-      meetingLink: string;
-    };
-  };
-  images: Array<{
-    public_id: string;
-    url: string;
-  }>;
-  organizer: {
-    _id: string;
-    fullName: string;
-    email: string;
-    avatar?: string;
-  };
-  department: {
-    _id: string;
-    name: string;
-  };
-  participants: string[];
-  collaborators: string[];
-  status: 'upcoming' | 'ongoing' | 'completed' | 'cancelled';
-  creator: string;
-  createdAt: Date;
-  registrationForm?: {
-    fields: FormField[];
-  };
-}
+// Define cache keys
+const CACHE_KEYS = {
+  EVENTS: 'home_events_cache',
+  ANNOUNCEMENTS: 'home_announcements_cache',
+  LAST_FETCH: 'home_last_fetch_time'
+};
 
-// Interface for Announcement
-interface Announcement {
-  _id: string;
-  title: string;
-  content: string;
-  category: string;
-  priority: number;
-  creator: {
-    _id: string;
-    fullName: string;
-    email: string;
-    avatar?: {
-      public_id: string;
-      url: string;
-    };
-  };
-  department: {
-    _id: string;
-    name: string;
-  } | null;
-  expiresAt: string;
-  status: 'active' | 'expired' | 'archived';
-  images: Array<{
-    public_id: string;
-    url: string;
-  }>;
-  createdAt: string;
-  updatedAt: string;
-}
+// Cache expiry time (5 minutes in milliseconds)
+const CACHE_EXPIRY_TIME = 5 * 60 * 1000;
+
+// This function clears all caches to force a full refresh
+const clearAllCaches = () => {
+  // Clear Home cache
+  localStorage.removeItem(CACHE_KEYS.EVENTS);
+  localStorage.removeItem(CACHE_KEYS.ANNOUNCEMENTS);
+  localStorage.removeItem(CACHE_KEYS.LAST_FETCH);
+  
+  // Clear LeftSidebar cache
+  localStorage.removeItem('left_sidebar_user_details_cache');
+  localStorage.removeItem('left_sidebar_certificates_cache');
+  localStorage.removeItem('left_sidebar_last_fetch_time');
+  
+  // Clear RightSidebar cache
+  localStorage.removeItem('right_sidebar_events_cache');
+  localStorage.removeItem('right_sidebar_last_fetch_time');
+};
 
 const Home: React.FC = () => {
   const { events, setEvents, updateEventParticipants } = useEvents();
@@ -107,6 +63,7 @@ const Home: React.FC = () => {
   const [editingEvent, setEditingEvent] = useState<Event | null>(null);
   const [editingAnnouncement, setEditingAnnouncement] = useState<Announcement | null>(null);
   const [expandedDescriptions, setExpandedDescriptions] = useState<Set<string>>(new Set());
+  const [isCachedData, setIsCachedData] = useState(false);
 
   const toggleDropdown = (id: string) => {
     setActiveDropdown(activeDropdown === id ? null : id);
@@ -165,48 +122,103 @@ const Home: React.FC = () => {
     });
   };
 
-  useEffect(() => {
-    const fetchContent = async () => {
+  // Function to check if cache is still valid
+  const isCacheValid = (): boolean => {
+    const lastFetchTime = localStorage.getItem(CACHE_KEYS.LAST_FETCH);
+    
+    if (!lastFetchTime) {
+      return false;
+    }
+
+    const lastFetch = parseInt(lastFetchTime, 10);
+    const now = Date.now();
+    
+    // Cache is valid if less than CACHE_EXPIRY_TIME has passed
+    return now - lastFetch < CACHE_EXPIRY_TIME;
+  };
+
+  // Function to fetch content from the API
+  const fetchContent = useCallback(async (forceRefresh = false) => {
+    // Always update the last access time
+    localStorage.setItem(CACHE_KEYS.LAST_FETCH, Date.now().toString());
+    
+    // Try to use cached data if appropriate
+    if (!forceRefresh && isCacheValid()) {
       try {
-        setIsLoading(true);
-        const [fetchedEvents, fetchedAnnouncements] = await Promise.all([
-          eventService.getAllEvents(),
-          announcementService.getAllAnnouncements()
-        ]);
-
-        // Filter active announcements and sort by priority
-        const activeAnnouncements = fetchedAnnouncements.filter(
-          announcement => announcement.status === 'active'
-        ).sort((a, b) => {
-          // Sort by priority first
-          if (b.priority !== a.priority) {
-            return b.priority - a.priority;
-          }
-          // Then by creation date
-          return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
-        });
-
-        // Ensure participants are mapped correctly
-        const formattedEvents = fetchedEvents.map(event => ({
-          ...event,
-          participants: event.participants.map((p: any) => 
-            typeof p === 'string' ? p : p._id.toString()
-          ),
-          registrationForm: event.registrationForm || undefined
-        }));
-
-        const sortedEvents = sortEvents(formattedEvents);
+        const cachedEvents = localStorage.getItem(CACHE_KEYS.EVENTS);
+        const cachedAnnouncements = localStorage.getItem(CACHE_KEYS.ANNOUNCEMENTS);
         
-        setAnnouncements(activeAnnouncements);
-        setEvents(sortedEvents);
-        setError(null);
-      } catch (error: any) {
-        setError(error.response?.data?.message || 'Error fetching content');
-      } finally {
-        setIsLoading(false);
+        if (cachedEvents && cachedAnnouncements) {
+          setEvents(JSON.parse(cachedEvents));
+          setAnnouncements(JSON.parse(cachedAnnouncements));
+          setIsCachedData(true);
+          return;
+        }
+      } catch (error) {
+        console.error('Error loading from cache:', error);
+        // If there's an error with the cache, proceed to fetch from API
       }
-    };
+    }
+
+    try {
+      setIsLoading(true);
+      const [fetchedEvents, fetchedAnnouncements] = await Promise.all([
+        eventService.getAllEvents(),
+        announcementService.getAllAnnouncements()
+      ]);
+
+      // Filter active announcements and sort by priority
+      const activeAnnouncements = fetchedAnnouncements.filter(
+        announcement => announcement.status === 'active'
+      ).sort((a, b) => {
+        // Sort by priority first
+        if (b.priority !== a.priority) {
+          return b.priority - a.priority;
+        }
+        // Then by creation date
+        return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+      });
+
+      // Ensure participants are mapped correctly
+      const formattedEvents = fetchedEvents.map(event => ({
+        ...event,
+        participants: event.participants.map((p: any) => 
+          typeof p === 'string' ? p : p._id.toString()
+        ),
+        registrationForm: event.registrationForm || undefined
+      }));
+
+      const sortedEvents = sortEvents(formattedEvents);
+      
+      setAnnouncements(activeAnnouncements);
+      setEvents(sortedEvents);
+      setError(null);
+      setIsCachedData(false);
+
+      // Save to cache
+      try {
+        localStorage.setItem(CACHE_KEYS.EVENTS, JSON.stringify(sortedEvents));
+        localStorage.setItem(CACHE_KEYS.ANNOUNCEMENTS, JSON.stringify(activeAnnouncements));
+      } catch (cacheError) {
+        console.error('Error saving to cache:', cacheError);
+      }
+    } catch (error: any) {
+      setError(error.response?.data?.message || 'Error fetching content');
+    } finally {
+      setIsLoading(false);
+    }
+  }, [setEvents]);
+
+  // Function to force a full refresh of all components
+  const handleForceRefresh = () => {
+    clearAllCaches();
+    fetchContent(true);
+    window.location.reload(); // Force reload of the page to refresh all components
+  };
+
+  useEffect(() => {
     fetchContent();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const handlePostEvent = async (eventData: FormData) => {
@@ -226,6 +238,17 @@ const Home: React.FC = () => {
       // Sort events when adding new event
       setEvents(prevEvents => sortEvents([newEvent, ...prevEvents]));
       setIsModalOpen(false);
+      
+      // Update cache with new event
+      try {
+        const cachedEvents = localStorage.getItem(CACHE_KEYS.EVENTS);
+        if (cachedEvents) {
+          const parsedEvents = JSON.parse(cachedEvents);
+          localStorage.setItem(CACHE_KEYS.EVENTS, JSON.stringify(sortEvents([newEvent, ...parsedEvents])));
+        }
+      } catch (cacheError) {
+        console.error('Error updating cache:', cacheError);
+      }
     } catch (error: any) {
       console.error('Error details:', error);
       setError(error.response?.data?.message || 'Error creating event');
@@ -621,20 +644,30 @@ const Home: React.FC = () => {
                 Trạng thái: {event.status.charAt(0).toUpperCase() + event.status.slice(1)}
               </span> */}
             </div>
-            <JoinEventButton
-              eventId={event._id}
-              participants={event.participants}
-              startDate={event.startDate}
-              endDate={event.endDate}
-              status={event.status}
-              registrationForm={event.registrationForm}
-              onJoinSuccess={() => {
-                updateEventParticipants(event._id, user?._id, true);
-              }}
-              onLeaveSuccess={() => {
-                updateEventParticipants(event._id, user?._id, false);
-              }}
-            />
+            <div className="flex items-center gap-2">
+              <JoinEventButton
+                eventId={event._id}
+                participants={event.participants}
+                startDate={event.startDate}
+                endDate={event.endDate}
+                status={event.status}
+                registrationForm={event.registrationForm}
+                onJoinSuccess={() => {
+                  updateEventParticipants(event._id, user?._id, true);
+                }}
+                onLeaveSuccess={() => {
+                  updateEventParticipants(event._id, user?._id, false);
+                }}
+              />
+              
+              {user && event.status !== 'cancelled' && event.status !== 'completed' && (
+                <CollaborateEventButton 
+                  eventId={event._id}
+                  status={event.status}
+                  collaborators={event.collaborators || []}
+                />
+              )}
+            </div>
           </div>
         </div>
       </div>
@@ -665,6 +698,27 @@ const Home: React.FC = () => {
         </aside>
 
         <section className="col-span-1 lg:col-span-6 mb-10">
+          {isCachedData && (
+            <div className="mb-4 flex justify-between items-center bg-white rounded-lg shadow-sm p-3">
+              <span className="text-sm text-gray-500">Hiển thị dữ liệu đã lưu trong bộ nhớ cache</span>
+              <div className="flex space-x-2">
+                <button 
+                  onClick={() => fetchContent(true)}
+                  className="text-sm text-orange-600 hover:text-orange-700 font-medium"
+                >
+                  Làm mới nội dung
+                </button>
+                <button 
+                  onClick={handleForceRefresh}
+                  className="text-sm bg-orange-600 text-white px-2 py-1 rounded hover:bg-orange-700 font-medium flex items-center"
+                >
+                  <IoRefreshOutline className="mr-1" />
+                  Làm mới tất cả
+                </button>
+              </div>
+            </div>
+          )}
+
           <div className="bg-white rounded-lg shadow-sm p-4 mb-4">
             <div className="flex items-start space-x-2">
               {user?.avatar?.url ? (

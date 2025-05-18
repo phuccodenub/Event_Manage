@@ -4,6 +4,7 @@ import { useNotifications, getSocketStatus } from '../context/NotificationContex
 import eventService from '../services/eventService';
 import { toast } from 'react-toastify';
 import FormModal from './events/FormModal';
+import { IoPersonAddOutline, IoPersonRemoveOutline } from 'react-icons/io5';
 
 interface FormField {
   fieldId: string;
@@ -25,6 +26,7 @@ interface JoinEventButtonProps {
   registrationForm?: {
     fields: FormField[];
   };
+  isCompact?: boolean;
 }
 
 const JoinEventButton: React.FC<JoinEventButtonProps> = ({
@@ -35,7 +37,8 @@ const JoinEventButton: React.FC<JoinEventButtonProps> = ({
   startDate,
   endDate,
   status,
-  registrationForm
+  registrationForm,
+  isCompact,
 }) => {
   const { user } = useAuth();
   const { fetchNotifications } = useNotifications();
@@ -45,6 +48,22 @@ const JoinEventButton: React.FC<JoinEventButtonProps> = ({
   const [formData, setFormData] = useState<{[key: string]: string}>({});
   const [formErrors, setFormErrors] = useState<{[key: string]: string}>({});
   const [registrationFields, setRegistrationFields] = useState<FormField[]>([]);
+  const [windowWidth, setWindowWidth] = useState(typeof window !== 'undefined' ? window.innerWidth : 0);
+
+  useEffect(() => {
+    const handleResize = () => {
+      setWindowWidth(window.innerWidth);
+    };
+
+    window.addEventListener('resize', handleResize);
+    return () => {
+      window.removeEventListener('resize', handleResize);
+    };
+  }, []);
+
+  const showCompact = isCompact !== undefined 
+    ? isCompact 
+    : windowWidth < 640;
 
   const isEventActive = useCallback(() => {
     if (status === 'cancelled') return false;
@@ -92,17 +111,12 @@ const JoinEventButton: React.FC<JoinEventButtonProps> = ({
     return Object.keys(errors).length === 0;
   };
 
-  // Hàm kiểm tra trạng thái socket và cập nhật thông báo
   const updateNotifications = async () => {
     try {
-      // Kiểm tra trạng thái socket
-      const socketStatus = getSocketStatus();
-      console.log('Socket status:', socketStatus);
+      getSocketStatus();
       
-      // Thêm độ trễ nhỏ để đảm bảo server đã xử lý xong notification
       await new Promise(resolve => setTimeout(resolve, 500));
       
-      // Tải lại thông báo để cập nhật UI
       await fetchNotifications();
     } catch (error) {
       console.error('Failed to update notifications:', error);
@@ -116,23 +130,20 @@ const JoinEventButton: React.FC<JoinEventButtonProps> = ({
     }
 
     try {
-      // Fetch form data from API
       const response = await eventService.getEventForm(eventId);
       console.log("Registration form data:", response.data);
 
       if (response.data?.fields && response.data.fields.length > 0) {
-        setRegistrationFields(response.data.fields); // Dynamically set fields
+        setRegistrationFields(response.data.fields);
         setShowForm(true);
         return;
       }
 
-      // If no form, proceed with direct join
       setIsLoading(true);
       await eventService.joinEvent(eventId);
       setHasJoined(true);
       onJoinSuccess?.();
       
-      // Cập nhật thông báo ngay lập tức
       await updateNotifications();
       
       toast.success('Đăng ký tham gia sự kiện thành công!');
@@ -150,7 +161,6 @@ const JoinEventButton: React.FC<JoinEventButtonProps> = ({
       setHasJoined(false);
       onLeaveSuccess?.();
       
-      // Cập nhật thông báo ngay lập tức
       await updateNotifications();
       
       toast.success('Đã hủy đăng ký tham gia sự kiện!');
@@ -164,15 +174,13 @@ const JoinEventButton: React.FC<JoinEventButtonProps> = ({
   const handleFormSubmit = async (formData: any) => {
     try {
       setIsLoading(true);
-      // Đổi tên key để match với model
       await eventService.joinEvent(eventId, { 
-        formResponses: formData // Đổi formData thành formResponses
+        formResponses: formData
       });
       setHasJoined(true);
       setShowForm(false);
       onJoinSuccess?.();
       
-      // Cập nhật thông báo ngay lập tức
       await updateNotifications();
       
       toast.success('Đăng ký tham gia sự kiện thành công!');
@@ -183,28 +191,59 @@ const JoinEventButton: React.FC<JoinEventButtonProps> = ({
     }
   };
 
+  const tooltipText = hasJoined ? 'Hủy tham gia' : 'Tham gia ngay';
+
   return (
-    <div className="inline-block">
+    <div className="inline-block relative group">
       <button
         onClick={hasJoined ? handleLeave : handleJoin}
         disabled={isLoading || !isEventActive()}
-        className={`px-5 py-2 rounded-xl font-medium transition-colors ${
-          !isEventActive() 
-            ? 'bg-gray-200 text-gray-500 cursor-not-allowed'
-            : hasJoined
-              ? 'border-2 border-orange-600 text-orange-600 hover:bg-orange-50'
-              : 'bg-orange-600 text-white hover:bg-orange-700'
+        title={tooltipText}
+        aria-label={tooltipText}
+        className={`transition-colors ${
+          showCompact 
+            ? `p-2 rounded-full flex items-center justify-center ${
+                !isEventActive() 
+                  ? 'bg-gray-200 text-gray-500 cursor-not-allowed'
+                  : hasJoined
+                    ? 'border-2 border-orange-600 text-orange-600 hover:bg-orange-50'
+                    : 'bg-orange-600 text-white hover:bg-orange-700'
+              }`
+            : `px-5 py-2 rounded-xl font-medium ${
+                !isEventActive() 
+                  ? 'bg-gray-200 text-gray-500 cursor-not-allowed'
+                  : hasJoined
+                    ? 'border-2 border-orange-600 text-orange-600 hover:bg-orange-50'
+                    : 'bg-orange-600 text-white hover:bg-orange-700'
+              }`
         } ${isLoading ? 'opacity-70 cursor-not-allowed' : ''}`}
       >
-        {isLoading 
-          ? 'Đang xử lý...'
-          : !isEventActive()
-            ? 'Đã kết thúc'
-            : hasJoined 
-              ? 'Hủy tham gia'
-              : 'Tham gia ngay'
-        }
+        {showCompact ? (
+          isLoading ? (
+            <div className="h-5 w-5 border-2 border-t-transparent border-white rounded-full animate-spin"></div>
+          ) : !isEventActive() ? (
+            <span className="text-sm">✕</span>
+          ) : hasJoined ? (
+            <IoPersonRemoveOutline className="h-5 w-5" />
+          ) : (
+            <IoPersonAddOutline className="h-5 w-5" />
+          )
+        ) : (
+          isLoading 
+            ? 'Đang xử lý...'
+            : !isEventActive()
+              ? 'Đã kết thúc'
+              : hasJoined 
+                ? 'Hủy tham gia'
+                : 'Tham gia ngay'
+        )}
       </button>
+
+      {showCompact && (
+        <div className="absolute left-1/2 -translate-x-1/2 bottom-full mb-2 px-2 py-1 bg-gray-800 text-white text-xs rounded opacity-0 group-hover:opacity-100 transition-opacity duration-200 whitespace-nowrap pointer-events-none z-10">
+          {tooltipText}
+        </div>
+      )}
 
       <FormModal
         isOpen={showForm}

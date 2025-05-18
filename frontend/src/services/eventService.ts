@@ -10,15 +10,37 @@ interface EventResponse {
   data: Event[];
 }
 
+interface FormResponseData {
+  [key: string]: string | string[];
+}
+
+// Helper type guard function
+interface ErrorWithResponse {
+  response?: {
+    status?: number;
+  };
+}
+
+function isErrorWithResponse(error: unknown): error is ErrorWithResponse {
+  return Boolean(
+    error &&
+    typeof error === 'object' &&
+    'response' in error &&
+    error.response &&
+    typeof error.response === 'object' &&
+    'status' in error.response
+  );
+}
+
 const eventService = {
   getAllEvents: async () => {
     const response = await apiClient.get('/events');
     const events = response.data?.data || [];
     
     // Format participants to ensure consistent ID format
-    return events.map((event: any) => ({
+    return events.map((event: Event) => ({
       ...event,
-      participants: (event.participants || []).map((p: any) => 
+      participants: (event.participants || []).map((p: string | { _id: string }) => 
         typeof p === 'string' ? p : p._id.toString()
       )
     }));
@@ -55,8 +77,8 @@ const eventService = {
       }
 
       return response.data.data;
-    } catch (error: any) {
-      console.error('Event creation error:', error.response || error);
+    } catch (error: unknown) {
+      console.error('Event creation error:', error);
       throw error;
     }
   },
@@ -84,13 +106,9 @@ const eventService = {
     }
   },
 
-  joinEvent: async (eventId: string, formData?: any) => {
-    try {
-      const response = await apiClient.post(`/events/${eventId}/join`, formData);
-      return response.data;
-    } catch (error) {
-      throw error;
-    }
+  joinEvent: async (eventId: string, formData?: FormResponseData) => {
+    const response = await apiClient.post(`/events/${eventId}/join`, formData);
+    return response.data;
   },
 
   leaveEvent: async (eventId: string) => {
@@ -108,7 +126,10 @@ const eventService = {
       const response = await apiClient.get(`/events/${eventId}/participants`);
       return response.data;
     } catch (error) {
-      console.error('Error fetching participants:', error);
+      // Do not log 403 errors - these are expected when permissions are not sufficient
+      if (!isErrorWithResponse(error) || error.response?.status !== 403) {
+        console.error('Error fetching participants:', error);
+      }
       throw error;
     }
   },
@@ -139,6 +160,67 @@ const eventService = {
       return response.data;
     } catch (error) {
       console.error('Error fetching submissions:', error);
+      throw error;
+    }
+  },
+
+  // Collaborator methods
+  joinEventAsCollaborator: async (eventId: string) => {
+    try {
+      const response = await apiClient.post(`/events/${eventId}/join-collaborator`);
+      return response.data;
+    } catch (error) {
+      console.error('Error joining as collaborator:', error);
+      throw error;
+    }
+  },
+
+  leaveEventAsCollaborator: async (eventId: string, userId?: string) => {
+    try {
+      // If userId is provided, it's an admin removing a collaborator
+      const endpoint = userId 
+        ? `/events/${eventId}/remove-collaborator/${userId}`
+        : `/events/${eventId}/leave-collaborator`;
+        
+      const response = await apiClient.post(endpoint);
+      return response.data;
+    } catch (error) {
+      console.error('Error leaving as collaborator:', error);
+      throw error;
+    }
+  },
+
+  getEventCollaborators: async (eventId: string) => {
+    try {
+      const response = await apiClient.get(`/events/${eventId}/collaborators`);
+      return response.data;
+    } catch (error) {
+      // Do not log 403 errors - these are expected when permissions are not sufficient
+      if (!isErrorWithResponse(error) || error.response?.status !== 403) {
+        console.error('Error fetching collaborators:', error);
+      }
+      throw error;
+    }
+  },
+
+  // Collaborator approval methods
+  approveCollaborator: async (eventId: string, userId: string) => {
+    try {
+      const response = await apiClient.put(`/events/${eventId}/approve-collaborator/${userId}`);
+      return response.data;
+    } catch (error) {
+      console.error('Error approving collaborator:', error);
+      throw error;
+    }
+  },
+
+  rejectCollaborator: async (eventId: string, userId: string, reason?: string) => {
+    try {
+      const response = await apiClient.put(`/events/${eventId}/reject-collaborator/${userId}`, 
+        reason ? { reason } : {});
+      return response.data;
+    } catch (error) {
+      console.error('Error rejecting collaborator:', error);
       throw error;
     }
   },

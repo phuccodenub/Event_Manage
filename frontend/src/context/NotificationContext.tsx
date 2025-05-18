@@ -44,7 +44,7 @@ interface NotificationContextProps {
   markAsRead: (id: string) => Promise<void>;
   markAllAsRead: () => Promise<void>;
   fetchNotifications: () => void;
-  filterNotifications: (type?: string) => Notification[];
+  filterNotifications: (type?: string, period?: string) => Notification[];
   updateUnreadCount: () => void;
   reconnectSocket: () => void;
 }
@@ -328,9 +328,41 @@ export const NotificationProvider = ({ children }: { children: React.ReactNode }
     }
   }, [user?._id, fetchNotifications, reconnectSocket, setupSocket]); // Thêm các dependencies cần thiết
 
-  const filterNotifications = useCallback((type?: string) => {
-    if (!type) return notifications;
-    return notifications.filter((notification) => notification.type === type);
+  const filterNotifications = useCallback((type?: string, period?: string) => {
+    let filtered = [...notifications];
+
+    // Filter by type
+    if (type && type !== 'all') {
+      if (type === 'unread') {
+        filtered = filtered.filter(notification => !notification.read);
+      } else {
+        filtered = filtered.filter(notification => notification.type === type);
+      }
+    }
+
+    // Filter by time period
+    if (period && period !== 'all') {
+      const now = new Date();
+      const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+      const weekAgo = new Date(today.getTime() - 7 * 24 * 60 * 60 * 1000);
+      const monthAgo = new Date(today.getTime() - 30 * 24 * 60 * 60 * 1000);
+
+      filtered = filtered.filter(notification => {
+        const notificationDate = new Date(notification.createdAt);
+        switch (period) {
+          case 'today':
+            return notificationDate >= today;
+          case 'week':
+            return notificationDate >= weekAgo;
+          case 'month':
+            return notificationDate >= monthAgo;
+          default:
+            return true;
+        }
+      });
+    }
+
+    return filtered;
   }, [notifications]);
 
   // Convert markNotificationAsRead from mutate to Promise-based function for compatibility

@@ -32,11 +32,18 @@ const checkinSchema = new mongoose.Schema({
   wasRegistered: {
     type: Boolean,
     default: false
+  },
+  type: {
+    type: String,
+    enum: ['participant', 'collaborator'],
+    required: true,
+    default: 'participant'
   }
 }, {
   timestamps: true
 });
 
-// Chỉ giữ lại index unique cho studentId
+// Create a compound index to ensure a user cannot check in multiple times for the same event and same type
+checkinSchema.index({ event: 1, studentId: 1, type: 1 }, { unique: true });
 
 module.exports = mongoose.model('Checkin', checkinSchema);

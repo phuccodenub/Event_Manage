@@ -10,6 +10,12 @@ const {
   joinEvent,
   leaveEvent,
   getEventParticipants,
+  getEventCollaborators,
+  joinEventAsCollaborator,
+  leaveEventAsCollaborator,
+  approveCollaborator,
+  rejectCollaborator,
+  removeCollaborator,
   getEventRegistrationForm,
   getFormSubmissions
 } = require('../controllers/eventController');
@@ -17,6 +23,18 @@ const Event = require('../models/eventModel'); // Assuming Event model is import
 
 // Participants routes (đặt trước các routes dùng :id)
 router.get('/:id/participants', protect, getEventParticipants);
+
+// Collaborators routes (đặt trước các routes dùng :id)
+router.get('/:id/collaborators', protect, getEventCollaborators);
+
+// Collaborator approval routes
+router.put('/:id/approve-collaborator/:userId', protect, approveCollaborator);
+router.put('/:id/reject-collaborator/:userId', protect, rejectCollaborator);
+
+// Collaborator join/leave routes
+router.post('/:id/join-collaborator', protect, joinEventAsCollaborator);
+router.post('/:id/leave-collaborator', protect, leaveEventAsCollaborator);
+router.post('/:id/remove-collaborator/:userId', protect, removeCollaborator);
 
 // Add this new route
 router.get('/:id/registration-form', getEventRegistrationForm);

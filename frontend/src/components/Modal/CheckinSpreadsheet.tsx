@@ -35,7 +35,8 @@ const CheckinSpreadsheet: React.FC<CheckinSpreadsheetProps> = ({
       { value: 'MSSV', readOnly: true, className: 'bg-gray-300 font-bold text-center border border-gray-900' },
       { value: 'HỌ VÀ TÊN', readOnly: true, className: 'bg-gray-300 font-bold text-center border border-gray-900' },
       { value: 'THỜI GIAN ĐIỂM DANH', readOnly: true, className: 'bg-gray-300 font-bold text-center border border-gray-900' },
-      { value: 'PHƯƠNG THỨC', readOnly: true, className: 'bg-gray-300 font-bold text-center border border-gray-900' }
+      { value: 'PHƯƠNG THỨC', readOnly: true, className: 'bg-gray-300 font-bold text-center border border-gray-900' },
+      { value: 'VAI TRÒ', readOnly: true, className: 'bg-gray-300 font-bold text-center border border-gray-900' }
     ],
     // Data rows
     ...data.map((row, index) => ([
@@ -47,6 +48,13 @@ const CheckinSpreadsheet: React.FC<CheckinSpreadsheetProps> = ({
         value: row.checkinMethod === 'qr' ? 'Quét QR' : 'Nhập tay', 
         readOnly: true, 
         className: row.checkinMethod === 'qr' ? 'bg-green-100 text-center border border-gray-200' : (index % 2 ? 'bg-white text-center border border-gray-200' : 'bg-gray-50 text-center border border-gray-200') 
+      },
+      { 
+        value: row.type === 'participant' ? 'Người tham gia' : 'Cộng tác viên',
+        readOnly: true, 
+        className: row.type === 'participant' 
+          ? 'bg-orange-100 text-center border border-gray-200' 
+          : 'bg-emerald-100 text-center border border-gray-200'
       }
     ]))
   ];
@@ -65,13 +73,14 @@ const CheckinSpreadsheet: React.FC<CheckinSpreadsheetProps> = ({
       [`Thời gian: ${eventTime}`],
       [`Tổng số sinh viên: ${data.length}`],
       [''],
-      ['STT', 'MSSV', 'HỌ VÀ TÊN', 'THỜI GIAN ĐIỂM DANH', 'PHƯƠNG THỨC'],
+      ['STT', 'MSSV', 'HỌ VÀ TÊN', 'THỜI GIAN ĐIỂM DANH', 'PHƯƠNG THỨC', 'VAI TRÒ'],
       ...data.map((row, index) => [
         index + 1,
         row.studentId,
         row.user?.fullName || '(trống)',
         new Date(row.checkinTime).toLocaleString('vi-VN'),
-        row.checkinMethod === 'qr' ? 'Quét QR' : 'Nhập tay'
+        row.checkinMethod === 'qr' ? 'Quét QR' : 'Nhập tay',
+        row.type === 'participant' ? 'Người tham gia' : 'Cộng tác viên'
       ])
     ]);
 
@@ -81,7 +90,8 @@ const CheckinSpreadsheet: React.FC<CheckinSpreadsheetProps> = ({
       { wch: 12 },  // MSSV
       { wch: 35 },  // Họ và tên
       { wch: 25 },  // Thời gian điểm danh
-      { wch: 15 }   // Phương thức
+      { wch: 15 },  // Phương thức
+      { wch: 15 }   // Vai trò
     ];
     ws['!rows'] = [
       { hpx: 30 },  // Dòng 1: Tên trường
@@ -98,12 +108,12 @@ const CheckinSpreadsheet: React.FC<CheckinSpreadsheetProps> = ({
 
     // Merge cells for headers
     ws['!merges'] = [
-      { s: { r: 0, c: 0 }, e: { r: 0, c: 4 } }, // Trường
-      { s: { r: 1, c: 0 }, e: { r: 1, c: 4 } }, // HUTECH
-      { s: { r: 3, c: 0 }, e: { r: 3, c: 4 } }, // Tiêu đề
-      { s: { r: 4, c: 0 }, e: { r: 4, c: 4 } }, // Tên sự kiện
-      { s: { r: 5, c: 0 }, e: { r: 5, c: 4 } }, // Thời gian
-      { s: { r: 6, c: 0 }, e: { r: 6, c: 4 } }  // Tổng số SV
+      { s: { r: 0, c: 0 }, e: { r: 0, c: 5 } }, // Trường
+      { s: { r: 1, c: 0 }, e: { r: 1, c: 5 } }, // HUTECH
+      { s: { r: 3, c: 0 }, e: { r: 3, c: 5 } }, // Tiêu đề
+      { s: { r: 4, c: 0 }, e: { r: 4, c: 5 } }, // Tên sự kiện
+      { s: { r: 5, c: 0 }, e: { r: 5, c: 5 } }, // Thời gian
+      { s: { r: 6, c: 0 }, e: { r: 6, c: 5 } }  // Tổng số SV
     ];
 
     // Define styles
@@ -146,9 +156,17 @@ const CheckinSpreadsheet: React.FC<CheckinSpreadsheetProps> = ({
       ...cellStyle,
       fill: { fgColor: { rgb: 'E6F3E6' } } // Xanh nhạt cho Quét QR
     };
+    const participantStyle = {
+      ...cellStyle,
+      fill: { fgColor: { rgb: 'FFF3E0' } } // Cam nhạt cho Người tham gia
+    };
+    const collaboratorStyle = {
+      ...cellStyle,
+      fill: { fgColor: { rgb: 'E0F7F0' } } // Xanh ngọc nhạt cho Cộng tác viên
+    };
 
     // Apply styles
-    const range = xlsxUtils.decode_range(ws['!ref'] || 'A1:E' + (9 + data.length));
+    const range = xlsxUtils.decode_range(ws['!ref'] || 'A1:F' + (9 + data.length));
     for (let row = 0; row <= range.e.r; row++) {
       for (let col = 0; col <= range.e.c; col++) {
         const cell = xlsxUtils.encode_cell({ r: row, c: col });
@@ -169,6 +187,13 @@ const CheckinSpreadsheet: React.FC<CheckinSpreadsheetProps> = ({
           };
           if (col === 4 && ws[cell].v === 'Quét QR') {
             ws[cell].s = qrStyle;
+          }
+          if (col === 5) {
+            if (ws[cell].v === 'Người tham gia') {
+              ws[cell].s = participantStyle;
+            } else if (ws[cell].v === 'Cộng tác viên') {
+              ws[cell].s = collaboratorStyle;
+            }
           }
         }
       }
@@ -200,7 +225,7 @@ const CheckinSpreadsheet: React.FC<CheckinSpreadsheetProps> = ({
           <Spreadsheet
             data={spreadsheetData}
             darkMode={false}
-            columnLabels={['A', 'B', 'C', 'D', 'E']}
+            columnLabels={['A', 'B', 'C', 'D', 'E', 'F']}
             rowLabels={Array.from({ length: spreadsheetData.length }, (_, i) => (i + 1).toString())}
           />
         </div>

@@ -6,7 +6,8 @@ import { useAuth } from '../context/AuthContext';
 
 interface CertificateProps {
   eventId: string;
-  userId: string;
+  userId?: string;
+  certificateType?: 'participant' | 'collaborator';
 }
 
 interface ApiError {
@@ -24,14 +25,17 @@ interface VerificationResult {
   eventName: string;
   eventDate: string;
   canGenerateCertificate: boolean;
+  userRole?: 'participant' | 'collaborator';
   conditions?: {
     eventEnded: boolean;
     isRegistered: boolean;
     hasCheckedIn: boolean;
+    isParticipant?: boolean;
+    isCollaborator?: boolean;
   };
 }
 
-const Certificate: React.FC<CertificateProps> = ({ eventId, userId }) => {
+const Certificate: React.FC<CertificateProps> = ({ eventId, userId, certificateType = 'participant' }) => {
   const [loading, setLoading] = useState(true);
   const [eligible, setEligible] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -42,9 +46,13 @@ const Certificate: React.FC<CertificateProps> = ({ eventId, userId }) => {
     const checkEligibility = async () => {
       try {
         setLoading(true);
-        console.log(`Checking certificate eligibility for event: ${eventId}, user: ${userId}`);
+        console.log(`Checking ${certificateType} certificate eligibility for event: ${eventId}, user: ${userId}`);
         
-        const result = await certificateService.verifyCertificateEligibility(eventId, userId);
+        if (!userId) {
+          throw new Error('User ID is missing');
+        }
+        
+        const result = await certificateService.verifyCertificateEligibility(eventId, userId, certificateType);
         console.log('Certificate eligibility result:', result);
         
         setEligible(result.success && result.data.canGenerateCertificate);
@@ -75,14 +83,14 @@ const Certificate: React.FC<CertificateProps> = ({ eventId, userId }) => {
       setLoading(false);
       setError('Thiếu thông tin cần thiết để kiểm tra chứng nhận');
     }
-  }, [eventId, userId]);
+  }, [eventId, userId, certificateType]);
 
   const handleDownloadCertificate = () => {
-    if (!eligible) return;
+    if (!eligible || !userId) return;
 
     try {
       // Get certificate URL
-      const certificateUrl = certificateService.getCertificateUrl(eventId, userId);
+      const certificateUrl = certificateService.getCertificateUrl(eventId, userId, certificateType);
       
       // Open the URL in a new tab to trigger download
       window.open(certificateUrl, '_blank');
@@ -124,12 +132,12 @@ const Certificate: React.FC<CertificateProps> = ({ eventId, userId }) => {
       <div className="bg-gray-50 rounded-lg shadow-sm p-6">
         <h3 className="font-medium text-gray-700 mb-2 flex items-center gap-2">
           <IoWarning className="text-yellow-500" />
-          Chưa đủ điều kiện nhận chứng nhận
+          Chưa đủ điều kiện nhận chứng nhận {certificateType === 'participant' ? 'tham gia' : 'cộng tác viên'}
         </h3>
         <p className="text-sm text-gray-600 mb-3">
           {viewingOtherCertificate 
-            ? 'Người dùng này chưa đủ điều kiện nhận chứng nhận từ sự kiện này.'
-            : 'Bạn chưa đủ điều kiện nhận chứng nhận từ sự kiện này.'}
+            ? `Người dùng này chưa đủ điều kiện nhận chứng nhận ${certificateType === 'participant' ? 'tham gia' : 'cộng tác viên'} từ sự kiện này.`
+            : `Bạn chưa đủ điều kiện nhận chứng nhận ${certificateType === 'participant' ? 'tham gia' : 'cộng tác viên'} từ sự kiện này.`}
         </p>
 
         {/* Danh sách điều kiện chi tiết */}
@@ -146,14 +154,14 @@ const Certificate: React.FC<CertificateProps> = ({ eventId, userId }) => {
               <IoCheckmark className="text-green-500 mr-2" /> : 
               <IoClose className="text-red-500 mr-2" />
             }
-            <span>Đã đăng ký tham gia sự kiện</span>
+            <span>{certificateType === 'participant' ? 'Đã đăng ký tham gia sự kiện' : 'Đã đăng ký làm cộng tác viên cho sự kiện'}</span>
           </li>
           <li className="flex items-center">
             {eventInfo.conditions.hasCheckedIn ? 
               <IoCheckmark className="text-green-500 mr-2" /> : 
               <IoClose className="text-red-500 mr-2" />
             }
-            <span>Đã check-in tại sự kiện</span>
+            <span>Đã check-in tại sự kiện với vai trò {certificateType === 'participant' ? 'người tham gia' : 'cộng tác viên'}</span>
           </li>
         </ul>
 
@@ -170,8 +178,8 @@ const Certificate: React.FC<CertificateProps> = ({ eventId, userId }) => {
         <IoCheckmarkCircle className="text-green-500 text-xl" />
         <h3 className="font-medium text-gray-800">
           {viewingOtherCertificate
-            ? 'Người dùng đủ điều kiện nhận chứng nhận'
-            : 'Bạn đủ điều kiện nhận chứng nhận'}
+            ? `Người dùng đủ điều kiện nhận chứng nhận ${certificateType === 'participant' ? 'tham gia' : 'cộng tác viên'}`
+            : `Bạn đủ điều kiện nhận chứng nhận ${certificateType === 'participant' ? 'tham gia' : 'cộng tác viên'}`}
         </h3>
       </div>
       
@@ -179,25 +187,36 @@ const Certificate: React.FC<CertificateProps> = ({ eventId, userId }) => {
         <div className="text-sm text-gray-600 mb-4">
           <p>Sự kiện: <span className="font-medium">{eventInfo.eventName}</span></p>
           <p>Ngày: {new Date(eventInfo.eventDate).toLocaleDateString('vi-VN')}</p>
+          <p>Vai trò: <span className={`font-medium ${certificateType === 'participant' ? 'text-blue-600' : 'text-green-600'}`}>
+            {certificateType === 'participant' ? 'Người tham gia' : 'Cộng tác viên'}
+          </span></p>
         </div>
       )}
 
       <div className="mt-3 relative">
-        <div className="relative border-2 border-dashed border-orange-200 rounded-lg p-4 bg-orange-50 hover:bg-orange-100 transition-colors">
+        <div className={`relative border-2 border-dashed ${certificateType === 'participant' ? 'border-orange-200' : 'border-green-200'} rounded-lg p-4 ${certificateType === 'participant' ? 'bg-orange-50 hover:bg-orange-100' : 'bg-green-50 hover:bg-green-100'} transition-colors`}>
           <div className="text-center">
             <div className="flex items-center justify-center mb-2">
               <img
                 src="/icons/certificate.svg"
                 alt="Certificate"
-                className="w-12 h-12 text-orange-500"
+                className={`w-12 h-12 ${certificateType === 'participant' ? 'text-orange-500' : 'text-green-500'}`}
               />
             </div>
-            <h4 className="font-semibold text-gray-700 mb-1">Chứng nhận tham gia sự kiện</h4>
-            <p className="text-xs text-gray-500 mb-3">Xác nhận đã tham gia sự kiện này.</p>
+            <h4 className="font-semibold text-gray-700 mb-1">
+              {certificateType === 'participant' 
+                ? 'Chứng nhận tham gia sự kiện' 
+                : 'Chứng nhận cộng tác viên sự kiện'}
+            </h4>
+            <p className="text-xs text-gray-500 mb-3">
+              {certificateType === 'participant'
+                ? 'Xác nhận đã tham gia sự kiện này.' 
+                : 'Xác nhận đã tham gia với vai trò cộng tác viên cho sự kiện này.'}
+            </p>
             
             <button
               onClick={handleDownloadCertificate}
-              className="inline-flex items-center px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition-colors"
+              className={`inline-flex items-center px-4 py-2 ${certificateType === 'participant' ? 'bg-orange-600 hover:bg-orange-700' : 'bg-green-600 hover:bg-green-700'} text-white rounded-lg transition-colors`}
             >
               <IoDownload className="mr-2" />
               {viewingOtherCertificate ? 'Tải chứng nhận' : 'Tải chứng nhận của bạn'}

@@ -182,4 +182,21 @@ userSchema.statics.updateRegisteredEvents = async function(userId, eventId, acti
   }
 };
 
+// Đếm số lượng sự kiện không trùng lặp mà người dùng đã tham gia
+userSchema.statics.countUniqueEvents = function(registeredEvents, collaboratorEvents) {
+  // Chuyển đổi thành mảng chuỗi để dễ so sánh
+  const registered = registeredEvents.map(id => id.toString());
+  const collaborator = collaboratorEvents.map(id => id.toString());
+  
+  // Sử dụng Set để lấy danh sách không trùng lặp
+  const uniqueEventIds = new Set([...registered, ...collaborator]);
+  
+  return uniqueEventIds.size;
+};
+
+// Phương thức instance để đếm số lượng sự kiện không trùng lặp
+userSchema.methods.getUniqueEventCount = function() {
+  return this.constructor.countUniqueEvents(this.registeredEvents, this.collaboratorEvents);
+};
+
 module.exports = mongoose.model('User', userSchema);

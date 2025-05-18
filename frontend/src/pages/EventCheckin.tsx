@@ -5,20 +5,126 @@ import checkinService from '@/services/checkinService';
 import { useAuth } from '@/context/AuthContext';
 import { useEvents } from '@/context/EventContext';
 import NotFound from './NotFound';
-import { Html5Qrcode, Html5QrcodeSupportedFormats } from 'html5-qrcode';
+import { Html5Qrcode } from 'html5-qrcode';
 import { toast } from 'react-toastify';
-import Spreadsheet from 'react-spreadsheet';
 import CheckinSpreadsheet from '@/components/Modal/CheckinSpreadsheet';
+import { createPortal } from 'react-dom';
 
 interface Checkin {
   _id: string;
   studentId: string;
   checkinTime: string;
   checkinMethod: 'qr' | 'manual';
+  type: 'participant' | 'collaborator';
   user: {
     fullName: string;
   };
 }
+
+type CheckinType = 'participant' | 'collaborator';
+
+// Modal xác nhận xóa điểm danh
+interface DeleteModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+  onConfirm: () => void;
+  title: string;
+  message: string;
+  isProcessing: boolean;
+}
+
+const DeleteConfirmModal: React.FC<DeleteModalProps> = ({ 
+  isOpen, onClose, onConfirm, title, message, isProcessing 
+}) => {
+  if (!isOpen) return null;
+  
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center">
+      <div className="fixed inset-0 bg-black opacity-50" onClick={onClose}></div>
+      <div className="relative bg-white rounded-lg shadow-xl p-6 max-w-md w-full mx-4">
+        <h3 className="text-xl font-bold text-gray-900 mb-2">{title}</h3>
+        <p className="text-gray-700 mb-6">{message}</p>
+        
+        <div className="flex justify-end gap-3">
+          <button
+            onClick={onClose}
+            disabled={isProcessing}
+            className="px-4 py-2 bg-gray-200 text-gray-800 rounded-lg hover:bg-gray-300 disabled:opacity-50"
+          >
+            Hủy
+          </button>
+          <button
+            onClick={onConfirm}
+            disabled={isProcessing}
+            className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-50 flex items-center"
+          >
+            {isProcessing ? (
+              <>
+                <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                </svg>
+                Đang xử lý...
+              </>
+            ) : (
+              <>
+                <i className="fas fa-trash mr-2"></i>
+                Xác nhận xóa
+              </>
+            )}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// Thêm component Menu Dropdown sử dụng Portal
+const MenuDropdown = ({ 
+  isOpen, 
+  onClose, 
+  position,
+  onDeleteCheckin,
+  onDeleteAllCheckins
+}) => {
+  if (!isOpen) return null;
+  
+  return createPortal(
+    <div 
+      className="fixed inset-0 z-50" 
+      onClick={onClose}
+    >
+      <div 
+        className="absolute bg-white rounded-md shadow-lg border border-gray-200 w-64 py-1"
+        style={{
+          top: `${position.y}px`,
+          left: `${position.x}px`,
+        }}
+        onClick={e => e.stopPropagation()}
+      >
+        <button
+          onClick={onDeleteCheckin}
+          className="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50 flex items-center"
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-2" viewBox="0 0 20 20" fill="currentColor">
+            <path fillRule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clipRule="evenodd" />
+          </svg>
+          Xóa điểm danh này
+        </button>
+        <button
+          onClick={onDeleteAllCheckins}
+          className="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50 flex items-center"
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-2" viewBox="0 0 20 20" fill="currentColor">
+            <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
+          </svg>
+          Xóa tất cả điểm danh của SV
+        </button>
+      </div>
+    </div>,
+    document.body
+  );
+};
 
 const EventCheckin = () => {
   const { id } = useParams();
@@ -33,6 +139,24 @@ const EventCheckin = () => {
   const qrRef = useRef<HTMLDivElement>(null);
   const [showExportModal, setShowExportModal] = useState(false);
   const [exportData, setExportData] = useState<Array<any>>([]);
+  const [activeTab, setActiveTab] = useState<CheckinType>('participant');
+  const [checkinType, setCheckinType] = useState<CheckinType>('participant');
+  const [filteredCheckins, setFilteredCheckins] = useState<Checkin[]>([]);
+  const [filterType, setFilterType] = useState<CheckinType | 'all'>('all');
+  
+  // State cho modal xóa
+  const [deleteModalOpen, setDeleteModalOpen] = useState(false);
+  const [deleteProcessing, setDeleteProcessing] = useState(false);
+  const [checkinToDelete, setCheckinToDelete] = useState<Checkin | null>(null);
+  const [deleteAllModalOpen, setDeleteAllModalOpen] = useState(false);
+  const [deleteAllProcessing, setDeleteAllProcessing] = useState(false);
+  const [studentToDeleteAll, setStudentToDeleteAll] = useState<string | null>(null);
+  
+  // State cho dropdown menu
+  const [menuPosition, setMenuPosition] = useState({ x: 0, y: 0 });
+  const [openMenuId, setOpenMenuId] = useState<string | null>(null);
+  
+  // Đóng menu khi click ra ngoài - không cần nữa vì Portal sẽ xử lý
 
   const formatDateTime = (date: string | Date) => {
     return new Date(date).toLocaleString('vi-VN', {
@@ -106,6 +230,15 @@ const EventCheckin = () => {
     fetchData();
   }, [id, events, fetchEventById]);
 
+  // Filter checkins whenever checkins or filterType changes
+  useEffect(() => {
+    if (filterType === 'all') {
+      setFilteredCheckins(checkins);
+    } else {
+      setFilteredCheckins(checkins.filter(checkin => checkin.type === filterType));
+    }
+  }, [checkins, filterType]);
+
   useEffect(() => {
     let qrScanner: Html5Qrcode | null = null;
 
@@ -162,14 +295,27 @@ const EventCheckin = () => {
         await html5Qrcode.pause();
       }
 
+      if (!id) {
+        toast.error('Event ID is missing');
+        return;
+      }
+
       const result = await checkinService.checkinUser({
         eventId: id,
         studentId: decodedText,
         method: 'qr',
+        type: checkinType
       });
 
       setCheckins(prev => [result.data, ...prev]);
-      toast.success(`Điểm danh thành công: ${decodedText}`);
+      toast.success(`Điểm danh ${checkinType === 'participant' ? 'người tham gia' : 'cộng tác viên'} thành công: ${decodedText}`);
+      
+      // Hiển thị thông báo nếu có điểm danh tự động
+      if (result.message) {
+        setTimeout(() => {
+          toast.info(result.message, { autoClose: 4000 });
+        }, 1000);
+      }
 
       setTimeout(() => {
         if (html5Qrcode) {
@@ -201,15 +347,28 @@ const EventCheckin = () => {
     if (!studentId.trim()) return;
 
     try {
+      if (!id) {
+        toast.error('Event ID is missing');
+        return;
+      }
+
       const result = await checkinService.checkinUser({
         eventId: id,
         studentId: studentId.trim(),
         method: 'manual',
+        type: checkinType
       });
 
       setCheckins(prev => [result.data, ...prev]);
       setStudentId('');
-      toast.success(`Điểm danh thành công: ${studentId}`);
+      toast.success(`Điểm danh ${checkinType === 'participant' ? 'người tham gia' : 'cộng tác viên'} thành công: ${studentId}`);
+      
+      // Hiển thị thông báo nếu có điểm danh tự động
+      if (result.message) {
+        setTimeout(() => {
+          toast.info(result.message, { autoClose: 4000 });
+        }, 1000);
+      }
     } catch (error: any) {
       console.log('Error from server:', error);
 
@@ -222,22 +381,94 @@ const EventCheckin = () => {
   };
 
   const handleExportExcel = () => {
-    const exportData = checkins.map((checkin, index) => ({
+    const exportData = filteredCheckins.map((checkin, index) => ({
       'STT': index + 1,
       'MSSV': checkin.studentId,
       'HỌ VÀ TÊN': checkin.user?.fullName || '(trống)',
       'THỜI GIAN ĐIỂM DANH': new Date(checkin.checkinTime).toLocaleString('vi-VN'),
-      'PHƯƠNG THỨC': checkin.checkinMethod === 'qr' ? 'Quét QR' : 'Nhập tay'
+      'PHƯƠNG THỨC': checkin.checkinMethod === 'qr' ? 'Quét QR' : 'Nhập tay',
+      'VAI TRÒ': checkin.type === 'participant' ? 'Người tham gia' : 'Cộng tác viên'
     }));
     console.log('Export data:', exportData);
     setExportData(exportData);
     setShowExportModal(true);
   };
 
+  // Switch the check-in type when the tab changes
+  const handleTabChange = (tab: CheckinType) => {
+    setActiveTab(tab);
+    setCheckinType(tab);
+  };
+
+  const handleDeleteCheckin = (checkin: Checkin) => {
+    setCheckinToDelete(checkin);
+    setDeleteModalOpen(true);
+  };
+
+  const confirmDeleteCheckin = async () => {
+    if (!checkinToDelete) return;
+    
+    try {
+      setDeleteProcessing(true);
+      await checkinService.deleteCheckin(checkinToDelete._id);
+      
+      // Cập nhật state để xóa check-in khỏi danh sách
+      setCheckins(prevCheckins => 
+        prevCheckins.filter(c => c._id !== checkinToDelete._id)
+      );
+      
+      toast.success(`Đã xóa điểm danh ${checkinToDelete.type === 'participant' ? 'người tham gia' : 'cộng tác viên'} ${checkinToDelete.studentId}`);
+      setDeleteModalOpen(false);
+      setCheckinToDelete(null);
+    } catch (error: any) {
+      console.error('Error deleting checkin:', error);
+      toast.error(error.error || 'Không thể xóa điểm danh');
+    } finally {
+      setDeleteProcessing(false);
+    }
+  };
+
+  const handleDeleteAllCheckins = (studentId: string) => {
+    setStudentToDeleteAll(studentId);
+    setDeleteAllModalOpen(true);
+  };
+
+  const confirmDeleteAllCheckins = async () => {
+    if (!studentToDeleteAll || !id) return;
+    
+    try {
+      setDeleteAllProcessing(true);
+      await checkinService.deleteCheckinsByStudent(id, studentToDeleteAll);
+      
+      // Cập nhật state để xóa tất cả check-in của sinh viên
+      setCheckins(prevCheckins => 
+        prevCheckins.filter(c => c.studentId !== studentToDeleteAll)
+      );
+      
+      toast.success(`Đã xóa tất cả điểm danh của MSSV ${studentToDeleteAll}`);
+      setDeleteAllModalOpen(false);
+      setStudentToDeleteAll(null);
+    } catch (error: any) {
+      console.error('Error deleting all checkins:', error);
+      toast.error(error.error || 'Không thể xóa điểm danh');
+    } finally {
+      setDeleteAllProcessing(false);
+    }
+  };
+
   if (loading) return <div>Loading...</div>;
+
+  // Check if user has access to the check-in page
+  const isUserCollaborator = user && user._id && event.collaborators ? 
+    event.collaborators.some(
+      collaboratorId => collaboratorId?.toString() === user._id?.toString()
+    ) : false;
 
   const canAccessCheckin = 
     user?.role === 'admin' || // Admin hệ thống
+    (event.creator?._id === user?._id) || // Event creator
+    (event.organizer?._id === user?._id) || // Event organizer
+    isUserCollaborator || // Event collaborator
     (event.department?._id && (
       user?._id === event.department?.head?._id || // Trưởng khoa
       event.department?.administrators?.includes(user?._id) || // QTV khoa
@@ -302,12 +533,38 @@ const EventCheckin = () => {
           {/* Chỉ hiển thị phần điểm danh nếu sự kiện chưa kết thúc */}
           {getEventStatus(event) !== 'ended' && canAccessCheckin && (
             <div className="bg-white rounded-lg shadow-sm p-6">
+              {/* Tabs for Participant/Collaborator */}
+              <div className="flex border-b border-gray-200 mb-6">
+                <button
+                  onClick={() => handleTabChange('participant')}
+                  className={`px-4 py-2 text-sm font-medium ${
+                    activeTab === 'participant'
+                      ? 'border-b-2 border-orange-500 text-orange-600'
+                      : 'text-gray-500 hover:text-gray-700'
+                  }`}
+                >
+                  <i className="fas fa-users mr-2"></i>
+                  Điểm danh người tham gia
+                </button>
+                <button
+                  onClick={() => handleTabChange('collaborator')}
+                  className={`px-4 py-2 text-sm font-medium ${
+                    activeTab === 'collaborator'
+                      ? 'border-b-2 border-green-500 text-green-600'
+                      : 'text-gray-500 hover:text-gray-700'
+                  }`}
+                >
+                  <i className="fas fa-user-tie mr-2"></i>
+                  Điểm danh cộng tác viên
+                </button>
+              </div>
+
               <div className="flex gap-4 mb-6">
                 <button
                   onClick={() => setScanMode('qr')}
                   className={`flex-1 py-3 px-4 rounded-lg transition-all ${
                     scanMode === 'qr'
-                      ? 'bg-orange-600 text-white shadow-lg'
+                      ? `${activeTab === 'participant' ? 'bg-orange-600' : 'bg-green-600'} text-white shadow-lg`
                       : 'bg-gray-100 hover:bg-gray-200'
                   }`}
                 >
@@ -318,7 +575,7 @@ const EventCheckin = () => {
                   onClick={() => setScanMode('manual')}
                   className={`flex-1 py-3 px-4 rounded-lg transition-all ${
                     scanMode === 'manual'
-                      ? 'bg-orange-600 text-white shadow-lg'
+                      ? `${activeTab === 'participant' ? 'bg-orange-600' : 'bg-green-600'} text-white shadow-lg`
                       : 'bg-gray-100 hover:bg-gray-200'
                   }`}
                 >
@@ -355,10 +612,12 @@ const EventCheckin = () => {
                   <button
                     type="submit"
                     disabled={!studentId.trim()}
-                    className="w-full py-3 bg-orange-600 text-white rounded-lg disabled:opacity-50 disabled:cursor-not-allowed hover:bg-orange-700 transition-colors"
+                    className={`w-full py-3 ${
+                      activeTab === 'participant' ? 'bg-orange-600 hover:bg-orange-700' : 'bg-green-600 hover:bg-green-700'
+                    } text-white rounded-lg disabled:opacity-50 disabled:cursor-not-allowed transition-colors`}
                   >
                     <i className="fas fa-check mr-2"></i>
-                    Xác nhận
+                    Xác nhận điểm danh {activeTab === 'participant' ? 'người tham gia' : 'cộng tác viên'}
                   </button>
                 </form>
               )}
@@ -381,61 +640,152 @@ const EventCheckin = () => {
                     Xuất Excel
                   </button>
                   <span className="px-3 py-1 bg-orange-100 text-orange-800 rounded-full text-sm">
-                    {checkins.length} sinh viên
+                    {filteredCheckins.length} người
                   </span>
                 </div>
               </div>
               
+              {/* Filter buttons */}
+              <div className="flex gap-2 mb-4">
+                <button
+                  onClick={() => setFilterType('all')}
+                  className={`px-3 py-1 text-xs font-medium rounded-full ${
+                    filterType === 'all'
+                      ? 'bg-blue-100 text-blue-800'
+                      : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                  }`}
+                >
+                  Tất cả
+                </button>
+                <button
+                  onClick={() => setFilterType('participant')}
+                  className={`px-3 py-1 text-xs font-medium rounded-full ${
+                    filterType === 'participant'
+                      ? 'bg-orange-100 text-orange-800'
+                      : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                  }`}
+                >
+                  Người tham gia
+                </button>
+                <button
+                  onClick={() => setFilterType('collaborator')}
+                  className={`px-3 py-1 text-xs font-medium rounded-full ${
+                    filterType === 'collaborator'
+                      ? 'bg-green-100 text-green-800'
+                      : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                  }`}
+                >
+                  Cộng tác viên
+                </button>
+              </div>
+              
+              {/* Thêm vào sau phần buttons filter type */}
+              {filterType !== 'all' && (
+                <div className="flex justify-end mb-4">
+                  <button
+                    onClick={() => handleExportExcel()}
+                    className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors mr-2"
+                  >
+                    <i className="fas fa-file-excel mr-2"></i>
+                    Xuất Excel
+                  </button>
+                </div>
+              )}
+
               <div className="overflow-auto max-h-[600px]">
                 <table className="min-w-full divide-y divide-gray-200">
                   <thead className="bg-gray-50 sticky top-0">
                     <tr>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                         Thời gian
                       </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                         MSSV
                       </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                         Họ tên
                       </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                         Phương thức
+                      </th>
+                      <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Vai trò
+                      </th>
+                      <th className="px-3 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Thao tác
                       </th>
                     </tr>
                   </thead>
                   <tbody className="bg-white divide-y divide-gray-200">
-                    {checkins.map((checkin: Checkin) => (
-                      <tr 
-                        key={checkin._id}
-                        className="hover:bg-gray-50 transition-colors"
-                      >
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
-                          {new Date(checkin.checkinTime).toLocaleString('vi-VN')}
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                          {checkin.studentId}
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
-                          {checkin.user?.fullName ? (
-                            checkin.user.fullName
-                          ) : (
-                            <span className="italic text-gray-400">(trống)</span>
-                          )}
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm">
-                          <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium
-                            ${checkin.checkinMethod === 'qr' 
-                              ? 'bg-green-100 text-green-800' 
-                              : 'bg-blue-100 text-blue-800'
-                            }`}
-                          >
-                            <i className={`fas fa-${checkin.checkinMethod === 'qr' ? 'qrcode' : 'keyboard'} mr-1`}></i>
-                            {checkin.checkinMethod === 'qr' ? 'Quét QR' : 'Nhập tay'}
-                          </span>
+                    {filteredCheckins.length === 0 ? (
+                      <tr>
+                        <td colSpan={6} className="px-6 py-4 text-center text-gray-500">
+                          Không có dữ liệu điểm danh
                         </td>
                       </tr>
-                    ))}
+                    ) : (
+                      filteredCheckins.map((checkin) => (
+                        <tr 
+                          key={checkin._id}
+                          className="hover:bg-gray-50 transition-colors"
+                        >
+                          <td className="px-3 py-2 whitespace-nowrap text-sm text-gray-600">
+                            {new Date(checkin.checkinTime).toLocaleString('vi-VN')}
+                          </td>
+                          <td className="px-3 py-2 whitespace-nowrap text-sm font-medium text-gray-900">
+                            {checkin.studentId}
+                          </td>
+                          <td className="px-3 py-2 whitespace-nowrap text-sm text-gray-600">
+                            {checkin.user?.fullName ? (
+                              checkin.user.fullName
+                            ) : (
+                              <span className="italic text-gray-400">(trống)</span>
+                            )}
+                          </td>
+                          <td className="px-3 py-2 whitespace-nowrap text-sm">
+                            <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium
+                              ${checkin.checkinMethod === 'qr' 
+                                ? 'bg-green-100 text-green-800' 
+                                : 'bg-blue-100 text-blue-800'
+                              }`}
+                            >
+                              <i className={`fas fa-${checkin.checkinMethod === 'qr' ? 'qrcode' : 'keyboard'} mr-1`}></i>
+                              {checkin.checkinMethod === 'qr' ? 'Quét QR' : 'Nhập tay'}
+                            </span>
+                          </td>
+                          <td className="px-3 py-2 whitespace-nowrap text-sm">
+                            <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium
+                              ${checkin.type === 'participant' 
+                                ? 'bg-orange-100 text-orange-800' 
+                                : 'bg-emerald-100 text-emerald-800'
+                              }`}
+                            >
+                              <i className={`fas fa-${checkin.type === 'participant' ? 'users' : 'user-tie'} mr-1`}></i>
+                              {checkin.type === 'participant' ? 'Người tham gia' : 'Cộng tác viên'}
+                            </span>
+                          </td>
+                          <td className="px-3 py-2 whitespace-nowrap text-sm text-center">
+                            <div className="relative dropdown-menu">
+                              <button
+                                onClick={(e) => {
+                                  const rect = e.currentTarget.getBoundingClientRect();
+                                  setMenuPosition({ 
+                                    x: rect.left - 220, // Hiển thị menu sang trái
+                                    y: rect.top + window.scrollY + 30 // Hiển thị thấp hơn nút một chút
+                                  });
+                                  setOpenMenuId(openMenuId === checkin._id ? null : checkin._id);
+                                }}
+                                className="p-2 rounded-lg hover:bg-gray-100 transition-colors"
+                              >
+                                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-gray-500" viewBox="0 0 20 20" fill="currentColor">
+                                  <path d="M6 10a2 2 0 11-4 0 2 2 0 014 0zM12 10a2 2 0 11-4 0 2 2 0 014 0zM18 10a2 2 0 11-4 0 2 2 0 014 0z" />
+                                </svg>
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))
+                    )}
                   </tbody>
                 </table>
               </div>
@@ -443,15 +793,39 @@ const EventCheckin = () => {
           )}
         </div>
       </div>
-      {showExportModal && (
-        <CheckinSpreadsheet
-          isOpen={showExportModal}
-          onClose={() => setShowExportModal(false)}
-          eventTitle={event?.title || ''}
-          eventTime={`${formatDateTime(event?.startDate)} - ${formatDateTime(event?.endDate)}`}
-          data={checkins}
-        />
-      )}
+      
+      {/* Menu dropdown cho các action */}
+      <MenuDropdown 
+        isOpen={!!openMenuId}
+        onClose={() => setOpenMenuId(null)}
+        position={menuPosition}
+        onDeleteCheckin={() => {
+          const checkin = filteredCheckins.find(c => c._id === openMenuId);
+          if (checkin) {
+            handleDeleteCheckin(checkin);
+            setOpenMenuId(null);
+          }
+        }}
+        onDeleteAllCheckins={() => {
+          const checkin = filteredCheckins.find(c => c._id === openMenuId);
+          if (checkin) {
+            handleDeleteAllCheckins(checkin.studentId);
+            setOpenMenuId(null);
+          }
+        }}
+      />
+      
+      {/* Modal xác nhận xóa một bản ghi điểm danh */}
+      <DeleteConfirmModal
+        isOpen={deleteModalOpen}
+        onClose={() => setDeleteModalOpen(false)}
+        onConfirm={confirmDeleteCheckin}
+        title="Xóa điểm danh"
+        message={checkinToDelete ? 
+          `Bạn có chắc chắn muốn xóa điểm danh ${checkinToDelete.type === 'participant' ? 'người tham gia' : 'cộng tác viên'} của MSSV ${checkinToDelete.studentId}?` : 
+          'Bạn có chắc chắn muốn xóa điểm danh này?'}
+        isProcessing={deleteProcessing}
+      />
     </div>
   );
 };

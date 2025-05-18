@@ -6,6 +6,7 @@ import userService from '../services/userService';
 import { toast } from 'react-toastify';
 import Certificate from '../components/Certificate';
 import { IoDocumentTextOutline, IoSearchOutline, IoRibbon, IoAlertCircle } from 'react-icons/io5';
+import certificateService from '../services/certificateService';
 
 interface Department {
   _id: string;
@@ -27,9 +28,10 @@ interface CertificateEvent {
   department?: Department;
   organizer?: Organizer;
   participants: string[];
+  collaborators?: string[];
 }
 
-// @ts-ignore - Used for error type casting in catch block
+// @ts-expect-error - Used for error type casting in catch block
 interface ApiError {
   response?: {
     status?: number;
@@ -75,21 +77,78 @@ const Certificates = () => {
         
         // Lọc sự kiện đủ điều kiện cấp chứng nhận
         const currentDate = new Date();
-        const eligibleEvents = events.filter((event: CertificateEvent) => {
+        const potentialEvents = events.filter((event: CertificateEvent) => {
           const eventEndDate = new Date(event.endDate);
           
           // Kiểm tra các điều kiện:
           // 1. Sự kiện đã kết thúc (endDate < ngày hiện tại)
-          // 2. User đã đăng ký tham gia (participants chứa userId)
+          // 2. User đã đăng ký tham gia (participants chứa userId) hoặc là cộng tác viên (collaborators chứa userId)
           const hasEnded = eventEndDate < currentDate;
           const hasParticipated = event.participants.includes(targetUserId);
+          const hasCollaborated = event.collaborators?.includes(targetUserId);
           
-          // Điều kiện cấp chứng nhận: sự kiện đã kết thúc VÀ người dùng đã tham gia
-          return hasEnded && hasParticipated;
+          // Điều kiện tiềm năng cấp chứng nhận: sự kiện đã kết thúc VÀ (người dùng đã tham gia HOẶC là cộng tác viên)
+          return hasEnded && (hasParticipated || hasCollaborated);
         });
         
-        console.log('Eligible events for certificates:', eligibleEvents);
-        setUserCertificates(eligibleEvents);
+        console.log('Potential events for certificates:', potentialEvents);
+        
+        // Kiểm tra trạng thái check-in cho từng sự kiện tiềm năng
+        const eligibilityChecks = await Promise.all(
+          potentialEvents.map(async (event: CertificateEvent) => {
+            try {
+              // Kiểm tra điều kiện cấp chứng nhận participant nếu người dùng đã tham gia
+              let participantEligible = false;
+              if (event.participants.includes(targetUserId)) {
+                try {
+                  const participantCheck = await certificateService.verifyCertificateEligibility(
+                    event._id, 
+                    targetUserId, 
+                    'participant'
+                  );
+                  participantEligible = participantCheck.data.canGenerateCertificate;
+                  console.log(`Participant eligibility for ${event.title}:`, participantEligible);
+                } catch (err) {
+                  console.log(`Failed to verify participant eligibility for ${event.title}:`, err);
+                }
+              }
+              
+              // Kiểm tra điều kiện cấp chứng nhận collaborator nếu người dùng là cộng tác viên
+              let collaboratorEligible = false;
+              if (event.collaborators?.includes(targetUserId)) {
+                try {
+                  const collaboratorCheck = await certificateService.verifyCertificateEligibility(
+                    event._id, 
+                    targetUserId, 
+                    'collaborator'
+                  );
+                  collaboratorEligible = collaboratorCheck.data.canGenerateCertificate;
+                  console.log(`Collaborator eligibility for ${event.title}:`, collaboratorEligible);
+                } catch (err) {
+                  console.log(`Failed to verify collaborator eligibility for ${event.title}:`, err);
+                }
+              }
+              
+              return {
+                event,
+                participantEligible,
+                collaboratorEligible
+              };
+            } catch (error) {
+              console.log(`Error verifying certificates for event ${event._id}:`, error);
+              return { event, participantEligible: false, collaboratorEligible: false };
+            }
+          })
+        );
+        
+        // Lưu các sự kiện được đánh dấu đủ điều kiện cấp chứng nhận vào state
+        setUserCertificates(eligibilityChecks.map(check => ({
+          ...check.event,
+          _eligibilityData: {
+            participantEligible: check.participantEligible,
+            collaboratorEligible: check.collaboratorEligible
+          }
+        })));
       } catch (error: unknown) {
         console.error('Error fetching certificates:', error);
         
@@ -120,6 +179,46 @@ const Certificates = () => {
     (cert.department?.name?.toLowerCase().includes(searchQuery.toLowerCase()) || false) ||
     cert.category.toLowerCase().includes(searchQuery.toLowerCase())
   );
+  
+  // Tạo danh sách thẻ chứng nhận chỉ cho những loại đủ điều kiện
+  const certificateCards = filteredCertificates.flatMap(cert => {
+    const cards = [];
+    const targetUserId = params?.userId || user?._id || '';
+    
+    // Chỉ hiển thị các chứng nhận đủ điều kiện
+    const isParticipant = cert.participants.includes(targetUserId) && cert._eligibilityData?.participantEligible === true;
+    const isCollaborator = cert.collaborators?.includes(targetUserId) && cert._eligibilityData?.collaboratorEligible === true;
+    
+    // Thêm thẻ chứng nhận người tham gia nếu đủ điều kiện
+    if (isParticipant) {
+      cards.push({
+        id: `${cert._id}-participant`,
+        eventId: cert._id,
+        title: cert.title,
+        department: cert.department,
+        startDate: cert.startDate,
+        endDate: cert.endDate,
+        category: cert.category,
+        type: 'participant' as const
+      });
+    }
+    
+    // Thêm thẻ chứng nhận cộng tác viên nếu đủ điều kiện
+    if (isCollaborator) {
+      cards.push({
+        id: `${cert._id}-collaborator`,
+        eventId: cert._id,
+        title: cert.title,
+        department: cert.department,
+        startDate: cert.startDate,
+        endDate: cert.endDate,
+        category: cert.category,
+        type: 'collaborator' as const
+      });
+    }
+    
+    return cards;
+  });
   
   // Determine if viewing own profile or someone else's
   const targetUserId = params?.userId || user?._id;
@@ -183,7 +282,7 @@ const Certificates = () => {
         )}
         
         {/* Empty State - No certificates but no errors */}
-        {!loading && !error && filteredCertificates.length === 0 && (
+        {!loading && !error && certificateCards.length === 0 && (
           <div className="bg-white rounded-lg shadow-sm p-10 text-center">
             <div className="flex justify-center mb-4">
               <IoDocumentTextOutline className="text-6xl text-gray-300" />
@@ -200,48 +299,59 @@ const Certificates = () => {
         )}
         
         {/* Certificates List */}
-        {!loading && !error && filteredCertificates.length > 0 && (
+        {!loading && !error && certificateCards.length > 0 && (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {filteredCertificates.map((cert) => (
-              <div key={cert._id} className="bg-white rounded-lg shadow-sm overflow-hidden">
-                {/* Certificate Header */}
-                <div className="bg-orange-50 p-4 border-b border-orange-100">
-                  <div className="flex justify-between items-start">
-                    <div>
-                      <h3 className="font-semibold text-gray-800 mb-1">{cert.title}</h3>
-                      <p className="text-sm text-gray-600">{cert.department?.name || 'HUTECH'}</p>
-                    </div>
-                    <div className="bg-orange-100 p-2 rounded-full">
-                      <IoRibbon className="text-orange-600 text-xl" />
-                    </div>
-                  </div>
-                </div>
-                
-                {/* Certificate Body */}
-                <div className="p-4">
-                  <div className="mb-4">
-                    <div className="flex justify-between text-sm mb-1">
-                      <span className="text-gray-600">Ngày diễn ra:</span>
-                      <span className="font-medium">
-                        {new Date(cert.startDate).toLocaleDateString('vi-VN')}
-                      </span>
-                    </div>
-                    <div className="flex justify-between text-sm">
-                      <span className="text-gray-600">Danh mục:</span>
-                      <span className="font-medium capitalize">{cert.category}</span>
+            {certificateCards.map((card) => {
+              const isParticipantCard = card.type === 'participant';
+              
+              return (
+                <div 
+                  key={card.id} 
+                  className={`bg-white rounded-lg shadow-sm overflow-hidden ${isParticipantCard ? 'border-t-4 border-orange-500' : 'border-t-4 border-green-500'}`}
+                >
+                  {/* Certificate Header */}
+                  <div className={`${isParticipantCard ? 'bg-orange-50' : 'bg-green-50'} p-4 border-b ${isParticipantCard ? 'border-orange-100' : 'border-green-100'}`}>
+                    <div className="flex justify-between items-start">
+                      <div>
+                        <h3 className="font-semibold text-gray-800 mb-1">{card.title}</h3>
+                        <p className="text-sm text-gray-600">{card.department?.name || 'HUTECH'}</p>
+                        <span className={`inline-block mt-2 px-3 py-1 text-xs font-medium rounded-full ${isParticipantCard ? 'bg-orange-100 text-orange-800' : 'bg-green-100 text-green-800'}`}>
+                          {isParticipantCard ? 'Chứng nhận tham gia' : 'Chứng nhận cộng tác viên'}
+                        </span>
+                      </div>
+                      <div className={`${isParticipantCard ? 'bg-orange-100' : 'bg-green-100'} p-2 rounded-full`}>
+                        <IoRibbon className={`${isParticipantCard ? 'text-orange-600' : 'text-green-600'} text-xl`} />
+                      </div>
                     </div>
                   </div>
                   
-                  {/* Certificate Component - Must have both eventId and targetUserId */}
-                  {targetUserId && (
-                    <Certificate 
-                      eventId={cert._id} 
-                      userId={targetUserId}
-                    />
-                  )}
+                  {/* Certificate Body */}
+                  <div className="p-4">
+                    <div className="mb-4">
+                      <div className="flex justify-between text-sm mb-1">
+                        <span className="text-gray-600">Ngày diễn ra:</span>
+                        <span className="font-medium">
+                          {new Date(card.startDate).toLocaleDateString('vi-VN')}
+                        </span>
+                      </div>
+                      <div className="flex justify-between text-sm">
+                        <span className="text-gray-600">Danh mục:</span>
+                        <span className="font-medium capitalize">{card.category}</span>
+                      </div>
+                    </div>
+                    
+                    {/* Certificate Component */}
+                    {targetUserId && (
+                      <Certificate 
+                        eventId={card.eventId} 
+                        userId={targetUserId}
+                        certificateType={card.type}
+                      />
+                    )}
+                  </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
       </div>

@@ -6,20 +6,98 @@ import { useEvents } from '../context/EventContext';
 import eventService from '../services/eventService';
 import Footer from './Footer';
 import JoinEventButton from './JoinEventButton';
+import CollaborateEventButton from './CollaborateEventButton';
+import { Event } from '../types';
+
+// Define cache keys for RightSidebar
+const RIGHT_SIDEBAR_CACHE = {
+  EVENTS: 'right_sidebar_events_cache',
+  LAST_FETCH: 'right_sidebar_last_fetch_time'
+};
+
+// Cache expiry time (5 minutes in milliseconds)
+const CACHE_EXPIRY_TIME = 5 * 60 * 1000;
 
 const RightSidebar: React.FC = () => {
   const { events, updateEventParticipants, setEvents } = useEvents();
   const { user } = useAuth();
   const [, setLocation] = useLocation();
 
+  // Check if page was manually refreshed
+  const isManualRefresh = () => {
+    const now = Date.now();
+    const lastRefresh = parseInt(localStorage.getItem('page_load_timestamp') || '0', 10);
+    
+    // Set the current timestamp
+    localStorage.setItem('page_load_timestamp', now.toString());
+    
+    // If this is the first load or the time difference is small (e.g., within 1 second), 
+    // it's likely a manual refresh or initial page load
+    return lastRefresh === 0 || (now - lastRefresh) < 1000;
+  };
+
+  // Function to check if cache is still valid
+  const isCacheValid = (): boolean => {
+    // Skip cache if this is a manual refresh
+    if (isManualRefresh()) {
+      return false;
+    }
+    
+    const lastFetchTime = localStorage.getItem(RIGHT_SIDEBAR_CACHE.LAST_FETCH);
+    
+    if (!lastFetchTime) {
+      return false;
+    }
+
+    const lastFetch = parseInt(lastFetchTime, 10);
+    const now = Date.now();
+    
+    // Cache is valid if less than CACHE_EXPIRY_TIME has passed
+    return now - lastFetch < CACHE_EXPIRY_TIME;
+  };
+
   useEffect(() => {
     const fetchUpcomingEvents = async () => {
-      const allEvents = await eventService.getAllEvents();
-      setEvents(allEvents); // Lưu vào global state
+      // Update the last access time
+      localStorage.setItem(RIGHT_SIDEBAR_CACHE.LAST_FETCH, Date.now().toString());
+      
+      // Check for manual refresh
+      const shouldSkipCache = isManualRefresh();
+      
+      // Try to use cached data if appropriate and not a manual refresh
+      if (!shouldSkipCache && isCacheValid()) {
+        try {
+          const cachedEvents = localStorage.getItem(RIGHT_SIDEBAR_CACHE.EVENTS);
+          
+          if (cachedEvents) {
+            const parsedEvents = JSON.parse(cachedEvents);
+            setEvents(parsedEvents);
+            return;
+          }
+        } catch (error) {
+          console.error('Error loading from cache:', error);
+          // If there's an error with the cache, proceed to fetch from API
+        }
+      }
+
+      // If cache is not valid, skipped due to manual refresh, or doesn't exist, fetch from API
+      try {
+        const allEvents = await eventService.getAllEvents();
+        setEvents(allEvents); // Store in global state
+        
+        // Save to cache
+        try {
+          localStorage.setItem(RIGHT_SIDEBAR_CACHE.EVENTS, JSON.stringify(allEvents));
+        } catch (cacheError) {
+          console.error('Error saving to cache:', cacheError);
+        }
+      } catch (error) {
+        console.error('Error fetching upcoming events:', error);
+      }
     };
 
     fetchUpcomingEvents();
-  }, []);
+  }, [setEvents]);
 
   const upcomingEvents = events
     .filter(event => new Date(event.startDate) > new Date())
@@ -44,7 +122,7 @@ const RightSidebar: React.FC = () => {
         <div className="bg-white rounded-lg shadow-lg p-6">
           <h2 className="text-xl font-bold text-gray-800 mb-6">🎉 Sự kiện sắp diễn ra</h2>
           {upcomingEvents.length > 0 ? (
-            upcomingEvents.map((event: any) => (
+            upcomingEvents.map((event: Event & { date: string }) => (
               <div
                 key={event._id}
                 className="mb-6 p-4 border border-gray-200 rounded-lg hover:shadow-md transition-shadow"
@@ -71,19 +149,33 @@ const RightSidebar: React.FC = () => {
                   </div>
                 </div>
                 <div 
-                  className="mt-4 right-0 flex justify-end"
+                  className="mt-4 right-0 flex flex-col sm:flex-row sm:justify-end gap-2"
                   onClick={(e) => e.stopPropagation()}
                 >
                   <JoinEventButton
                     eventId={event._id}
                     participants={event.participants}
                     onJoinSuccess={() => {
-                      updateEventParticipants(event._id, user?._id, true);
+                      if (user?._id) {
+                        updateEventParticipants(event._id, user._id, true);
+                      }
                     }}
                     onLeaveSuccess={() => {
-                      updateEventParticipants(event._id, user?._id, false);
+                      if (user?._id) {
+                        updateEventParticipants(event._id, user._id, false);
+                      }
                     }}
+                    isCompact={true}
                   />
+                  
+                  {user && user._id && event.status !== 'cancelled' && event.status !== 'completed' && (
+                    <CollaborateEventButton 
+                      eventId={event._id}
+                      status={event.status}
+                      collaborators={event.collaborators || []}
+                      isCompact={true}
+                    />
+                  )}
                 </div>
               </div>
             ))

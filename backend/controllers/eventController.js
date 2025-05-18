@@ -454,24 +454,42 @@ exports.getEventParticipants = async (req, res, next) => {
       userRole: req.user.role
     });
 
-    // Sửa lại cách so sánh ID
-    const canViewParticipants = 
-      event.creator.toString() === req.user.id || 
-      event.organizer.toString() === req.user.id || 
-      req.user.role === 'admin';
+    // Check if user is admin, creator, or organizer
+    const isAdmin = req.user.role === 'admin';
+    const isCreator = event.creator.toString() === req.user.id;
+    const isOrganizer = event.organizer.toString() === req.user.id;
+    
+    // Check if user is a participant in this event
+    const isParticipant = event.participants && 
+                          event.participants.some(p => p.toString() === req.user._id.toString());
+
+    // Full access for admins, creators, and organizers
+    const hasFullAccess = isAdmin || isCreator || isOrganizer;
 
     // Debug log kết quả kiểm tra quyền
-    console.log('Can view participants:', canViewParticipants);
+    console.log('Authorization check:', { 
+      isAdmin, isCreator, isOrganizer, isParticipant, 
+      hasFullAccess 
+    });
 
-    if (!canViewParticipants) {
+    // If not even a participant, deny access completely
+    if (!hasFullAccess && !isParticipant) {
       return next(new ErrorResponse('Not authorized to view participants', 403));
     }
 
-    // Lấy thông tin chi tiết người tham gia và registration status
-    const participants = await Registration.find({ 
+    // Build the query based on user permissions
+    let query = { 
       event: event._id,
       status: { $ne: 'cancelled' } // Chỉ lấy những người chưa hủy đăng ký
-    })
+    };
+    
+    // If user is not admin/creator/organizer but is a participant, only show their own record
+    if (!hasFullAccess && isParticipant) {
+      query.user = req.user._id;
+    }
+
+    // Lấy thông tin chi tiết người tham gia và registration status
+    const participants = await Registration.find(query)
       .populate('user', 'fullName email avatar')
       .select('user status registeredAt')
       .sort({ registeredAt: -1 }); // Sắp xếp theo thời gian đăng ký, mới nhất lên đầu
@@ -492,6 +510,386 @@ exports.getEventParticipants = async (req, res, next) => {
   } catch (error) {
     console.error('Error in getEventParticipants:', error);
     next(error);
+  }
+};
+
+// @desc: Join event as a collaborator
+exports.joinEventAsCollaborator = async (req, res, next) => {  
+  try {    
+    const event = await Event.findById(req.params.id);    
+    if (!event) {      
+      return next(new ErrorResponse('Event not found', 404));    
+    }    
+    
+    // Kiểm tra xem sự kiện đã kết thúc chưa    
+    if (new Date(event.endDate) < new Date()) {      
+      return next(new ErrorResponse('Event has already ended', 400));    
+    }    
+    
+    // Kiểm tra xem user đã đăng ký làm collaborator chưa
+    const existingCollaborator = event.collaborators.find(
+      collab => collab.user && collab.user.toString() === req.user._id.toString()
+    );
+    
+    if (existingCollaborator) {
+      return next(new ErrorResponse(`Bạn đã đăng ký làm cộng tác viên cho sự kiện này (trạng thái: ${existingCollaborator.status})`, 400));
+    }
+    
+    const session = await mongoose.startSession();    
+    session.startTransaction();
+    
+    try {      
+      // Thêm user vào danh sách chờ duyệt collaborators với trạng thái pending
+      const newCollaborator = {
+        user: req.user._id,
+        status: 'pending',
+        requestedAt: new Date()
+      };
+      
+      await Event.findByIdAndUpdate(
+        event._id,
+        { $push: { collaborators: newCollaborator } },
+        { session }
+      );
+      
+      // Cập nhật collaboratorEvents của user      
+      await User.findByIdAndUpdate(        
+        req.user._id,        
+        { $addToSet: { collaboratorEvents: event._id } },        
+        { session }      
+      );      
+      
+      // Gửi thông báo cho người tạo sự kiện     
+      await NotificationService.createNotification({        
+        recipient: event.creator,        
+        sender: req.user._id,        
+        type: 'event_collaborator_request',        
+        title: `Yêu cầu làm CTV sự kiện`,        
+        message: `${req.user.fullName} đã gửi yêu cầu làm cộng tác viên cho sự kiện "${event.title}"`,        
+        relatedModel: 'Event',        
+        relatedId: event._id,
+        link: `/events/${event._id}/collaborators`
+      });      
+      
+      await session.commitTransaction();            
+      
+      res.status(200).json({        
+        success: true,        
+        message: 'Đã gửi yêu cầu làm cộng tác viên thành công. Vui lòng chờ phê duyệt.'     
+      });    
+    } catch (error) {      
+      await session.abortTransaction();      
+      throw error;    
+    } finally {      
+      session.endSession();    
+    }  
+  } catch (error) {    
+    console.error('Error in joinEventAsCollaborator:', error);    
+    next(error);  
+  }
+};
+
+// @desc: Leave event as a collaborator
+exports.leaveEventAsCollaborator = async (req, res, next) => {  
+  try {    
+    const event = await Event.findById(req.params.id);    
+    if (!event) {      
+      return next(new ErrorResponse('Event not found', 404));    
+    }    
+    
+    // Kiểm tra xem user có phải là collaborator không    
+    const isCollaborator = event.collaborators.some(
+      collab => collab.user && collab.user.toString() === req.user._id.toString()
+    );
+    
+    if (!isCollaborator) {      
+      return next(new ErrorResponse('Bạn không phải là cộng tác viên của sự kiện này', 400));    
+    }
+    
+    const session = await mongoose.startSession();    
+    session.startTransaction();    
+    
+    try {      
+      // Xóa user khỏi collaborators      
+      await Event.findByIdAndUpdate(
+        event._id,
+        { $pull: { collaborators: { user: req.user._id } } },
+        { session }
+      );
+      
+      // Cập nhật collaboratorEvents của user      
+      await User.findByIdAndUpdate(        
+        req.user._id,        
+        { $pull: { collaboratorEvents: event._id } },        
+        { session }      
+      );      
+      
+      // Gửi thông báo      
+      await NotificationService.createNotification({        
+        recipient: event.creator,        
+        sender: req.user._id,        
+        type: 'event_collaborator_leave',        
+        title: `Hủy đăng ký CTV sự kiện`,        
+        message: `${req.user.fullName} đã hủy đăng ký làm CTV cho sự kiện "${event.title}"`,        
+        relatedModel: 'Event',        
+        relatedId: event._id,      
+      });      
+      
+      await session.commitTransaction();            
+      
+      res.status(200).json({        
+        success: true,        
+        message: 'Đã hủy đăng ký làm cộng tác viên thành công'      
+      });    
+    } catch (error) {      
+      await session.abortTransaction();      
+      throw error;    
+    } finally {
+      session.endSession();    
+    }  
+  } catch (error) {    
+    console.error('Error in leaveEventAsCollaborator:', error);    
+    next(error);  
+  }
+};
+
+// @desc: Approve a collaborator request
+// @route: PUT /api/v1/events/:id/approve-collaborator/:userId
+// @access: Private (Admin, Creator, Organizer)
+exports.approveCollaborator = async (req, res, next) => {
+  try {
+    const { id, userId } = req.params;
+    
+    // Tìm sự kiện
+    const event = await Event.findById(id);
+    if (!event) {
+      return next(new ErrorResponse('Không tìm thấy sự kiện', 404));
+    }
+    
+    // Kiểm tra quyền phê duyệt
+    const isAdmin = req.user.role === 'admin';
+    const isCreator = event.creator.toString() === req.user.id;
+    const isOrganizer = event.organizer.toString() === req.user.id;
+    
+    if (!isAdmin && !isCreator && !isOrganizer) {
+      return next(new ErrorResponse('Bạn không có quyền phê duyệt yêu cầu này', 403));
+    }
+    
+    // Tìm collaborator trong mảng
+    const collaboratorIndex = event.collaborators.findIndex(
+      collab => collab.user && collab.user.toString() === userId
+    );
+    
+    if (collaboratorIndex === -1) {
+      return next(new ErrorResponse('Không tìm thấy yêu cầu làm cộng tác viên', 404));
+    }
+    
+    // Kiểm tra trạng thái hiện tại
+    if (event.collaborators[collaboratorIndex].status === 'approved') {
+      return next(new ErrorResponse('Yêu cầu này đã được phê duyệt trước đó', 400));
+    }
+    
+    // Cập nhật trạng thái
+    event.collaborators[collaboratorIndex].status = 'approved';
+    event.collaborators[collaboratorIndex].approvedAt = new Date();
+    event.collaborators[collaboratorIndex].approvedBy = req.user._id;
+    
+    await event.save();
+    
+    // Tìm thông tin người dùng được phê duyệt
+    const approvedUser = await User.findById(userId);
+    
+    // Gửi thông báo cho người được phê duyệt
+    await NotificationService.createNotification({
+      recipient: userId,
+      sender: req.user._id,
+      type: 'collaborator_request_approved',
+      title: 'Yêu cầu làm CTV đã được chấp nhận',
+      message: `Yêu cầu làm cộng tác viên của bạn cho sự kiện "${event.title}" đã được chấp nhận`,
+      relatedModel: 'Event',
+      relatedId: event._id,
+      link: `/events/${event._id}`
+    });
+    
+    res.status(200).json({
+      success: true,
+      message: `Đã phê duyệt yêu cầu làm cộng tác viên của ${approvedUser ? approvedUser.fullName : userId}`,
+      data: {
+        event: {
+          _id: event._id,
+          title: event.title
+        },
+        collaborator: {
+          _id: userId,
+          name: approvedUser ? approvedUser.fullName : 'Unknown'
+        }
+      }
+    });
+  } catch (error) {
+    console.error('Error in approveCollaborator:', error);
+    next(error);
+  }
+};
+
+// @desc: Reject a collaborator request
+// @route: PUT /api/v1/events/:id/reject-collaborator/:userId
+// @access: Private (Admin, Creator, Organizer)
+exports.rejectCollaborator = async (req, res, next) => {
+  try {
+    const { id, userId } = req.params;
+    
+    // Tìm sự kiện
+    const event = await Event.findById(id);
+    if (!event) {
+      return next(new ErrorResponse('Không tìm thấy sự kiện', 404));
+    }
+    
+    // Kiểm tra quyền từ chối
+    const isAdmin = req.user.role === 'admin';
+    const isCreator = event.creator.toString() === req.user.id;
+    const isOrganizer = event.organizer.toString() === req.user.id;
+    
+    if (!isAdmin && !isCreator && !isOrganizer) {
+      return next(new ErrorResponse('Bạn không có quyền từ chối yêu cầu này', 403));
+    }
+    
+    // Tìm collaborator trong mảng
+    const collaboratorIndex = event.collaborators.findIndex(
+      collab => collab.user && collab.user.toString() === userId
+    );
+    
+    if (collaboratorIndex === -1) {
+      return next(new ErrorResponse('Không tìm thấy yêu cầu làm cộng tác viên', 404));
+    }
+    
+    // Kiểm tra trạng thái hiện tại
+    if (event.collaborators[collaboratorIndex].status === 'rejected') {
+      return next(new ErrorResponse('Yêu cầu này đã bị từ chối trước đó', 400));
+    }
+    
+    // Cập nhật trạng thái
+    event.collaborators[collaboratorIndex].status = 'rejected';
+    
+    // Lưu lý do từ chối nếu có
+    if (req.body.reason) {
+      event.collaborators[collaboratorIndex].rejectionReason = req.body.reason;
+    }
+    
+    await event.save();
+    
+    // Xóa sự kiện khỏi danh sách collaboratorEvents của người dùng
+    await User.findByIdAndUpdate(
+      userId,
+      { $pull: { collaboratorEvents: event._id } }
+    );
+    
+    // Tìm thông tin người dùng bị từ chối
+    const rejectedUser = await User.findById(userId);
+    
+    // Gửi thông báo cho người bị từ chối
+    await NotificationService.createNotification({
+      recipient: userId,
+      sender: req.user._id,
+      type: 'collaborator_request_rejected',
+      title: 'Yêu cầu làm CTV đã bị từ chối',
+      message: `Yêu cầu làm cộng tác viên của bạn cho sự kiện "${event.title}" đã bị từ chối${req.body.reason ? ' với lý do: ' + req.body.reason : ''}`,
+      relatedModel: 'Event',
+      relatedId: event._id
+    });
+    
+    res.status(200).json({
+      success: true,
+      message: `Đã từ chối yêu cầu làm cộng tác viên của ${rejectedUser ? rejectedUser.fullName : userId}`,
+      data: {
+        event: {
+          _id: event._id,
+          title: event.title
+        },
+        collaborator: {
+          _id: userId,
+          name: rejectedUser ? rejectedUser.fullName : 'Unknown'
+        }
+      }
+    });
+  } catch (error) {
+    console.error('Error in rejectCollaborator:', error);
+    next(error);
+  }
+};
+
+// @desc: Get event collaborators with status information
+// @route: GET /api/v1/events/:id/collaborators
+// @access: Private
+exports.getEventCollaborators = async (req, res, next) => {  
+  try {    
+    const event = await Event.findById(req.params.id)
+      .populate('collaborators.user', '_id fullName email avatar role')
+      .populate('collaborators.approvedBy', '_id fullName');
+      
+    if (!event) {      
+      return next(new ErrorResponse('Event not found', 404));    
+    }    
+    
+    // Debug log để kiểm tra các giá trị    
+    console.log('Debug getEventCollaborators:', {      
+      userId: req.user.id,      
+      creatorId: event.creator?.toString(),      
+      organizerId: event.organizer?.toString(),      
+      userRole: req.user.role    
+    });    
+    
+    // Kiểm tra quyền xem collaborators    
+    const isAdmin = req.user.role === 'admin';    
+    const isCreator = event.creator && event.creator.toString() === req.user.id;    
+    const isOrganizer = event.organizer && event.organizer.toString() === req.user.id;
+    
+    // Kiểm tra xem user có phải là collaborator không
+    const userCollaborator = event.collaborators.find(
+      collab => collab.user && collab.user._id.toString() === req.user._id.toString()
+    );
+    const isCollaborator = !!userCollaborator;
+    
+    // Full access for admins, creators, and organizers
+    const hasFullAccess = isAdmin || isCreator || isOrganizer;
+    
+    // Debug log kết quả kiểm tra quyền
+    console.log('Collaborators authorization check:', {      
+      isAdmin, isCreator, isOrganizer, isCollaborator,     
+      hasFullAccess
+    });    
+    
+    // If not even a collaborator, deny access completely
+    if (!hasFullAccess && !isCollaborator) {
+      return next(new ErrorResponse('Not authorized to view collaborators', 403));
+    }
+    
+    let collaborators = [];
+    
+    // Nếu có full access, hiển thị toàn bộ danh sách với thông tin đầy đủ
+    if (hasFullAccess) {
+      collaborators = event.collaborators;
+    } else {
+      // Nếu là collaborator, chỉ hiển thị thông tin của chính mình
+      collaborators = [userCollaborator];
+    }
+    
+    // Sắp xếp collaborators theo trạng thái và thời gian
+    collaborators.sort((a, b) => {
+      // Đưa các yêu cầu chưa xử lý lên đầu
+      if (a.status === 'pending' && b.status !== 'pending') return -1;
+      if (a.status !== 'pending' && b.status === 'pending') return 1;
+      
+      // Sau đó sắp xếp theo thời gian yêu cầu (mới nhất lên đầu)
+      return new Date(b.requestedAt) - new Date(a.requestedAt);
+    });
+    
+    res.status(200).json({      
+      success: true,      
+      data: collaborators
+    });  
+  } catch (error) {    
+    console.error('Error in getEventCollaborators:', error);    
+    next(error);  
   }
 };
 
@@ -616,5 +1014,88 @@ exports.getFormSubmissions = async (req, res) => {
       success: false,
       message: 'Error getting submissions'
     });
+  }
+};
+
+// @desc: Remove a collaborator (by admin, creator, or organizer)
+// @route: POST /api/v1/events/:id/remove-collaborator/:userId
+// @access: Private (Admin, Creator, Organizer)
+exports.removeCollaborator = async (req, res, next) => {
+  try {
+    const { id, userId } = req.params;
+    
+    // Find event
+    const event = await Event.findById(id);
+    if (!event) {
+      return next(new ErrorResponse('Không tìm thấy sự kiện', 404));
+    }
+    
+    // Check permission to remove collaborator
+    const isAdmin = req.user.role === 'admin';
+    const isCreator = event.creator.toString() === req.user.id;
+    const isOrganizer = event.organizer.toString() === req.user.id;
+    
+    if (!isAdmin && !isCreator && !isOrganizer) {
+      return next(new ErrorResponse('Bạn không có quyền xóa cộng tác viên', 403));
+    }
+    
+    // Find collaborator in the array
+    const collaboratorIndex = event.collaborators.findIndex(
+      collab => collab.user && collab.user.toString() === userId
+    );
+    
+    if (collaboratorIndex === -1) {
+      return next(new ErrorResponse('Không tìm thấy cộng tác viên này', 404));
+    }
+    
+    const session = await mongoose.startSession();
+    session.startTransaction();
+    
+    try {
+      // Remove user from collaborators
+      await Event.findByIdAndUpdate(
+        event._id,
+        { $pull: { collaborators: { user: userId } } },
+        { session }
+      );
+      
+      // Update collaboratorEvents of user
+      await User.findByIdAndUpdate(
+        userId,
+        { $pull: { collaboratorEvents: event._id } },
+        { session }
+      );
+      
+      // Find user details for notification
+      const removedUser = await User.findById(userId);
+      
+      await session.commitTransaction();
+      
+      // Send notification
+      if (removedUser) {
+        await NotificationService.createNotification({
+          recipient: userId,
+          sender: req.user._id,
+          type: 'event_collaborator_removed',
+          title: `Bạn đã bị xóa khỏi danh sách CTV`,
+          message: `Bạn đã bị xóa khỏi danh sách cộng tác viên của sự kiện "${event.title}"`,
+          relatedModel: 'Event',
+          relatedId: event._id,
+        });
+      }
+      
+      res.status(200).json({
+        success: true,
+        message: `Đã xóa ${removedUser ? removedUser.fullName : 'người dùng'} khỏi danh sách cộng tác viên thành công`
+      });
+    } catch (error) {
+      await session.abortTransaction();
+      throw error;
+    } finally {
+      session.endSession();
+    }
+  } catch (error) {
+    console.error('Error in removeCollaborator:', error);
+    next(error);
   }
 };

@@ -6,6 +6,7 @@ import { User } from '../../types';
 import userService from '../../services/userService';
 import { XIcon } from '@heroicons/react/outline';
 import { IoSchoolOutline, IoPersonOutline, IoCallOutline, IoCalendarOutline } from 'react-icons/io5';
+import { useAuth } from '../../context/AuthContext';
 
 interface ProfileEditModalProps {
   isOpen: boolean;
@@ -20,6 +21,7 @@ const ProfileEditModal: React.FC<ProfileEditModalProps> = ({
   userData,
   onProfileUpdate
 }) => {
+  const { refetchUserData } = useAuth();
   const [loading, setLoading] = useState(false);
   const [formData, setFormData] = useState({
     fullName: userData?.fullName || '',
@@ -28,6 +30,7 @@ const ProfileEditModal: React.FC<ProfileEditModalProps> = ({
     class: userData?.class || '',
     birthday: userData?.birthday ? new Date(userData.birthday).toISOString().split('T')[0] : '',
   });
+  const [error, setError] = useState<string | null>(null);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
@@ -40,58 +43,45 @@ const ProfileEditModal: React.FC<ProfileEditModalProps> = ({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (!userData) {
-      toast.error('Không tìm thấy thông tin người dùng');
+    if (!userData?._id) {
+      toast.error('Missing user ID');
       return;
     }
     
     try {
       setLoading(true);
+      setError(null);
+
+      const formData = new FormData();
+      for (const key in formData) {
+        if (formData[key as keyof typeof formData] !== userData[key as keyof User] && formData[key as keyof typeof formData] !== '') {
+          formData.append(key, formData[key as keyof typeof formData]);
+        }
+      }
+
+      let response;
       
-      // Create form data object
-      const updateData = new FormData();
-      
-      // Only add fields that have changed from the original data
-      if (formData.fullName !== userData.fullName)
-        updateData.append('fullName', formData.fullName);
-      
-      if (formData.userId !== userData.userId)
-        updateData.append('userId', formData.userId);
-      
-      if (formData.phone !== userData.phone)
-        updateData.append('phone', formData.phone);
-      
-      if (formData.class !== userData.class)
-        updateData.append('class', formData.class);
-      
-      if (formData.birthday !== (userData.birthday ? new Date(userData.birthday).toISOString().split('T')[0] : ''))
-        updateData.append('birthday', formData.birthday);
-      
-      // Only proceed if there are changes
-      if (updateData.entries().next().done) {
-        toast.info('Không có thay đổi nào được thực hiện');
-        onClose();
-        return;
+      // Use different API endpoint based on if user is editing their own profile or admin is editing someone else
+      if (userData._id === userService.getCurrentUserId()) {
+        response = await userService.updateProfile(formData);
+        
+        // Cập nhật thông tin user trong AuthContext
+        await refetchUserData();
+      } else {
+        response = await userService.updateUser(userData._id, formData);
+      }
+
+      // Call the parent component's update handler
+      if (onProfileUpdate) {
+        onProfileUpdate(response);
       }
       
-      // Send update request
-      const updatedUser = await userService.updateProfile(updateData);
-      
-      // Update context
-      onProfileUpdate(updatedUser);
-      
-      toast.success('Cập nhật hồ sơ thành công');
+      toast.success('Profile updated successfully');
       onClose();
-    } catch (error: unknown) {
+    } catch (error: any) {
       console.error('Error updating profile:', error);
-      const errorMessage = 
-        error instanceof Error ? error.message : 
-        typeof error === 'object' && error !== null && 'response' in error && 
-        typeof error.response === 'object' && error.response !== null && 'data' in error.response && 
-        typeof error.response.data === 'object' && error.response.data !== null && 'message' in error.response.data ?
-        String(error.response.data.message) : 'Lỗi cập nhật hồ sơ';
-        
-      toast.error(errorMessage);
+      setError(error.message || 'Failed to update profile');
+      toast.error(error.message || 'Failed to update profile');
     } finally {
       setLoading(false);
     }

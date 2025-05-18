@@ -141,6 +141,7 @@ const userService = {
         };
       }
       
+      console.log(`Loaded ${response.data?.data?.length || 0} events successfully`);
       return response.data?.data || [];
     } catch (error: unknown) {
       const apiError = error as ApiError;
@@ -154,7 +155,12 @@ const userService = {
         throw { ...apiError, message: 'Không có quyền xem sự kiện của người dùng này' };
       }
       
-      throw apiError;
+      throw { 
+        ...apiError, 
+        message: apiError.response?.data?.message || 
+                 apiError.message || 
+                 'Lỗi khi tải dữ liệu sự kiện' 
+      };
     }
   }
 };

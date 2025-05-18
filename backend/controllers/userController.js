@@ -44,10 +44,17 @@ exports.getUserById = async (req, res, next) => {
     if (!user) {
       return next(new ErrorResponse('User not found', 404));
     }
+    
+    // Tính số lượng sự kiện không trùng lặp
+    const uniqueEventCount = user.getUniqueEventCount();
+
+    // Chuyển đổi thành plain object để có thể thêm field
+    const userObj = user.toObject();
+    userObj.uniqueEventCount = uniqueEventCount;
 
     res.status(200).json({
       success: true,
-      data: user
+      data: userObj
     });
   } catch (error) {
     next(new ErrorResponse('Error fetching user', 500));
@@ -66,16 +73,17 @@ exports.getUserEvents = async (req, res, next) => {
       return next(new ErrorResponse('Không tìm thấy người dùng', 404));
     }
     
-    // Kiểm tra quyền truy cập - chỉ cho phép người dùng xem sự kiện của họ hoặc admin
-    if (req.user.id !== req.params.id && req.user.role !== 'admin') {
-      return next(new ErrorResponse('Không có quyền truy cập', 403));
-    }
-    
-    // Lấy danh sách sự kiện mà người dùng đã đăng ký
+    // Lấy danh sách sự kiện mà người dùng đã tham gia (bao gồm cả tham gia và làm CTV)
     const registeredEventIds = user.registeredEvents || [];
+    const collaboratorEventIds = user.collaboratorEvents || [];
     
-    // Lấy chi tiết của các sự kiện đã đăng ký
-    const events = await Event.find({ _id: { $in: registeredEventIds } })
+    // Kết hợp cả hai danh sách và loại bỏ trùng lặp
+    const allEventIds = [...new Set([...registeredEventIds, ...collaboratorEventIds])];
+    
+    console.log(`User ${user._id} (${user.fullName}) has ${registeredEventIds.length} registered events and ${collaboratorEventIds.length} collaborator events. Total unique events: ${allEventIds.length}`);
+    
+    // Lấy chi tiết của tất cả sự kiện
+    const events = await Event.find({ _id: { $in: allEventIds } })
       .populate('department', 'name')
       .populate('organizer', 'fullName')
       .sort({ startDate: -1 });

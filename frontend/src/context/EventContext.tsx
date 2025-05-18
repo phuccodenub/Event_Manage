@@ -12,44 +12,122 @@ interface Participant {
   registrationStatus: string;
 }
 
+interface User {
+  _id: string;
+  fullName: string;
+  avatar?: {
+    url: string;
+  };
+  role?: string;
+}
+
 interface EventContextType {
   events: Event[];
   setEvents: React.Dispatch<React.SetStateAction<Event[]>>;
   updateEventParticipants: (eventId: string, userId: string, isJoining: boolean) => void;
+  updateEventCollaborators: (eventId: string, userId: string, isJoining: boolean) => void;
   currentParticipantList: Participant[];
   setCurrentParticipantList: React.Dispatch<React.SetStateAction<Participant[]>>;
   currentEvent: Event | null;
   setCurrentEvent: React.Dispatch<React.SetStateAction<Event | null>>;
   fetchParticipants: (eventId: string) => Promise<void>;
-  fetchEvents: () => Promise<void>;  // Thêm function này vào interface
-  addEvent: (event: Event) => void;  // Add this line
-  deleteEvent: (eventId: string) => void;  // Add this line
-  loading: boolean;  // Thêm state loading
-  error: string | null;  // Thêm state error
+  fetchEvents: () => Promise<void>;
+  addEvent: (event: Event) => void;
+  deleteEvent: (eventId: string) => void;
+  loading: boolean;
+  error: string | null;
   departmentEvents: Event[];
   fetchDepartmentEvents: (departmentId: string) => Promise<void>;
-  fetchEventById: (eventId: string) => Promise<Event | null>; // Thêm fetchEventById
+  fetchEventById: (eventId: string) => Promise<Event | null>;
+  currentCollaboratorList: User[];
+  fetchCollaborators: (eventId: string) => Promise<void>;
+  activeCollaboratorEvents: string[];
+  isUserCollaborator: (eventId: string) => boolean;
 }
 
 const EventContext = createContext<EventContextType | undefined>(undefined);
+
+// Helper function to check if an error has a response with a status code
+interface ErrorWithResponse {
+  response?: {
+    status?: number;
+  };
+}
+
+function isErrorWithResponse(error: unknown): error is ErrorWithResponse {
+  return Boolean(
+    error && 
+    typeof error === 'object' && 
+    'response' in error && 
+    error.response && 
+    typeof error.response === 'object' && 
+    'status' in error.response
+  );
+}
 
 export const EventProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [events, setEvents] = useState<Event[]>([]);
   const [currentEvent, setCurrentEvent] = useState<Event | null>(null);
   const [currentParticipantList, setCurrentParticipantList] = useState<Participant[]>([]);
+  const [currentCollaboratorList, setCurrentCollaboratorList] = useState<User[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [departmentEvents, setDepartmentEvents] = useState<Event[]>([]);
+  // New state to track events user is collaborating with
+  const [activeCollaboratorEvents, setActiveCollaboratorEvents] = useState<string[]>([]);
 
   const fetchParticipants = useCallback(async (eventId: string) => {
     try {
       const response = await eventService.getEventParticipants(eventId);
       setCurrentParticipantList(response.data);
-      console.log('response.data participants: ', response.data);
     } catch (error) {
-      console.error('Error fetching participants:', error);
+      // Silently handle 403 errors (permission errors)
+      if (isErrorWithResponse(error) && error.response?.status === 403) {
+        // Set empty array for participants when access is forbidden
+        setCurrentParticipantList([]);
+      } else {
+        // Log other errors but not permission issues
+        console.error('Error fetching participants:', error);
+      }
     }
   }, []);
+
+  const fetchCollaborators = useCallback(async (eventId: string) => {
+    try {
+      const response = await eventService.getEventCollaborators(eventId);
+      setCurrentCollaboratorList(response.data);
+      
+      // Find current user in collaborators
+      const currentUser = JSON.parse(localStorage.getItem('user') || '{}');
+      const isCollaborator = response.data.some((user: User) => 
+        user._id?.toString() === currentUser._id?.toString()
+      );
+      
+      // Update activeCollaboratorEvents state
+      setActiveCollaboratorEvents(prev => {
+        if (isCollaborator && !prev.includes(eventId)) {
+          return [...prev, eventId];
+        } else if (!isCollaborator && prev.includes(eventId)) {
+          return prev.filter(id => id !== eventId);
+        }
+        return prev;
+      });
+    } catch (error) {
+      // Silently handle 403 errors (permission errors)
+      if (isErrorWithResponse(error) && error.response?.status === 403) {
+        // Set empty array for collaborators when access is forbidden
+        setCurrentCollaboratorList([]);
+      } else {
+        // Log other errors but not permission issues
+        console.error('Error fetching collaborators:', error);
+      }
+    }
+  }, []);
+
+  // Helper function to check if user is collaborator for an event
+  const isUserCollaborator = useCallback((eventId: string) => {
+    return activeCollaboratorEvents.includes(eventId);
+  }, [activeCollaboratorEvents]);
 
   const updateEventParticipants = useCallback(async (eventId: string, userId: string, isJoining: boolean) => {
     try {
@@ -87,12 +165,117 @@ export const EventProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     }
   }, []);
 
+  const updateEventCollaborators = useCallback(async (eventId: string, userId: string, isJoining: boolean) => {
+    try {
+      // Cập nhật events list
+      setEvents(prevEvents => 
+        prevEvents.map(event => {
+          if (event._id === eventId) {
+            // Create a new array for collaborators if it doesn't exist
+            const collaborators = event.collaborators || [];
+            
+            if (isJoining) {
+              // Si está uniendo, agregar como colaborador pendiente
+              const newCollaborator = {
+                user: userId,
+                status: 'pending',
+                requestedAt: new Date().toISOString()
+              };
+              
+              return { 
+                ...event, 
+                collaborators: [...collaborators, newCollaborator]
+              };
+            } else {
+              // Si está dejando, eliminar de la lista
+              return { 
+                ...event, 
+                collaborators: collaborators.filter(collab => {
+                  if (typeof collab === 'string') {
+                    return collab !== userId;
+                  } else {
+                    return collab.user !== userId && 
+                          (typeof collab.user === 'object' ? collab.user._id !== userId : true);
+                  }
+                })
+              };
+            }
+          }
+          return event;
+        })
+      );
+
+      // Lấy thông tin user từ service
+      const userData = await userService.getUserById(userId);
+
+      // Cập nhật danh sách người cộng tác
+      if (isJoining) {
+        setCurrentCollaboratorList(prev => {
+          const newCollaborator = {
+            user: {
+              _id: userId,
+              fullName: userData.fullName,
+              avatar: userData.avatar,
+              role: userData.role
+            },
+            status: 'pending',
+            requestedAt: new Date().toISOString()
+          };
+          
+          return [...prev, newCollaborator];
+        });
+      } else {
+        setCurrentCollaboratorList(prev => 
+          prev.filter(c => {
+            if (typeof c === 'string') {
+              return c !== userId;
+            } else if (typeof c === 'object' && c.user) {
+              const collabUserId = typeof c.user === 'string' ? c.user : c.user._id;
+              return collabUserId !== userId;
+            }
+            return true;
+          })
+        );
+      }
+      
+      // Update activeCollaboratorEvents for real-time UI updates
+      setActiveCollaboratorEvents(prev => {
+        if (isJoining && !prev.includes(eventId)) {
+          return [...prev, eventId];
+        } else if (!isJoining && prev.includes(eventId)) {
+          return prev.filter(id => id !== eventId);
+        }
+        return prev;
+      });
+
+    } catch (error) {
+      console.error('Error updating collaborators:', error);
+    }
+  }, []);
+
   const fetchEvents = useCallback(async () => {
     try {
       setLoading(true);
       const data = await eventService.getAllEvents();
       setEvents(data);
       setError(null);
+      
+      // Update activeCollaboratorEvents based on fetched events
+      const currentUser = JSON.parse(localStorage.getItem('user') || '{}');
+      if (currentUser && currentUser._id) {
+        const collaboratingEvents = data.filter((event: Event) => 
+          event.collaborators && event.collaborators.some(
+            (collaborator: string | { _id: string }) => {
+              const collaboratorId = typeof collaborator === 'string' 
+                ? collaborator 
+                : collaborator?._id;
+              return collaboratorId?.toString() === currentUser._id?.toString();
+            }
+          )
+        ).map((event: Event) => event._id);
+        
+        setActiveCollaboratorEvents(collaboratingEvents);
+      }
     } catch (err) {
       console.error('Error fetching events:', err);
       setError('Failed to fetch events');
@@ -115,6 +298,11 @@ export const EventProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       newEvents.splice(eventIndex, 1);
       return newEvents;
     });
+    
+    // Remove from activeCollaboratorEvents if present
+    setActiveCollaboratorEvents(prev => 
+      prev.filter(id => id !== eventId)
+    );
   }, []);
 
   const fetchDepartmentEvents = useCallback(async (departmentId: string) => {
@@ -154,6 +342,7 @@ export const EventProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       events, 
       setEvents, 
       updateEventParticipants,
+      updateEventCollaborators,
       currentParticipantList,
       setCurrentParticipantList,
       currentEvent,
@@ -166,7 +355,11 @@ export const EventProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       error,
       departmentEvents,
       fetchDepartmentEvents,
-      fetchEventById
+      fetchEventById,
+      currentCollaboratorList,
+      fetchCollaborators,
+      activeCollaboratorEvents,
+      isUserCollaborator
     }}>
       {children}
     </EventContext.Provider>
