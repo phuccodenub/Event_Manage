@@ -72,7 +72,7 @@ const NotificationDropdown: React.FC<NotificationDropdownProps> = ({ isOpen, onC
   );
 
   const handleNotificationClick = async (notification: any) => {
-    if (isProcessing || notification.read) return;
+    // if (isProcessing || notification.read) return;
     
     try {
       setIsProcessing(true);

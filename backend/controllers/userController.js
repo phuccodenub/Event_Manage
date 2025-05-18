@@ -274,3 +274,42 @@ exports.resetUserPassword = async (req, res, next) => {
   }
 };
 
+// @desc: Change user password
+// @route: PUT /api/v1/users/me/password
+// @access: Private
+exports.changePassword = async (req, res, next) => {
+  try {
+    const { currentPassword, newPassword } = req.body;
+    
+    if (!currentPassword || !newPassword) {
+      return next(new ErrorResponse('Please provide current and new password', 400));
+    }
+
+    // Get user with password
+    const user = await User.findById(req.user.id).select('+password');
+    
+    if (!user) {
+      return next(new ErrorResponse('User not found', 404));
+    }
+    
+    // Check if current password matches
+    const isMatch = await user.comparePassword(currentPassword);
+    
+    if (!isMatch) {
+      return next(new ErrorResponse('Current password is incorrect', 401));
+    }
+    
+    // Set new password and save
+    user.password = newPassword;
+    await user.save();
+    
+    res.status(200).json({
+      success: true,
+      message: 'Password changed successfully'
+    });
+  } catch (error) {
+    console.error('Password change error:', error);
+    next(new ErrorResponse('Error changing password', 500));
+  }
+};
+

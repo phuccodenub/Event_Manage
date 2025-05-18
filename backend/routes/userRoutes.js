@@ -8,7 +8,8 @@ const {
   updateAvatar,
   deleteAvatar,
   resetUserPassword,
-  getUserEvents
+  getUserEvents,
+  changePassword
 } = require('../controllers/userController');
 const { protect, authorize } = require('../middleware/auth');
 
@@ -17,8 +18,13 @@ const router = express.Router();
 // @route: GET /api/v1/users
 router.get('/', getUsers);
 
+// User profile routes
+router.route('/me')
+  .get(protect, getUserById)
+  .put(protect, updateUser);
+
 // @route: GET /api/v1/users/:id
-router.get('/:id', protect, getUserById);
+router.get('/:id', getUserById);
 
 // @route: GET /api/v1/users/:id/events
 router.get('/:id/events', protect, getUserEvents);
@@ -34,7 +40,10 @@ router.delete('/:id', deleteUser);
 
 // Avatar routes
 router.put('/me/avatar', protect, updateAvatar);
-router.delete('/me/avatar', deleteAvatar);
+router.delete('/me/avatar', protect, deleteAvatar);
+
+// Password change route
+router.put('/me/password', protect, changePassword);
 
 // @route: POST /api/v1/users/:id/reset-password
 router.post('/:id/reset-password', protect, authorize('admin'), resetUserPassword);

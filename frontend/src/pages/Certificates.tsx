@@ -2,36 +2,28 @@ import React, { useState, useEffect } from 'react';
 import { useRoute } from 'wouter';
 import Header from '../components/Header';
 import { useAuth } from '../context/AuthContext';
-import userService from '../services/userService';
 import { toast } from 'react-toastify';
 import Certificate from '../components/Certificate';
 import { IoDocumentTextOutline, IoSearchOutline, IoRibbon, IoAlertCircle } from 'react-icons/io5';
 import certificateService from '../services/certificateService';
+import LoadingSpinner from '../components/LoadingSpinner';
 
 interface Department {
   _id: string;
   name: string;
 }
 
-interface Organizer {
-  _id: string;
-  fullName: string;
-}
-
-interface CertificateEvent {
-  _id: string;
-  title: string;
-  startDate: string;
+// Define a new interface for eligible certificates
+interface EligibleCertificate {
+  eventId: string;
+  eventName: string;
+  eventDate: string;
   endDate: string;
-  status: string;
-  category: string;
   department?: Department;
-  organizer?: Organizer;
-  participants: string[];
-  collaborators?: string[];
+  category: string;
+  certificateType: 'participant' | 'collaborator';
 }
 
-// @ts-expect-error - Used for error type casting in catch block
 interface ApiError {
   response?: {
     status?: number;
@@ -46,7 +38,7 @@ const Certificates = () => {
   const { user } = useAuth();
   const [isMatched, params] = useRoute("/certificates/:userId?");
   const [loading, setLoading] = useState(true);
-  const [userCertificates, setUserCertificates] = useState<CertificateEvent[]>([]);
+  const [eligibleCertificates, setEligibleCertificates] = useState<EligibleCertificate[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [error, setError] = useState<string | null>(null);
   
@@ -71,84 +63,16 @@ const Certificates = () => {
           return;
         }
         
-        // Get user events
-        const events = await userService.getUserEvents(targetUserId);
-        console.log('User events response:', events);
+        // Directly fetch eligible certificates using the new API
+        const result = await certificateService.getUserEligibleCertificates(targetUserId);
+        console.log('Eligible certificates response:', result);
         
-        // Lọc sự kiện đủ điều kiện cấp chứng nhận
-        const currentDate = new Date();
-        const potentialEvents = events.filter((event: CertificateEvent) => {
-          const eventEndDate = new Date(event.endDate);
-          
-          // Kiểm tra các điều kiện:
-          // 1. Sự kiện đã kết thúc (endDate < ngày hiện tại)
-          // 2. User đã đăng ký tham gia (participants chứa userId) hoặc là cộng tác viên (collaborators chứa userId)
-          const hasEnded = eventEndDate < currentDate;
-          const hasParticipated = event.participants.includes(targetUserId);
-          const hasCollaborated = event.collaborators?.includes(targetUserId);
-          
-          // Điều kiện tiềm năng cấp chứng nhận: sự kiện đã kết thúc VÀ (người dùng đã tham gia HOẶC là cộng tác viên)
-          return hasEnded && (hasParticipated || hasCollaborated);
-        });
-        
-        console.log('Potential events for certificates:', potentialEvents);
-        
-        // Kiểm tra trạng thái check-in cho từng sự kiện tiềm năng
-        const eligibilityChecks = await Promise.all(
-          potentialEvents.map(async (event: CertificateEvent) => {
-            try {
-              // Kiểm tra điều kiện cấp chứng nhận participant nếu người dùng đã tham gia
-              let participantEligible = false;
-              if (event.participants.includes(targetUserId)) {
-                try {
-                  const participantCheck = await certificateService.verifyCertificateEligibility(
-                    event._id, 
-                    targetUserId, 
-                    'participant'
-                  );
-                  participantEligible = participantCheck.data.canGenerateCertificate;
-                  console.log(`Participant eligibility for ${event.title}:`, participantEligible);
-                } catch (err) {
-                  console.log(`Failed to verify participant eligibility for ${event.title}:`, err);
-                }
-              }
-              
-              // Kiểm tra điều kiện cấp chứng nhận collaborator nếu người dùng là cộng tác viên
-              let collaboratorEligible = false;
-              if (event.collaborators?.includes(targetUserId)) {
-                try {
-                  const collaboratorCheck = await certificateService.verifyCertificateEligibility(
-                    event._id, 
-                    targetUserId, 
-                    'collaborator'
-                  );
-                  collaboratorEligible = collaboratorCheck.data.canGenerateCertificate;
-                  console.log(`Collaborator eligibility for ${event.title}:`, collaboratorEligible);
-                } catch (err) {
-                  console.log(`Failed to verify collaborator eligibility for ${event.title}:`, err);
-                }
-              }
-              
-              return {
-                event,
-                participantEligible,
-                collaboratorEligible
-              };
-            } catch (error) {
-              console.log(`Error verifying certificates for event ${event._id}:`, error);
-              return { event, participantEligible: false, collaboratorEligible: false };
-            }
-          })
-        );
-        
-        // Lưu các sự kiện được đánh dấu đủ điều kiện cấp chứng nhận vào state
-        setUserCertificates(eligibilityChecks.map(check => ({
-          ...check.event,
-          _eligibilityData: {
-            participantEligible: check.participantEligible,
-            collaboratorEligible: check.collaboratorEligible
-          }
-        })));
+        // Set the eligible certificates
+        if (result.success && result.data) {
+          setEligibleCertificates(result.data);
+        } else {
+          setError("Không thể lấy danh sách chứng nhận");
+        }
       } catch (error: unknown) {
         console.error('Error fetching certificates:', error);
         
@@ -174,51 +98,23 @@ const Certificates = () => {
   }, [params?.userId, user?._id]);
   
   // Filter certificates by search query
-  const filteredCertificates = userCertificates.filter(cert => 
-    cert.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+  const filteredCertificates = eligibleCertificates.filter(cert => 
+    cert.eventName.toLowerCase().includes(searchQuery.toLowerCase()) ||
     (cert.department?.name?.toLowerCase().includes(searchQuery.toLowerCase()) || false) ||
     cert.category.toLowerCase().includes(searchQuery.toLowerCase())
   );
   
-  // Tạo danh sách thẻ chứng nhận chỉ cho những loại đủ điều kiện
-  const certificateCards = filteredCertificates.flatMap(cert => {
-    const cards = [];
-    const targetUserId = params?.userId || user?._id || '';
-    
-    // Chỉ hiển thị các chứng nhận đủ điều kiện
-    const isParticipant = cert.participants.includes(targetUserId) && cert._eligibilityData?.participantEligible === true;
-    const isCollaborator = cert.collaborators?.includes(targetUserId) && cert._eligibilityData?.collaboratorEligible === true;
-    
-    // Thêm thẻ chứng nhận người tham gia nếu đủ điều kiện
-    if (isParticipant) {
-      cards.push({
-        id: `${cert._id}-participant`,
-        eventId: cert._id,
-        title: cert.title,
-        department: cert.department,
-        startDate: cert.startDate,
-        endDate: cert.endDate,
-        category: cert.category,
-        type: 'participant' as const
-      });
-    }
-    
-    // Thêm thẻ chứng nhận cộng tác viên nếu đủ điều kiện
-    if (isCollaborator) {
-      cards.push({
-        id: `${cert._id}-collaborator`,
-        eventId: cert._id,
-        title: cert.title,
-        department: cert.department,
-        startDate: cert.startDate,
-        endDate: cert.endDate,
-        category: cert.category,
-        type: 'collaborator' as const
-      });
-    }
-    
-    return cards;
-  });
+  // Create certificate cards
+  const certificateCards = filteredCertificates.map(cert => ({
+    id: `${cert.eventId}-${cert.certificateType}`,
+    eventId: cert.eventId,
+    title: cert.eventName,
+    department: cert.department,
+    startDate: cert.eventDate,
+    endDate: cert.endDate,
+    category: cert.category,
+    type: cert.certificateType
+  }));
   
   // Determine if viewing own profile or someone else's
   const targetUserId = params?.userId || user?._id;
@@ -245,7 +141,7 @@ const Certificates = () => {
       {/* Main Content */}
       <div className="container mx-auto px-4 py-8">
         {/* Search Bar - Only show if there are certificates and no errors */}
-        {!loading && !error && userCertificates.length > 0 && (
+        {!loading && !error && eligibleCertificates.length > 0 && (
           <div className="bg-white rounded-lg shadow-sm p-4 mb-6">
             <div className="relative">
               <IoSearchOutline className="absolute left-3 top-1/2 -translate-y-1/4 text-gray-400 text-xl" />
@@ -276,9 +172,7 @@ const Certificates = () => {
         
         {/* Loading State */}
         {loading && (
-          <div className="flex justify-center py-12">
-            <div className="animate-spin rounded-full h-10 w-10 border-t-2 border-b-2 border-orange-500"></div>
-          </div>
+          <LoadingSpinner size="md" />
         )}
         
         {/* Empty State - No certificates but no errors */}

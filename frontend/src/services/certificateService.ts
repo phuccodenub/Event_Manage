@@ -82,6 +82,22 @@ const certificateService = {
     certificateType: 'participant' | 'collaborator' = 'participant'
   ): string => {
     return `${apiClient.defaults.baseURL}/certificates/${eventId}/${userId}/${certificateType}`;
+  },
+  
+  /**
+   * Lấy danh sách tất cả các chứng nhận đủ điều kiện của người dùng
+   * @param userId ID của người dùng
+   * @returns Danh sách các chứng nhận hợp lệ
+   */
+  getUserEligibleCertificates: async (userId: string) => {
+    try {
+      const response = await apiClient.get(`/certificates/user/${userId}/eligible`);
+      return response.data;
+    } catch (error: unknown) {
+      const apiError = error as ApiError;
+      console.error('Error fetching eligible certificates:', apiError);
+      throw apiError;
+    }
   }
 };
 

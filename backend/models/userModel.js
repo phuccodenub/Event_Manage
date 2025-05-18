@@ -98,6 +98,44 @@ const userSchema = new mongoose.Schema({
       message: 'Ngày sinh không hợp lệ'
     }
   },
+  socialMedia: {
+    facebook: {
+      type: String,
+      validate: {
+        validator: function(v) {
+          return !v || /^(https?:\/\/)?(www\.)?(facebook|fb)\.com\/[a-zA-Z0-9(\.\?)?]/i.test(v);
+        },
+        message: 'Link Facebook không hợp lệ'
+      }
+    },
+    linkedin: {
+      type: String,
+      validate: {
+        validator: function(v) {
+          return !v || /^(https?:\/\/)?(www\.)?linkedin\.com\/in\/[a-zA-Z0-9_-]+\/?$/i.test(v);
+        },
+        message: 'Link LinkedIn không hợp lệ'
+      }
+    },
+    github: {
+      type: String,
+      validate: {
+        validator: function(v) {
+          return !v || /^(https?:\/\/)?(www\.)?github\.com\/[a-zA-Z0-9_-]+\/?$/i.test(v);
+        },
+        message: 'Link GitHub không hợp lệ'
+      }
+    },
+    instagram: {
+      type: String,
+      validate: {
+        validator: function(v) {
+          return !v || /^(https?:\/\/)?(www\.)?instagram\.com\/[a-zA-Z0-9_.]+\/?$/i.test(v);
+        },
+        message: 'Link Instagram không hợp lệ'
+      }
+    }
+  },
   registeredEvents: [
     {
       type: mongoose.Schema.Types.ObjectId,

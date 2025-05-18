@@ -376,13 +376,13 @@ const CollaboratorsList: React.FC<CollaboratorListProps> = ({ eventId, onUpdate 
               <p className="font-medium text-gray-900">
                 {collaboratorUser.fullName || 'Người dùng không xác định'}
               </p>
+              {collaboratorUser.email && (
+                <p className="text-xs text-gray-500">{collaboratorUser.email}</p>
+              )}
               <p className="text-xs text-gray-500 flex items-center gap-1">
                 <RiTimeLine className="inline" />
                 <span>Yêu cầu {formatDistanceToNow(new Date(requestedAt), { addSuffix: true, locale: vi })}</span>
               </p>
-              {collaboratorUser.email && (
-                <p className="text-xs text-gray-500 mt-1">{collaboratorUser.email}</p>
-              )}
             </div>
           </div>
           

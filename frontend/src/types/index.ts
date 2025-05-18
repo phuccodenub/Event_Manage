@@ -15,6 +15,12 @@ export interface User {
   gender: string;
   phone: string;
   birthday?: Date;
+  socialMedia?: {
+    facebook?: string;
+    linkedin?: string;
+    github?: string;
+    instagram?: string;
+  };
   collaboratorEvents: string[];
   registeredEvents: string[];
   avatar?: Avatar;

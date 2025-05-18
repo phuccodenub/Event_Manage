@@ -78,24 +78,6 @@ exports.generateCertificate = async (req, res, next) => {
       return next(new ErrorResponse('Không tìm thấy người dùng', 404));
     }
 
-    // Kiểm tra xem người dùng có vai trò phù hợp không
-    let hasCorrectRole = false;
-    if (certificateType === 'participant') {
-      hasCorrectRole = event.participants.some(
-        (participant) => participant.toString() === userId
-      );
-    } else { // certificateType === 'collaborator'
-      hasCorrectRole = event.collaborators.some(
-        (collaborator) => collaborator.user && collaborator.user.toString() === userId && collaborator.status === 'approved'
-      );
-    }
-
-    if (!hasCorrectRole) {
-      return next(
-        new ErrorResponse(`Người dùng không phải là ${certificateType === 'participant' ? 'người tham gia' : 'cộng tác viên'} của sự kiện này`, 403)
-      );
-    }
-
     // Xác minh quyền truy cập - chỉ người tổ chức/admin/người dùng chính họ mới có thể xem
     const isOwner = event.organizer.toString() === req.user.id;
     const isAdmin = req.user.role === 'admin';
@@ -108,15 +90,49 @@ exports.generateCertificate = async (req, res, next) => {
     }
 
     // Kiểm tra xem người dùng đã check-in chưa với đúng loại
-    const checkin = await Checkin.findOne({
-      event: eventId,
-      user: userId,
-      type: certificateType
-    });
-
-    if (!checkin) {
+    // Cải thiện logic kiểm tra
+    const checkinQueries = [
+      // Tìm theo user ID
+      {
+        event: eventId,
+        user: userId,
+        type: certificateType
+      }
+    ];
+    
+    // Tìm theo student ID nếu có
+    if (user.userId) {
+      checkinQueries.push({
+        event: eventId,
+        studentId: user.userId,
+        type: certificateType
+      });
+    }
+    
+    let hasCheckedIn = false;
+    let checkinRecord = null;
+    
+    // Try to find any matching checkin
+    for (const query of checkinQueries) {
+      const foundCheckin = await Checkin.findOne(query);
+      if (foundCheckin) {
+        hasCheckedIn = true;
+        checkinRecord = foundCheckin;
+        break;
+      }
+    }
+    
+    if (!hasCheckedIn) {
       return next(
         new ErrorResponse(`Người dùng chưa checkin tại sự kiện với vai trò ${certificateType === 'participant' ? 'người tham gia' : 'cộng tác viên'}`, 403)
+      );
+    }
+    
+    // Kiểm tra xem sự kiện đã kết thúc chưa
+    const eventEnded = new Date(event.endDate) < new Date();
+    if (!eventEnded) {
+      return next(
+        new ErrorResponse('Sự kiện chưa kết thúc, chưa thể cấp chứng nhận', 400)
       );
     }
 
@@ -752,6 +768,8 @@ exports.verifyCertificateEligibility = async (req, res, next) => {
     const { eventId, userId } = req.params;
     const certificateType = req.params.type || 'participant'; // Default to participant certificate
     
+    console.log(`Verifying ${certificateType} certificate for event ${eventId}, user ${userId}`);
+    
     if (!['participant', 'collaborator'].includes(certificateType)) {
       return res.status(400).json({
         success: false,
@@ -762,6 +780,7 @@ exports.verifyCertificateEligibility = async (req, res, next) => {
     // Kiểm tra sự tồn tại của sự kiện
     const event = await Event.findById(eventId);
     if (!event) {
+      console.log(`Event ${eventId} not found`);
       return res.status(404).json({
         success: false,
         message: 'Không tìm thấy sự kiện'
@@ -771,6 +790,7 @@ exports.verifyCertificateEligibility = async (req, res, next) => {
     // Kiểm tra sự tồn tại của người dùng
     const user = await User.findById(userId);
     if (!user) {
+      console.log(`User ${userId} not found`);
       return res.status(404).json({
         success: false,
         message: 'Không tìm thấy người dùng'
@@ -778,20 +798,13 @@ exports.verifyCertificateEligibility = async (req, res, next) => {
     }
 
     // Xác minh quyền truy cập
-    const isAdmin = req.user.role === 'admin';
-    const isEventOrganizer = event.organizer.toString() === req.user.id;
-    const isRequestingOwnCertificate = userId === req.user.id;
-
-    if (!isAdmin && !isEventOrganizer && !isRequestingOwnCertificate) {
-      return res.status(403).json({
-        success: false,
-        message: 'Không có quyền truy cập vào tài nguyên này'
-      });
-    }
+    // Public API - Không cần kiểm tra quyền nữa
+    // Bất kỳ ai cũng có thể kiểm tra tính hợp lệ của chứng nhận
 
     // ĐIỀU KIỆN CẤP CHỨNG NHẬN:
     // 1. Sự kiện đã kết thúc
     const eventEnded = new Date(event.endDate) < new Date();
+    console.log(`Event ended: ${eventEnded}, endDate: ${event.endDate}`);
     
     // 2. Kiểm tra xem người dùng có trong danh sách hay không
     let isInList = false;
@@ -804,44 +817,50 @@ exports.verifyCertificateEligibility = async (req, res, next) => {
       isInList = event.collaborators.some(c => c.user && c.user.toString() === userId && c.status === 'approved');
     }
     
+    console.log(`User in ${certificateType} list: ${isInList}`);
+    
     // 3. Người dùng đã check-in tại sự kiện - Cải thiện logic kiểm tra
     let hasCheckedIn = false;
+    let checkinRecord = null;
     
     try {
+      // Tìm bất kỳ check-in nào phù hợp với loại certificate
+      const checkinQueries = [];
+      
+      // Tìm theo user ID
+      checkinQueries.push({
+        event: eventId,
+        user: userId,
+        type: certificateType
+      });
+      
+      // Tìm theo student ID nếu có
       if (user.userId) {
-        // Tìm theo studentId (MSSV)
-        const checkinByStudentId = await Checkin.findOne({
+        checkinQueries.push({
           event: eventId,
           studentId: user.userId,
           type: certificateType
         });
-        
-        if (checkinByStudentId) {
+      }
+      
+      console.log('Checking for checkins with queries:', JSON.stringify(checkinQueries));
+      
+      // Try to find any matching checkin
+      for (const query of checkinQueries) {
+        const foundCheckin = await Checkin.findOne(query);
+        if (foundCheckin) {
+          console.log(`Found checkin:`, foundCheckin._id);
           hasCheckedIn = true;
-        } else {
-          // Nếu không tìm thấy, tìm theo user ID
-          const checkinByUserId = await Checkin.findOne({
-            event: eventId,
-            user: userId,
-            type: certificateType
-          });
-          
-          hasCheckedIn = !!checkinByUserId;
+          checkinRecord = foundCheckin;
+          break;
         }
-      } else {
-        // Tìm theo user ID nếu không có MSSV
-        const checkinByUserId = await Checkin.findOne({
-          event: eventId,
-          user: userId,
-          type: certificateType
-        });
-        
-        hasCheckedIn = !!checkinByUserId;
       }
     } catch (err) {
       console.error('Error checking attendance:', err);
       hasCheckedIn = false; // Mặc định là false khi có lỗi
     }
+    
+    console.log(`Has checked in: ${hasCheckedIn}`);
     
     // 4. Fix cho vấn đề người dùng đã check-in nhưng không được tự động thêm vào danh sách sự kiện
     let isRegistered = isInList; // Khởi tạo giá trị ban đầu từ danh sách chính thức
@@ -851,24 +870,33 @@ exports.verifyCertificateEligibility = async (req, res, next) => {
       try {
         // Tự động cập nhật danh sách
         if (certificateType === 'participant') {
+          console.log(`Auto-adding user ${userId} to participants list`);
           await Event.findByIdAndUpdate(eventId, {
             $addToSet: { participants: userId }
           });
           
-          if (!user.registeredEvents.includes(eventId)) {
+          // Check if registeredEvents exists before accessing it
+          const userRegisteredEvents = user.registeredEvents || [];
+          if (!userRegisteredEvents.includes(eventId)) {
+            console.log(`Adding event ${eventId} to user's registered events`);
             await User.findByIdAndUpdate(userId, {
               $addToSet: { registeredEvents: eventId }
             });
           }
+          
+          // Update the flag
+          isRegistered = true;
         } else if (certificateType === 'collaborator') {
-          // Verificar si el usuario ya está en la lista de colaboradores
-          const existingCollaborator = event.collaborators.find(
+          // Check if collaborators exist and find the user
+          const collaborators = event.collaborators || [];
+          const existingCollaborator = collaborators.find(
             c => c.user && c.user.toString() === userId
           );
           
           if (existingCollaborator) {
             // Si ya existe pero no está aprobado, actualizamos su estado
             if (existingCollaborator.status !== 'approved') {
+              console.log(`Updating existing collaborator status to approved`);
               await Event.updateOne(
                 { 
                   _id: eventId, 
@@ -885,6 +913,7 @@ exports.verifyCertificateEligibility = async (req, res, next) => {
             }
           } else {
             // Si no existe, lo agregamos como aprobado
+            console.log(`Adding user ${userId} as a new collaborator`);
             await Event.findByIdAndUpdate(eventId, {
               $push: { 
                 collaborators: {
@@ -898,15 +927,18 @@ exports.verifyCertificateEligibility = async (req, res, next) => {
             });
           }
           
-          if (!user.collaboratorEvents.includes(eventId)) {
+          // Check if collaboratorEvents exists before accessing it
+          const userCollaboratorEvents = user.collaboratorEvents || [];
+          if (!userCollaboratorEvents.includes(eventId)) {
+            console.log(`Adding event ${eventId} to user's collaborator events`);
             await User.findByIdAndUpdate(userId, {
               $addToSet: { collaboratorEvents: eventId }
             });
           }
+          
+          // Update the flag
+          isRegistered = true;
         }
-        
-        // Cập nhật trạng thái isRegistered
-        isRegistered = true;
         
         console.log(`Auto-updated ${certificateType} status for user ${userId} in event ${eventId}`);
       } catch (updateErr) {
@@ -915,18 +947,11 @@ exports.verifyCertificateEligibility = async (req, res, next) => {
       }
     }
 
-    // Ghi log để debug
-    console.log(`Certificate verification for user ${userId} (${user.userId}) in event ${eventId}, type ${certificateType}:`);
-    console.log(`- Event ended: ${eventEnded}`);
-    console.log(`- Is in official list: ${isInList}`);
-    console.log(`- Is registered (after auto-fix): ${isRegistered}`);
-    console.log(`- Has checked in: ${hasCheckedIn}`);
-    
-    // 5. Tổng hợp các điều kiện
-    const isEligible = eventEnded && isRegistered && hasCheckedIn;
+    // 5. Tổng hợp các điều kiện - Chỉ cần event ended và has checked in
+    const isEligible = eventEnded && hasCheckedIn;
 
     // Trả về kết quả
-    return res.status(200).json({
+    const response = {
       success: true,
       data: {
         eventName: event.title,
@@ -941,12 +966,113 @@ exports.verifyCertificateEligibility = async (req, res, next) => {
           isCollaborator: certificateType === 'collaborator'
         }
       }
-    });
+    };
+    
+    console.log('Certificate eligibility response:', JSON.stringify(response));
+    return res.status(200).json(response);
   } catch (error) {
     console.error('Error verifying certificate eligibility:', error);
     return res.status(500).json({
       success: false,
       message: 'Lỗi khi xác minh điều kiện nhận chứng nhận'
+    });
+  }
+};
+
+/**
+ * @desc    Get all eligible certificates for a user
+ * @route   GET /api/v1/certificates/user/:userId/eligible
+ * @access  Public
+ */
+exports.getUserEligibleCertificates = async (req, res) => {
+  try {
+    const { userId } = req.params;
+    console.log(`Getting eligible certificates for user ${userId}`);
+    
+    // Kiểm tra sự tồn tại của người dùng
+    const user = await User.findById(userId);
+    if (!user) {
+      console.log(`User ${userId} not found`);
+      return res.status(404).json({
+        success: false,
+        message: 'Không tìm thấy người dùng'
+      });
+    }
+
+    // Lấy tất cả sự kiện đã kết thúc
+    const currentDate = new Date();
+    const completedEvents = await Event.find({
+      endDate: { $lt: currentDate }
+    }).populate('department', 'name');
+    
+    console.log(`Found ${completedEvents.length} completed events to check`);
+
+    // Kiểm tra mỗi sự kiện xem người dùng có đủ điều kiện nhận chứng nhận không
+    const eligibleCertificates = [];
+    
+    for (const event of completedEvents) {
+      // Kiểm tra cả hai loại chứng nhận cho mỗi sự kiện
+      const certificateTypes = ['participant', 'collaborator'];
+      
+      for (const type of certificateTypes) {
+        // Kiểm tra xem người dùng đã check-in sự kiện hay chưa
+        const checkinQueries = [
+          // Tìm theo user ID
+          {
+            event: event._id,
+            user: userId,
+            type: type
+          }
+        ];
+        
+        // Tìm theo student ID nếu có
+        if (user.userId) {
+          checkinQueries.push({
+            event: event._id,
+            studentId: user.userId,
+            type: type
+          });
+        }
+        
+        let hasCheckedIn = false;
+        
+        // Try to find any matching checkin
+        for (const query of checkinQueries) {
+          const foundCheckin = await Checkin.findOne(query);
+          if (foundCheckin) {
+            hasCheckedIn = true;
+            break;
+          }
+        }
+        
+        // Nếu có check-in và sự kiện đã kết thúc, thêm vào danh sách
+        if (hasCheckedIn) {
+          eligibleCertificates.push({
+            eventId: event._id,
+            eventName: event.title,
+            eventDate: event.startDate,
+            endDate: event.endDate,
+            department: event.department,
+            category: event.category,
+            certificateType: type,
+          });
+        }
+      }
+    }
+    
+    console.log(`Found ${eligibleCertificates.length} eligible certificates for user ${userId}`);
+    
+    // Trả về kết quả
+    return res.status(200).json({
+      success: true,
+      count: eligibleCertificates.length,
+      data: eligibleCertificates
+    });
+  } catch (error) {
+    console.error('Error getting eligible certificates:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Lỗi khi lấy danh sách chứng nhận'
     });
   }
 };

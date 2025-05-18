@@ -9,6 +9,7 @@ import { Html5Qrcode } from 'html5-qrcode';
 import { toast } from 'react-toastify';
 import CheckinSpreadsheet from '@/components/Modal/CheckinSpreadsheet';
 import { createPortal } from 'react-dom';
+import LoadingSpinner from '@/components/LoadingSpinner';
 
 interface Checkin {
   _id: string;
@@ -381,16 +382,8 @@ const EventCheckin = () => {
   };
 
   const handleExportExcel = () => {
-    const exportData = filteredCheckins.map((checkin, index) => ({
-      'STT': index + 1,
-      'MSSV': checkin.studentId,
-      'HỌ VÀ TÊN': checkin.user?.fullName || '(trống)',
-      'THỜI GIAN ĐIỂM DANH': new Date(checkin.checkinTime).toLocaleString('vi-VN'),
-      'PHƯƠNG THỨC': checkin.checkinMethod === 'qr' ? 'Quét QR' : 'Nhập tay',
-      'VAI TRÒ': checkin.type === 'participant' ? 'Người tham gia' : 'Cộng tác viên'
-    }));
-    console.log('Export data:', exportData);
-    setExportData(exportData);
+    // Make sure to pass the filtered data, not all checkins
+    setExportData(filteredCheckins);
     setShowExportModal(true);
   };
 
@@ -456,7 +449,7 @@ const EventCheckin = () => {
     }
   };
 
-  if (loading) return <div>Loading...</div>;
+  if (loading) return (    <div className="min-h-screen bg-gray-50 flex items-center justify-center">      <LoadingSpinner size="lg" />    </div>  );
 
   // Check if user has access to the check-in page
   const isUserCollaborator = user && user._id && event.collaborators ? 
@@ -683,7 +676,7 @@ const EventCheckin = () => {
               {filterType !== 'all' && (
                 <div className="flex justify-end mb-4">
                   <button
-                    onClick={() => handleExportExcel()}
+                    onClick={handleExportExcel}
                     className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors mr-2"
                   >
                     <i className="fas fa-file-excel mr-2"></i>
@@ -825,6 +818,25 @@ const EventCheckin = () => {
           `Bạn có chắc chắn muốn xóa điểm danh ${checkinToDelete.type === 'participant' ? 'người tham gia' : 'cộng tác viên'} của MSSV ${checkinToDelete.studentId}?` : 
           'Bạn có chắc chắn muốn xóa điểm danh này?'}
         isProcessing={deleteProcessing}
+      />
+      
+      {/* Modal xác nhận xóa tất cả điểm danh của sinh viên */}
+      <DeleteConfirmModal
+        isOpen={deleteAllModalOpen}
+        onClose={() => setDeleteAllModalOpen(false)}
+        onConfirm={confirmDeleteAllCheckins}
+        title="Xóa tất cả điểm danh của sinh viên"
+        message={`Bạn có chắc chắn muốn xóa TẤT CẢ điểm danh của MSSV ${studentToDeleteAll}?`}
+        isProcessing={deleteAllProcessing}
+      />
+      
+      {/* Add CheckinSpreadsheet modal */}
+      <CheckinSpreadsheet
+        isOpen={showExportModal}
+        onClose={() => setShowExportModal(false)}
+        eventTitle={event?.title || ''}
+        eventTime={`${formatDateTime(event?.startDate || new Date())} - ${formatDateTime(event?.endDate || new Date())}`}
+        data={exportData}
       />
     </div>
   );

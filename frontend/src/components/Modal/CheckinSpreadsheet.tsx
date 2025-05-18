@@ -3,12 +3,22 @@ import Spreadsheet from 'react-spreadsheet';
 import { utils as xlsxUtils, write as xlsxWrite } from 'xlsx';
 import { saveAs } from 'file-saver';
 
+interface CheckinData {
+  studentId: string;
+  user?: {
+    fullName?: string;
+  };
+  checkinTime: string | Date;
+  checkinMethod: 'qr' | 'manual';
+  type: 'participant' | 'collaborator';
+}
+
 interface CheckinSpreadsheetProps {
   isOpen: boolean;
   onClose: () => void;
   eventTitle: string;
   eventTime: string;
-  data: any[];
+  data: CheckinData[];
 }
 
 const CheckinSpreadsheet: React.FC<CheckinSpreadsheetProps> = ({
@@ -20,44 +30,65 @@ const CheckinSpreadsheet: React.FC<CheckinSpreadsheetProps> = ({
 }) => {
   if (!isOpen) return null;
 
-  const spreadsheetData = [
-    [{ value: 'TRƯỜNG ĐẠI HỌC CÔNG NGHỆ TP.HCM', readOnly: true, className: 'text-white font-bold text-lg text-center py-2' }],
-    // [{ value: 'HUTECH UNIVERSITY', readOnly: true, className: 'text-white font-bold text-lg text-center py-2' }],
-    [{ value: '', readOnly: true }],
-    [{ value: 'DANH SÁCH ĐIỂM DANH SINH VIÊN', readOnly: true, className: 'text-white font-bold text-base text-center py-2' }],
-    [{ value: eventTitle.toUpperCase(), readOnly: true, className: 'text-white font-bold text-sm text-center py-2' }],
-    [{ value: `Thời gian: ${eventTime}`, readOnly: true, className: 'text-white text-sm text-center py-2' }],
-    [{ value: `Tổng số sinh viên: ${data.length}`, readOnly: true, className: 'text-white text-sm text-center py-2' }],
-    [{ value: '', readOnly: true }],
-    // Headers
-    [
-      { value: 'STT', readOnly: true, className: 'bg-gray-300 font-bold text-center border border-gray-900' },
-      { value: 'MSSV', readOnly: true, className: 'bg-gray-300 font-bold text-center border border-gray-900' },
-      { value: 'HỌ VÀ TÊN', readOnly: true, className: 'bg-gray-300 font-bold text-center border border-gray-900' },
-      { value: 'THỜI GIAN ĐIỂM DANH', readOnly: true, className: 'bg-gray-300 font-bold text-center border border-gray-900' },
-      { value: 'PHƯƠNG THỨC', readOnly: true, className: 'bg-gray-300 font-bold text-center border border-gray-900' },
-      { value: 'VAI TRÒ', readOnly: true, className: 'bg-gray-300 font-bold text-center border border-gray-900' }
-    ],
-    // Data rows
-    ...data.map((row, index) => ([
-      { value: index + 1, readOnly: true, className: index % 2 ? 'bg-white text-center border border-gray-200' : 'bg-gray-50 text-center border border-gray-200' },
-      { value: row.studentId, readOnly: true, className: index % 2 ? 'bg-white text-center border border-gray-200' : 'bg-gray-50 text-center border border-gray-200' },
-      { value: row.user?.fullName || '(trống)', readOnly: true, className: index % 2 ? 'bg-white text-center border border-gray-200' : 'bg-gray-50 text-center border border-gray-200' },
-      { value: new Date(row.checkinTime).toLocaleString('vi-VN'), readOnly: true, className: index % 2 ? 'bg-white text-center border border-gray-200' : 'bg-gray-50 text-center border border-gray-200' },
-      { 
-        value: row.checkinMethod === 'qr' ? 'Quét QR' : 'Nhập tay', 
-        readOnly: true, 
-        className: row.checkinMethod === 'qr' ? 'bg-green-100 text-center border border-gray-200' : (index % 2 ? 'bg-white text-center border border-gray-200' : 'bg-gray-50 text-center border border-gray-200') 
-      },
-      { 
-        value: row.type === 'participant' ? 'Người tham gia' : 'Cộng tác viên',
-        readOnly: true, 
-        className: row.type === 'participant' 
-          ? 'bg-orange-100 text-center border border-gray-200' 
-          : 'bg-emerald-100 text-center border border-gray-200'
-      }
-    ]))
-  ];
+  // HUTECH colors
+  const hutechBlue = '1B3764';
+  const hutechLightBlue = 'D6E6FF';
+  
+  // Colors for cell styles - same in UI and Excel
+  const headerGreen = 'E2EFDA';
+  const alternatingGray = 'F5F5F5';
+  const qrMethodGreen = 'E2EFDA';
+  const qrMethodText = '006100';
+  const manualMethodGray = 'EDEDED';
+  const manualMethodText = '7F7F7F';
+  const participantOrange = 'FFF2CC';
+  const participantText = '974706';
+  const collaboratorBlue = 'DDEBF7';
+  const collaboratorText = '0070C0';
+
+  // Prepare data with consistent styling for both view and export
+  const prepareSpreadsheetData = () => {
+    return [
+      [{ value: 'TRƯỜNG ĐẠI HỌC CÔNG NGHỆ TP.HCM', readOnly: true, className: `bg-[#${hutechBlue}] text-white font-bold text-lg text-center py-2` }],
+      [{ value: 'HUTECH UNIVERSITY', readOnly: true, className: `bg-[#${hutechBlue}] text-white font-bold text-lg text-center py-2` }],
+      [{ value: '', readOnly: true }],
+      [{ value: 'DANH SÁCH ĐIỂM DANH SINH VIÊN', readOnly: true, className: `bg-[#${hutechBlue}] text-white font-bold text-base text-center py-2` }],
+      [{ value: eventTitle.toUpperCase(), readOnly: true, className: `bg-[#${hutechBlue}] text-white font-bold text-sm text-center py-2` }],
+      [{ value: `Thời gian: ${eventTime}`, readOnly: true, className: `bg-[#${hutechLightBlue}] text-black text-sm text-center py-2` }],
+      [{ value: `Tổng số sinh viên: ${data.length}`, readOnly: true, className: `bg-[#${hutechLightBlue}] text-black text-sm text-center py-2` }],
+      [{ value: '', readOnly: true }],
+      // Headers
+      [
+        { value: 'STT', readOnly: true, className: `bg-[#${headerGreen}] font-bold text-center border border-gray-900` },
+        { value: 'MSSV', readOnly: true, className: `bg-[#${headerGreen}] font-bold text-center border border-gray-900` },
+        { value: 'HỌ VÀ TÊN', readOnly: true, className: `bg-[#${headerGreen}] font-bold text-center border border-gray-900` },
+        { value: 'THỜI GIAN ĐIỂM DANH', readOnly: true, className: `bg-[#${headerGreen}] font-bold text-center border border-gray-900` },
+        { value: 'PHƯƠNG THỨC', readOnly: true, className: `bg-[#${headerGreen}] font-bold text-center border border-gray-900` },
+        { value: 'VAI TRÒ', readOnly: true, className: `bg-[#${headerGreen}] font-bold text-center border border-gray-900` }
+      ],
+      // Data rows
+      ...data.map((row, index) => ([
+        { value: index + 1, readOnly: true, className: index % 2 ? 'bg-white text-center border border-gray-200' : `bg-[#${alternatingGray}] text-center border border-gray-200` },
+        { value: row.studentId, readOnly: true, className: index % 2 ? 'bg-white text-center border border-gray-200' : `bg-[#${alternatingGray}] text-center border border-gray-200` },
+        { value: row.user?.fullName || '(trống)', readOnly: true, className: index % 2 ? 'bg-white text-center border border-gray-200' : `bg-[#${alternatingGray}] text-center border border-gray-200` },
+        { value: new Date(row.checkinTime).toLocaleString('vi-VN'), readOnly: true, className: index % 2 ? 'bg-white text-center border border-gray-200' : `bg-[#${alternatingGray}] text-center border border-gray-200` },
+        { 
+          value: row.checkinMethod === 'qr' ? 'Quét QR' : 'Nhập tay', 
+          readOnly: true, 
+          className: row.checkinMethod === 'qr' 
+            ? `bg-[#${qrMethodGreen}] text-[#${qrMethodText}] text-center border border-gray-200` 
+            : `bg-[#${manualMethodGray}] text-[#${manualMethodText}] text-center border border-gray-200` 
+        },
+        { 
+          value: row.type === 'participant' ? 'Người tham gia' : 'Cộng tác viên',
+          readOnly: true, 
+          className: row.type === 'participant' 
+            ? `bg-[#${participantOrange}] text-[#${participantText}] text-center border border-gray-200` 
+            : `bg-[#${collaboratorBlue}] text-[#${collaboratorText}] text-center border border-gray-200`
+        }
+      ]))
+    ];
+  };
 
   const handleExportExcel = () => {
     // Create workbook
@@ -86,24 +117,25 @@ const CheckinSpreadsheet: React.FC<CheckinSpreadsheetProps> = ({
 
     // Set column widths and row heights
     ws['!cols'] = [
-      { wch: 6 },   // STT
-      { wch: 12 },  // MSSV
-      { wch: 35 },  // Họ và tên
-      { wch: 25 },  // Thời gian điểm danh
-      { wch: 15 },  // Phương thức
-      { wch: 15 }   // Vai trò
+      { wch: 8 },   // STT
+      { wch: 15 },  // MSSV
+      { wch: 40 },  // Họ và tên
+      { wch: 28 },  // Thời gian điểm danh
+      { wch: 18 },  // Phương thức
+      { wch: 20 }   // Vai trò
     ];
+    
     ws['!rows'] = [
-      { hpx: 30 },  // Dòng 1: Tên trường
+      { hpx: 40 },  // Dòng 1: Tên trường
       { hpx: 25 },  // Dòng 2: HUTECH
-      { hpx: 10 },  // Dòng 3: Trống
-      { hpx: 25 },  // Dòng 4: Tiêu đề danh sách
+      { hpx: 15 },  // Dòng 3: Trống
+      { hpx: 30 },  // Dòng 4: Tiêu đề danh sách
       { hpx: 25 },  // Dòng 5: Tên sự kiện
-      { hpx: 20 },  // Dòng 6: Thời gian
-      { hpx: 20 },  // Dòng 7: Tổng số SV
-      { hpx: 10 },  // Dòng 8: Trống
-      { hpx: 25 },  // Dòng 9: Header
-      ...Array(data.length).fill({ hpx: 20 }) // Dòng dữ liệu
+      { hpx: 22 },  // Dòng 6: Thời gian
+      { hpx: 22 },  // Dòng 7: Tổng số SV
+      { hpx: 15 },  // Dòng 8: Trống
+      { hpx: 30 },  // Dòng 9: Header
+      ...Array(data.length).fill({ hpx: 22 }) // Dòng dữ liệu
     ];
 
     // Merge cells for headers
@@ -115,54 +147,120 @@ const CheckinSpreadsheet: React.FC<CheckinSpreadsheetProps> = ({
       { s: { r: 5, c: 0 }, e: { r: 5, c: 5 } }, // Thời gian
       { s: { r: 6, c: 0 }, e: { r: 6, c: 5 } }  // Tổng số SV
     ];
-
-    // Define styles
+    
+    // Define styles with direct color values
     const titleStyle = {
-      font: { bold: true, sz: 16, color: { rgb: 'FFFFFF' } },
-      fill: { fgColor: { rgb: '1B3764' } }, // HUTECH Blue
-      alignment: { horizontal: 'center', vertical: 'center' }
-    };
-    const subtitleStyle = {
-      font: { bold: true, sz: 14, color: { rgb: 'FFFFFF' } },
-      fill: { fgColor: { rgb: '1B3764' } }, // HUTECH Blue
-      alignment: { horizontal: 'center', vertical: 'center' }
-    };
-    const infoStyle = {
-      font: { bold: true, sz: 12, color: { rgb: '000000' } },
-      fill: { fgColor: { rgb: '1B3764' } }, // HUTECH Blue
-      alignment: { horizontal: 'center', vertical: 'center' }
-    };
-    const headerStyle = {
-      font: { bold: true, color: { rgb: '000000' } },
-      fill: { fgColor: { rgb: 'D3D3D3' } }, // Xám nhạt
-      alignment: { horizontal: 'center', vertical: 'center' },
+      font: { bold: true, sz: 18, color: { rgb: 'FFFFFF' } },
+      fill: { patternType: 'solid', fgColor: { rgb: hutechBlue } },
+      alignment: { horizontal: 'center', vertical: 'center', wrapText: true },
       border: {
-        top: { style: 'medium', color: { rgb: '#000000' } },
-        bottom: { style: 'medium', color: { rgb: '#000000' } },
-        left: { style: 'medium', color: { rgb: '#000000' } },
-        right: { style: 'medium', color: { rgb: '#000000' } }
+        top: { style: 'thin', color: { rgb: hutechBlue } },
+        bottom: { style: 'thin', color: { rgb: hutechBlue } },
+        left: { style: 'thin', color: { rgb: hutechBlue } },
+        right: { style: 'thin', color: { rgb: hutechBlue } }
       }
     };
-    const cellStyle = {
+    
+    const subtitleStyle = {
+      font: { bold: true, sz: 16, color: { rgb: 'FFFFFF' } },
+      fill: { patternType: 'solid', fgColor: { rgb: hutechBlue } },
+      alignment: { horizontal: 'center', vertical: 'center', wrapText: true },
       border: {
-        top: { style: 'thin', color: { rgb: 'E5E7EB' } },
-        bottom: { style: 'thin', color: { rgb: 'E5E7EB' } },
-        left: { style: 'thin', color: { rgb: 'E5E7EB' } },
-        right: { style: 'thin', color: { rgb: 'E5E7EB' } }
+        bottom: { style: 'thin', color: { rgb: hutechBlue } },
+      }
+    };
+    
+    const infoStyle = {
+      font: { bold: true, sz: 12, color: { rgb: '000000' } },
+      fill: { patternType: 'solid', fgColor: { rgb: hutechLightBlue } },
+      alignment: { horizontal: 'center', vertical: 'center', wrapText: true },
+      border: {
+        bottom: { style: 'thin', color: { rgb: hutechLightBlue } },
+      }
+    };
+    
+    const headerStyle = {
+      font: { bold: true, color: { rgb: '000000' }, sz: 12 },
+      fill: { patternType: 'solid', fgColor: { rgb: headerGreen } },
+      alignment: { horizontal: 'center', vertical: 'center', wrapText: true },
+      border: {
+        top: { style: 'medium', color: { rgb: '000000' } },
+        bottom: { style: 'medium', color: { rgb: '000000' } },
+        left: { style: 'thin', color: { rgb: '000000' } },
+        right: { style: 'thin', color: { rgb: '000000' } }
+      }
+    };
+    
+    const cellStyle = {
+      font: { sz: 11 },
+      fill: { patternType: 'solid', fgColor: { rgb: 'FFFFFF' } },
+      border: {
+        top: { style: 'thin', color: { rgb: 'D3D3D3' } },
+        bottom: { style: 'thin', color: { rgb: 'D3D3D3' } },
+        left: { style: 'thin', color: { rgb: 'D3D3D3' } },
+        right: { style: 'thin', color: { rgb: 'D3D3D3' } }
       },
-      alignment: { horizontal: 'center', vertical: 'center' }
+      alignment: { horizontal: 'center', vertical: 'center', wrapText: true }
     };
+    
+    const evenRowStyle = {
+      font: { sz: 11 },
+      fill: { patternType: 'solid', fgColor: { rgb: alternatingGray } },
+      border: {
+        top: { style: 'thin', color: { rgb: 'D3D3D3' } },
+        bottom: { style: 'thin', color: { rgb: 'D3D3D3' } },
+        left: { style: 'thin', color: { rgb: 'D3D3D3' } },
+        right: { style: 'thin', color: { rgb: 'D3D3D3' } }
+      },
+      alignment: { horizontal: 'center', vertical: 'center', wrapText: true }
+    };
+    
     const qrStyle = {
-      ...cellStyle,
-      fill: { fgColor: { rgb: 'E6F3E6' } } // Xanh nhạt cho Quét QR
+      font: { sz: 11, color: { rgb: qrMethodText } },
+      fill: { patternType: 'solid', fgColor: { rgb: qrMethodGreen } },
+      border: {
+        top: { style: 'thin', color: { rgb: 'D3D3D3' } },
+        bottom: { style: 'thin', color: { rgb: 'D3D3D3' } },
+        left: { style: 'thin', color: { rgb: 'D3D3D3' } },
+        right: { style: 'thin', color: { rgb: 'D3D3D3' } }
+      },
+      alignment: { horizontal: 'center', vertical: 'center', wrapText: true }
     };
+    
+    const manualStyle = {
+      font: { sz: 11, color: { rgb: manualMethodText } },
+      fill: { patternType: 'solid', fgColor: { rgb: manualMethodGray } },
+      border: {
+        top: { style: 'thin', color: { rgb: 'D3D3D3' } },
+        bottom: { style: 'thin', color: { rgb: 'D3D3D3' } },
+        left: { style: 'thin', color: { rgb: 'D3D3D3' } },
+        right: { style: 'thin', color: { rgb: 'D3D3D3' } }
+      },
+      alignment: { horizontal: 'center', vertical: 'center', wrapText: true }
+    };
+    
     const participantStyle = {
-      ...cellStyle,
-      fill: { fgColor: { rgb: 'FFF3E0' } } // Cam nhạt cho Người tham gia
+      font: { sz: 11, color: { rgb: participantText } },
+      fill: { patternType: 'solid', fgColor: { rgb: participantOrange } },
+      border: {
+        top: { style: 'thin', color: { rgb: 'D3D3D3' } },
+        bottom: { style: 'thin', color: { rgb: 'D3D3D3' } },
+        left: { style: 'thin', color: { rgb: 'D3D3D3' } },
+        right: { style: 'thin', color: { rgb: 'D3D3D3' } }
+      },
+      alignment: { horizontal: 'center', vertical: 'center', wrapText: true }
     };
+    
     const collaboratorStyle = {
-      ...cellStyle,
-      fill: { fgColor: { rgb: 'E0F7F0' } } // Xanh ngọc nhạt cho Cộng tác viên
+      font: { sz: 11, color: { rgb: collaboratorText } },
+      fill: { patternType: 'solid', fgColor: { rgb: collaboratorBlue } },
+      border: {
+        top: { style: 'thin', color: { rgb: 'D3D3D3' } },
+        bottom: { style: 'thin', color: { rgb: 'D3D3D3' } },
+        left: { style: 'thin', color: { rgb: 'D3D3D3' } },
+        right: { style: 'thin', color: { rgb: 'D3D3D3' } }
+      },
+      alignment: { horizontal: 'center', vertical: 'center', wrapText: true }
     };
 
     // Apply styles
@@ -181,14 +279,19 @@ const CheckinSpreadsheet: React.FC<CheckinSpreadsheetProps> = ({
         } else if (row === 8) {
           ws[cell].s = headerStyle;
         } else if (row > 8) {
-          ws[cell].s = {
-            ...cellStyle,
-            fill: { fgColor: { rgb: row % 2 ? 'FFFFFF' : 'F9FAFB' } }
-          };
-          if (col === 4 && ws[cell].v === 'Quét QR') {
-            ws[cell].s = qrStyle;
+          // Apply alternating row styles for better readability
+          ws[cell].s = row % 2 === 0 ? evenRowStyle : cellStyle;
+          
+          // Special styling for specific columns
+          if (col === 4) { // Phương thức column
+            if (ws[cell].v === 'Quét QR') {
+              ws[cell].s = qrStyle;
+            } else {
+              ws[cell].s = manualStyle;
+            }
           }
-          if (col === 5) {
+          
+          if (col === 5) { // Vai trò column
             if (ws[cell].v === 'Người tham gia') {
               ws[cell].s = participantStyle;
             } else if (ws[cell].v === 'Cộng tác viên') {
@@ -199,12 +302,47 @@ const CheckinSpreadsheet: React.FC<CheckinSpreadsheetProps> = ({
       }
     }
 
-    // Add to workbook and save
+    // Add formula for automatic date in footer
+    const footerRow = 10 + data.length;
+    const dateCell = xlsxUtils.encode_cell({ r: footerRow, c: 0 });
+    ws[dateCell] = { 
+      f: 'TEXT(TODAY(),"DD/MM/YYYY")', 
+      t: 'f',
+      z: 'dd/mm/yyyy'
+    };
+    
+    // Merge cells for footer
+    ws['!merges'].push({ 
+      s: { r: footerRow, c: 0 }, 
+      e: { r: footerRow, c: 5 } 
+    });
+    
+    // Apply footer style
+    ws[dateCell].s = {
+      font: { italic: true, sz: 10, color: { rgb: '666666' } },
+      alignment: { horizontal: 'right', vertical: 'center' }
+    };
+
+    // Add to workbook and save with improved filename
     xlsxUtils.book_append_sheet(wb, ws, 'Danh sách điểm danh');
-    const wbout = xlsxWrite(wb, { bookType: 'xlsx', type: 'array' });
-    saveAs(new Blob([wbout]), `DIEMDANH_${eventTitle.replace(/[^a-zA-Z0-9]/g, '_')}.xlsx`);
+    const wbout = xlsxWrite(wb, { 
+      bookType: 'xlsx', 
+      type: 'array',
+      bookSST: false,
+      compression: true 
+    });
+    
+    // Create a more descriptive filename with date
+    const today = new Date();
+    const dateStr = today.toISOString().slice(0, 10).replace(/-/g, '');
+    const safeEventTitle = eventTitle.replace(/[^a-zA-Z0-9]/g, '_');
+    const filename = `DIEMDANH_${safeEventTitle}_${dateStr}.xlsx`;
+    
+    saveAs(new Blob([wbout]), filename);
     onClose();
   };
+
+  const spreadsheetData = prepareSpreadsheetData();
 
   return (
     <div className="fixed inset-0 bg-gray-900/75 flex items-center justify-center z-50">

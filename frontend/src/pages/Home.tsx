@@ -23,6 +23,7 @@ import JoinEventButton from '../components/JoinEventButton';
 import CollaborateEventButton from '../components/CollaborateEventButton';
 import { formatDescriptionWithLinks } from '@/utils/linkUtils';
 import { UserIcon } from '@heroicons/react/outline';
+import LoadingSpinner from '../components/LoadingSpinner';
 
 // Define cache keys
 const CACHE_KEYS = {
@@ -672,18 +673,7 @@ const Home: React.FC = () => {
   );
 
   // Add loading state handling in the render
-  if (isLoading) {
-    return (
-      <div className="min-h-screen bg-[#F3F2EF] flex flex-col font-sans">
-        <Header />
-        <main className="container mx-auto px-4 py-8">
-          <div className="text-center">
-            <p>Loading events...</p>
-          </div>
-        </main>
-      </div>
-    );
-  }
+    if (isLoading) {    return (      <div className="min-h-screen bg-[#F3F2EF] flex flex-col font-sans">        <Header />        <main className="container mx-auto px-4 py-8">          <LoadingSpinner size="lg" />        </main>      </div>    );  }
 
   return (
     <div className="min-h-screen bg-[#F3F2EF] flex flex-col font-sans">

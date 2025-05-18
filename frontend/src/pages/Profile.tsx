@@ -3,11 +3,13 @@ import { useRoute, useLocation } from "wouter";
 import Header from '../components/Header';
 import { IoCamera, IoSchoolOutline, IoMailOutline, IoCallOutline, IoCalendarOutline, 
   IoLocationOutline, IoPencil, IoShieldCheckmark, IoEye, IoArrowBack, IoDocumentTextOutline, IoCheckmarkCircle } from 'react-icons/io5';
+import { FaFacebook, FaLinkedin, FaGithub, FaInstagram } from 'react-icons/fa';
 import AvatarUploadModal from '../components/modals/AvatarUploadModal';
 import ProfileEditModal from '../components/modals/ProfileEditModal';
+import LoadingSpinner from '../components/LoadingSpinner';
 import userService from '../services/userService';
 import { toast } from 'react-toastify';
-import { User, Event } from '../types';
+import { User } from '../types';
 import { useAuth } from '../context/AuthContext';
 import Certificate from '../components/Certificate';
 import certificateService from '../services/certificateService';
@@ -18,6 +20,11 @@ interface Certificate {
   eventName: string;
   eventDate: string;
   type: 'participant' | 'collaborator';
+  department?: {
+    _id: string;
+    name: string;
+  };
+  category?: string;
 }
 
 const Profile = () => {
@@ -49,6 +56,17 @@ const Profile = () => {
         
         // Tải thông tin người dùng
         const userData = await userService.getUserById(params.id);
+        
+        // Kiểm tra và chuyển đổi socialMedia từ chuỗi JSON thành object nếu cần
+        if (userData.socialMedia && typeof userData.socialMedia === 'string') {
+          try {
+            userData.socialMedia = JSON.parse(userData.socialMedia);
+          } catch (e) {
+            console.error('Error parsing socialMedia JSON:', e);
+            userData.socialMedia = { facebook: '', linkedin: '', github: '', instagram: '' };
+          }
+        }
+        
         setUser(userData);
         
         // Kiểm tra quyền sở hữu
@@ -78,100 +96,35 @@ const Profile = () => {
       setLoadingCertificates(true);
       console.log(`Loading certificates for user: ${userId}`);
       
-      // Lấy danh sách sự kiện
-      const events = await userService.getUserEvents(userId);
-      console.log(`Retrieved ${events.length} events for user`);
+      // Sử dụng API getUserEligibleCertificates để lấy danh sách chứng nhận hợp lệ
+      const result = await certificateService.getUserEligibleCertificates(userId);
+      console.log('Eligible certificates response:', result);
       
-      // Lọc các sự kiện tiềm năng có chứng chỉ (đã kết thúc và đã tham gia)
-      const currentDate = new Date();
-      const potentialEvents = events.filter((event: Event) => {
-        if (!event.endDate) {
-          return false;
-        }
+      if (result.success && result.data) {
+        // Chuyển đổi định dạng dữ liệu để phù hợp với giao diện hiện tại
+        const certificates = result.data.map((cert: {
+          eventId: string;
+          eventName: string;
+          eventDate: string;
+          endDate: string;
+          department?: { _id: string; name: string };
+          category: string;
+          certificateType: 'participant' | 'collaborator';
+        }) => ({
+          eventId: cert.eventId,
+          eventName: cert.eventName,
+          eventDate: cert.eventDate,
+          type: cert.certificateType,
+          department: cert.department,
+          category: cert.category
+        }));
         
-        const endDate = new Date(event.endDate);
-        const hasEnded = endDate < currentDate;
-        const hasParticipated = event.participants?.includes(userId);
-        const hasCollaborated = event.collaborators?.includes(userId);
-        
-        return hasEnded && (hasParticipated || hasCollaborated);
-      });
-      
-      console.log(`Found ${potentialEvents.length} potential events for certificates`);
-      
-      // Kiểm tra điều kiện nhận chứng nhận thông qua API
-      const eligibilityChecks = await Promise.all(
-        potentialEvents.map(async (event: Event) => {
-          try {
-            // Kiểm tra điều kiện chứng nhận participant
-            let participantEligible = false;
-            if (event.participants?.includes(userId)) {
-              try {
-                const participantCheck = await certificateService.verifyCertificateEligibility(
-                  event._id, 
-                  userId, 
-                  'participant'
-                );
-                participantEligible = participantCheck.data.canGenerateCertificate;
-                console.log(`Participant eligibility for ${event.title}:`, participantEligible);
-              } catch (err) {
-                console.log(`Failed to verify participant eligibility for ${event.title}:`, err);
-              }
-            }
-            
-            // Kiểm tra điều kiện chứng nhận collaborator
-            let collaboratorEligible = false;
-            if (event.collaborators?.includes(userId)) {
-              try {
-                const collaboratorCheck = await certificateService.verifyCertificateEligibility(
-                  event._id, 
-                  userId, 
-                  'collaborator'
-                );
-                collaboratorEligible = collaboratorCheck.data.canGenerateCertificate;
-                console.log(`Collaborator eligibility for ${event.title}:`, collaboratorEligible);
-              } catch (err) {
-                console.log(`Failed to verify collaborator eligibility for ${event.title}:`, err);
-              }
-            }
-            
-            return {
-              event,
-              participantEligible,
-              collaboratorEligible
-            };
-          } catch (error) {
-            console.log(`Error verifying certificates for event ${event._id}:`, error);
-            return { event, participantEligible: false, collaboratorEligible: false };
-          }
-        })
-      );
-      
-      // Chuyển đổi kết quả thành danh sách chứng nhận
-      const certificates: Certificate[] = [];
-      
-      eligibilityChecks.forEach(check => {
-        if (check.participantEligible) {
-          certificates.push({
-            eventId: check.event._id,
-            eventName: check.event.title,
-            eventDate: check.event.startDate,
-            type: 'participant'
-          });
-        }
-        
-        if (check.collaboratorEligible) {
-          certificates.push({
-            eventId: check.event._id,
-            eventName: check.event.title,
-            eventDate: check.event.startDate,
-            type: 'collaborator'
-          });
-        }
-      });
-      
-      console.log(`Final eligible certificates: ${certificates.length}`);
-      setUserCertificates(certificates);
+        console.log(`Final eligible certificates: ${certificates.length}`);
+        setUserCertificates(certificates);
+      } else {
+        console.log('No certificates or API returned error');
+        setUserCertificates([]);
+      }
     } catch (error) {
       console.error("Error loading certificates:", error);
       setUserCertificates([]);
@@ -249,7 +202,7 @@ const Profile = () => {
   // Hiển thị trạng thái loading
   if (loading && !dataLoaded) {
     return <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-      <div className="text-center">Loading profile...</div>
+      <LoadingSpinner size="lg" />
     </div>;
   }
 
@@ -287,7 +240,7 @@ const Profile = () => {
       <div className="container mx-auto px-4">
         <div className="relative -mt-32 pb-8">
           {/* Profile Header Card */}
-          <div className="bg-white rounded-xl shadow-lg mb-6 relative z-20">
+          <div className="bg-white rounded-xl shadow-sm mb-6 relative z-20">
             <div className="p-6">
               <div className="flex flex-col md:flex-row items-center md:items-end gap-6">
                 {/* Avatar */}
@@ -404,69 +357,151 @@ const Profile = () => {
               <>
                 <div className="lg:col-span-2 space-y-6">
                   {/* Basic Information Card */}
-                  <div className="bg-white rounded-xl shadow-sm p-6">
-                    <div className="flex justify-between items-center mb-4">
-                      <h2 className="text-lg font-semibold text-gray-900">Thông tin cơ bản</h2>
-                      {(isOwner || currentUser?.role === 'admin') && (
-                        <button 
-                          onClick={handleEditProfile}
-                          className="text-sm text-orange-600 hover:text-orange-700 flex items-center gap-1"
-                        >
-                          <IoPencil size={14} />
-                          Chỉnh sửa
-                        </button>
-                      )}
+                  <div className="bg-white rounded-xl shadow-sm overflow-hidden">
+                    <div className="bg-gradient-to-r from-orange-500 to-orange-600 p-4">
+                      <h2 className="text-lg font-semibold text-orange-600 flex items-center">
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" viewBox="0 0 20 20" fill="currentColor">
+                          <path fillRule="evenodd" d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z" clipRule="evenodd" />
+                        </svg>
+                        Thông tin cơ bản
+                      </h2>
                     </div>
-                    <div className="grid md:grid-cols-2 gap-6">
-                      <InfoField
-                        icon={IoSchoolOutline}
-                        label="MSSV"
-                        value={user?.userId || 'Chưa cập nhật'}
-                      />
-                      <InfoField
-                        icon={IoMailOutline}
-                        label="Email"
-                        value={user?.email || 'Chưa cập nhật'}
-                      />
-                      <InfoField
-                        icon={IoCallOutline}
-                        label="Số điện thoại"
-                        value={user?.phone || 'Chưa cập nhật'}
-                        isPrivate={!isOwner && !!user?.phone}
-                      />
-                      <InfoField
-                        icon={IoCalendarOutline}
-                        label="Ngày sinh"
-                        value={user?.birthday ? new Date(user.birthday).toLocaleDateString('vi-VN') : 'Chưa cập nhật'}
-                        isPrivate={!isOwner && !!user?.birthday}
-                      />
+                    
+                    <div className="p-6 border-t border-gray-100">
+                      <div className="grid md:grid-cols-2 gap-6">
+                        <InfoField
+                          icon={IoSchoolOutline}
+                          label="MSSV"
+                          value={user?.userId || 'Chưa cập nhật'}
+                          highlight={true}
+                        />
+                        <InfoField
+                          icon={IoMailOutline}
+                          label="Email"
+                          value={user?.email || 'Chưa cập nhật'}
+                          highlight={true}
+                        />
+                        <InfoField
+                          icon={IoCallOutline}
+                          label="Số điện thoại"
+                          value={user?.phone || 'Chưa cập nhật'}
+                          isPrivate={!isOwner && !!user?.phone}
+                        />
+                        <InfoField
+                          icon={IoCalendarOutline}
+                          label="Ngày sinh"
+                          value={user?.birthday ? new Date(user.birthday).toLocaleDateString('vi-VN') : 'Chưa cập nhật'}
+                          isPrivate={!isOwner && !!user?.birthday}
+                        />
+                      </div>
+                      
                     </div>
                   </div>
 
                   {/* Education Card */}
-                  <div className="bg-white rounded-xl shadow-sm p-6">
-                    <div className="flex justify-between items-center mb-4">
-                      <h2 className="text-lg font-semibold text-gray-900">Học vấn</h2>
-                      {(isOwner || currentUser?.role === 'admin') && (
-                        <button 
-                          onClick={handleEditProfile}
-                          className="text-sm text-orange-600 hover:text-orange-700 flex items-center gap-1"
-                        >
-                          <IoPencil size={14} />
-                          Chỉnh sửa
-                        </button>
-                      )}
+                  <div className="bg-white rounded-xl shadow-sm overflow-hidden">
+                    <div className="bg-gradient-to-r from-blue-500 to-blue-600 p-4">
+                      <h2 className="text-lg font-semibold text-orange-600 flex items-center">
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" viewBox="0 0 20 20" fill="currentColor">
+                          <path d="M10.394 2.08a1 1 0 00-.788 0l-7 3a1 1 0 000 1.84L5.25 8.051a.999.999 0 01.356-.257l4-1.714a1 1 0 11.788 1.838L7.667 9.088l1.94.831a1 1 0 00.787 0l7-3a1 1 0 000-1.838l-7-3zM3.31 9.397L5 10.12v4.102a8.969 8.969 0 00-1.05-.174 1 1 0 01-.89-.89 11.115 11.115 0 01.25-3.762zM9.3 16.573A9.026 9.026 0 007 14.935v-3.957l1.818.78a3 3 0 002.364 0l5.508-2.361a11.026 11.026 0 01.25 3.762 1 1 0 01-.89.89 8.968 8.968 0 00-5.35 2.524 1 1 0 01-1.4 0zM6 18a1 1 0 001-1v-2.065a8.935 8.935 0 00-2-.712V17a1 1 0 001 1z" />
+                        </svg>
+                        Học vấn
+                      </h2>
                     </div>
-                    <div className="space-y-4">
+                    
+                    <div className="p-6 border-t border-gray-100">
                       <div className="flex items-center gap-4">
-                        <div className="w-12 h-12 rounded-lg bg-orange-100 flex items-center justify-center">
-                          <IoSchoolOutline className="text-2xl text-orange-600" />
+                        <div className="h-16 w-16 flex-shrink-0 rounded-xl border border-blue-100 bg-blue-50 flex items-center justify-center">
+                          <img src="/hutech-logo.png" alt="HUTECH" className="h-10 w-10 object-contain" onError={(e) => {
+                            (e.target as HTMLImageElement).style.display = 'none';
+                            (e.target as HTMLImageElement).parentElement!.innerHTML = `<span class="text-3xl font-bold text-blue-500">H</span>`;
+                          }} />
                         </div>
                         <div>
-                          <h3 className="font-medium text-gray-900">HUTECH University</h3>
-                          <p className="text-sm text-gray-500">Công nghệ thông tin • 2021 - Hiện tại</p>
+                          <h3 className="font-semibold text-gray-900">HUTECH University</h3>
+                          <p className="text-sm text-gray-500 mt-1">Công nghệ thông tin • 2021 - Hiện tại</p>
+                          <div className="flex items-center mt-2">
+                            <span className="text-xs px-2 py-1 bg-blue-100 text-blue-700 rounded-full">Đang theo học</span>
+                          </div>
                         </div>
                       </div>
+                      
+                    </div>
+                  </div>
+
+                  {/* Social Media Card */}
+                  <div className="bg-white rounded-xl shadow-sm overflow-hidden">
+                    <div className="bg-gradient-to-r from-purple-500 to-purple-600 p-4">
+                      <h2 className="text-lg font-semibold text-orange-600 flex items-center">
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" viewBox="0 0 20 20" fill="currentColor">
+                          <path d="M6 15a3 3 0 100-6 3 3 0 000 6zM14 15a3 3 0 100-6 3 3 0 000 6zM10 8a2 2 0 100-4 2 2 0 000 4z" />
+                          <path fillRule="evenodd" d="M10 3a5 5 0 00-5 5v2a5 5 0 0010 0V8a5 5 0 00-5-5zm-5 7v-2a5 5 0 0110 0v2a5 5 0 01-10 0z" clipRule="evenodd" />
+                        </svg>
+                        Liên kết mạng xã hội
+                      </h2>
+                    </div>
+                    
+                    <div className="p-6 border-t border-gray-100">
+                      {(user?.socialMedia?.facebook || user?.socialMedia?.linkedin || 
+                        user?.socialMedia?.github || user?.socialMedia?.instagram) ? (
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          {user?.socialMedia?.facebook && (
+                            <a href={user.socialMedia.facebook} target="_blank" rel="noopener noreferrer" 
+                               className="flex items-center p-3 bg-blue-50 rounded-lg hover:bg-blue-100 transition-colors">
+                              <FaFacebook className="text-blue-600 text-xl mr-3" />
+                              <div>
+                                <div className="text-sm font-medium text-gray-800">Facebook</div>
+                                <div className="text-xs text-gray-500 truncate max-w-[200px]">{user.socialMedia.facebook}</div>
+                              </div>
+                            </a>
+                          )}
+                          
+                          {user?.socialMedia?.linkedin && (
+                            <a href={user.socialMedia.linkedin} target="_blank" rel="noopener noreferrer" 
+                               className="flex items-center p-3 bg-blue-50 rounded-lg hover:bg-blue-100 transition-colors">
+                              <FaLinkedin className="text-blue-700 text-xl mr-3" />
+                              <div>
+                                <div className="text-sm font-medium text-gray-800">LinkedIn</div>
+                                <div className="text-xs text-gray-500 truncate max-w-[200px]">{user.socialMedia.linkedin}</div>
+                              </div>
+                            </a>
+                          )}
+                          
+                          {user?.socialMedia?.github && (
+                            <a href={user.socialMedia.github} target="_blank" rel="noopener noreferrer" 
+                               className="flex items-center p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors">
+                              <FaGithub className="text-gray-800 text-xl mr-3" />
+                              <div>
+                                <div className="text-sm font-medium text-gray-800">GitHub</div>
+                                <div className="text-xs text-gray-500 truncate max-w-[200px]">{user.socialMedia.github}</div>
+                              </div>
+                            </a>
+                          )}
+                          
+                          {user?.socialMedia?.instagram && (
+                            <a href={user.socialMedia.instagram} target="_blank" rel="noopener noreferrer" 
+                               className="flex items-center p-3 bg-pink-50 rounded-lg hover:bg-pink-100 transition-colors">
+                              <FaInstagram className="text-pink-600 text-xl mr-3" />
+                              <div>
+                                <div className="text-sm font-medium text-gray-800">Instagram</div>
+                                <div className="text-xs text-gray-500 truncate max-w-[200px]">{user.socialMedia.instagram}</div>
+                              </div>
+                            </a>
+                          )}
+                        </div>
+                      ) : (
+                        <div className="text-center py-6 text-gray-500">
+                          <p className="mb-2">Chưa có liên kết mạng xã hội nào</p>
+                          {isOwner && (
+                            <button 
+                              onClick={handleEditProfile}
+                              className="text-sm text-orange-600 hover:text-orange-700"
+                            >
+                              + Thêm liên kết
+                            </button>
+                          )}
+                        </div>
+                      )}
                     </div>
                   </div>
 
@@ -474,34 +509,61 @@ const Profile = () => {
 
                 {/* Sidebar */}
                 <div className="space-y-6">
-                  <div className="bg-white rounded-xl shadow-sm p-6">
-                    <h2 className="text-lg font-semibold text-gray-900 mb-4">Thống kê hoạt động</h2>
+                  {/* Thống kê hoạt động Card */}
+                  <div className="bg-white rounded-xl shadow-sm overflow-hidden">
+                    <div className="bg-gradient-to-r from-green-500 to-green-600 p-4">
+                      <h2 className="text-lg font-semibold text-orange-600 flex items-center">
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" viewBox="0 0 20 20" fill="currentColor">
+                          <path d="M2 11a1 1 0 011-1h2a1 1 0 011 1v5a1 1 0 01-1 1H3a1 1 0 01-1-1v-5zM8 7a1 1 0 011-1h2a1 1 0 011 1v9a1 1 0 01-1 1H9a1 1 0 01-1-1V7zM14 4a1 1 0 011-1h2a1 1 0 011 1v12a1 1 0 01-1 1h-2a1 1 0 01-1-1V4z" />
+                        </svg>
+                        Thống kê hoạt động
+                      </h2>
+                    </div>
                     
-                    <div className="space-y-4">
-                      <StatItem 
-                        label="Sự kiện đã tham gia" 
-                        value={user?.uniqueEventCount?.toString() || "0"} 
-                        tooltip="Tổng số sự kiện đã tham gia (không trùng lặp)"
-                      />
-                      <StatItem 
-                        label="Đăng ký làm người tham dự" 
-                        value={user?.registeredEvents?.length?.toString() || "0"} 
-                      />
-                      <StatItem 
-                        label="Đăng ký làm CTV" 
-                        value={user?.collaboratorEvents?.length?.toString() || "0"} 
-                      />
+                    <div className="p-6 border-t border-gray-100">
+                      <div className="space-y-5">
+                        <StatItem 
+                          label="Sự kiện đã tham gia" 
+                          value={user?.uniqueEventCount?.toString() || "0"} 
+                          tooltip="Tổng số sự kiện đã tham gia (không trùng lặp)"
+                          icon={
+                            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-green-500" viewBox="0 0 20 20" fill="currentColor">
+                              <path fillRule="evenodd" d="M6 2a1 1 0 00-1 1v1H4a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V6a2 2 0 00-2-2h-1V3a1 1 0 10-2 0v1H7V3a1 1 0 00-1-1zm0 5a1 1 0 000 2h8a1 1 0 100-2H6z" clipRule="evenodd" />
+                            </svg>
+                          }
+                        />
+                        <StatItem 
+                          label="Đăng ký làm người tham dự" 
+                          value={user?.registeredEvents?.length?.toString() || "0"}
+                          icon={
+                            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-blue-500" viewBox="0 0 20 20" fill="currentColor">
+                              <path d="M8 9a3 3 0 100-6 3 3 0 000 6zM8 11a6 6 0 016 6H2a6 6 0 016-6zM16 7a1 1 0 10-2 0v1h-1a1 1 0 100 2h1v1a1 1 0 102 0v-1h1a1 1 0 100-2h-1V7z" />
+                            </svg>
+                          }
+                        />
+                        <StatItem 
+                          label="Đăng ký làm CTV" 
+                          value={user?.collaboratorEvents?.length?.toString() || "0"}
+                          icon={
+                            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-orange-500" viewBox="0 0 20 20" fill="currentColor">
+                              <path d="M13 6a3 3 0 11-6 0 3 3 0 016 0zM18 8a2 2 0 11-4 0 2 2 0 014 0zM14 15a4 4 0 00-8 0v3h8v-3zM6 8a2 2 0 11-4 0 2 2 0 014 0zM16 18v-3a5.972 5.972 0 00-.75-2.906A3.005 3.005 0 0119 15v3h-3zM4.75 12.094A5.973 5.973 0 004 15v3H1v-3a3 3 0 013.75-2.906z" />
+                            </svg>
+                          }
+                        />
+                      </div>
                     </div>
                   </div>
 
                   {/* Permission Note for Viewers */}
                   {!isOwner && (
-                    <div className="bg-blue-50 rounded-xl shadow-sm p-4 text-blue-800 text-sm">
+                    <div className="bg-gradient-to-br from-blue-50 to-indigo-50 rounded-xl shadow-sm p-5 text-blue-800 text-sm">
                       <div className="flex items-start gap-3">
-                        <IoShieldCheckmark className="text-xl text-blue-500 mt-0.5" />
+                        <div className="p-2 bg-blue-100 rounded-full">
+                          <IoShieldCheckmark className="text-xl text-blue-500" />
+                        </div>
                         <div>
-                          <h3 className="font-medium mb-1">Viewing Mode</h3>
-                          <p>You are viewing {user?.fullName || 'this user'}'s profile. Some personal information may be hidden and you cannot make changes to this profile.</p>
+                          <h3 className="font-medium mb-1 text-blue-700">Chế độ xem</h3>
+                          <p>Bạn đang xem hồ sơ của {user?.fullName || 'người dùng này'}. Một số thông tin cá nhân có thể được ẩn và bạn không thể thay đổi hồ sơ này.</p>
                         </div>
                       </div>
                     </div>
@@ -517,7 +579,7 @@ const Profile = () => {
                   
                   {loadingCertificates ? (
                     <div className="text-center py-8">
-                      <div className="inline-block animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-orange-500"></div>
+                      <LoadingSpinner size="sm" className="inline-block" />
                       <p className="mt-2 text-gray-500">Đang tải chứng nhận...</p>
                     </div>
                   ) : error && error.includes("chứng nhận") ? (
@@ -600,15 +662,17 @@ const InfoField = ({
   icon: Icon, 
   label, 
   value, 
-  isPrivate = false 
+  isPrivate = false,
+  highlight = false
 }: { 
   icon: React.ComponentType; 
   label: string; 
   value: string; 
-  isPrivate?: boolean; 
+  isPrivate?: boolean;
+  highlight?: boolean;
 }) => (
   <div className="flex items-start gap-3">
-    <div className="mt-0.5 p-2 rounded-lg bg-orange-50 text-orange-600">
+    <div className={`mt-0.5 p-2 rounded-lg ${highlight ? 'bg-orange-100 text-orange-600' : 'bg-orange-50 text-orange-600'}`}>
       <Icon />
     </div>
     <div>
@@ -618,16 +682,21 @@ const InfoField = ({
           <span className="text-xs bg-gray-100 px-2 py-0.5 rounded">Hidden for privacy</span>
         </p>
       ) : (
-        <p className="font-medium text-gray-900">{value}</p>
+        <p className={`font-medium ${highlight ? 'text-orange-700' : 'text-gray-900'}`}>{value}</p>
       )}
     </div>
   </div>
 );
 
 // Helper component for statistics
-const StatItem = ({ label, value, tooltip }: { label: string; value: string; tooltip?: string }) => (
+const StatItem = ({ label, value, tooltip, icon }: { label: string; value: string; tooltip?: string; icon?: React.ReactNode }) => (
   <div className="flex justify-between items-center">
     <div className="flex items-center gap-2">
+      {icon && (
+        <div className="p-2 bg-gray-100 rounded-full">
+          {icon}
+        </div>
+      )}
       <span className="text-sm text-gray-600">{label}</span>
       {tooltip && (
         <span 
@@ -645,4 +714,5 @@ const StatItem = ({ label, value, tooltip }: { label: string; value: string; too
 );
 
 export default Profile;
+
 

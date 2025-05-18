@@ -57,8 +57,24 @@ const userService = {
     currentPassword: string;
     newPassword: string;
   }): Promise<User> => {
-    const response = await apiClient.put('/users/me/password', passwordData);
-    return response.data?.data;
+    try {
+      const response = await apiClient.put('/users/me/password', passwordData);
+      
+      if (!response.data?.success) {
+        throw new Error(response.data?.message || 'Không thể cập nhật mật khẩu');
+      }
+      
+      return response.data?.data;
+    } catch (error: unknown) {
+      const apiError = error as ApiError;
+      console.error('Password change error:', apiError.response || apiError);
+      throw new Error(
+        apiError.response?.data?.message || 
+        apiError.response?.data?.error || 
+        apiError.message || 
+        'Không thể thay đổi mật khẩu'
+      );
+    }
   },
 
   getUserById: async (id: string): Promise<User> => {

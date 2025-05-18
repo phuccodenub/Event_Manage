@@ -1,9 +1,9 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import Header from '../components/Header';
-import { IoTimeOutline, IoCheckmarkCircleOutline, IoCalendarOutline, 
-  IoNotificationsOutline, IoCheckmarkOutline, IoNotificationsOffOutline } from 'react-icons/io5';
+import { IoTimeOutline, IoCheckmarkCircleOutline, IoCalendarOutline,   IoNotificationsOutline, IoCheckmarkOutline, IoNotificationsOffOutline } from 'react-icons/io5';
 import { useNotifications } from '../context/NotificationContext';
 import { useNavigate } from 'react-router-dom';
+import LoadingSpinner from '../components/LoadingSpinner';
 
 const AllNotifications = () => {
   const { notifications, loading, filterNotifications, markAsRead, markAllAsRead, fetchNotifications } = useNotifications();
@@ -251,7 +251,7 @@ const AllNotifications = () => {
             {/* Notifications List */}
             {loading ? (
               <div className="flex justify-center items-center h-64">
-                <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-orange-500"></div>
+                <LoadingSpinner size="lg" />
               </div>
             ) : filteredNotifications.length > 0 ? (
               <div className="space-y-4">

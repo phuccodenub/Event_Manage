@@ -8,6 +8,7 @@ import JoinEventButton from '../components/JoinEventButton';
 import EventImageGrid from '../components/EventImageGrid';
 import { formatTimeAgo } from '@/utils/timeUtils';
 import { formatDescriptionWithLinks } from '@/utils/linkUtils';
+import LoadingSpinner from '../components/LoadingSpinner';
 import { 
   IoBriefcaseOutline, IoCalendarOutline, IoPeopleOutline, 
   IoNewspaperOutline, IoSchoolOutline, IoStatsChartOutline,
@@ -254,9 +255,7 @@ const DepartmentDetail = () => {
     </div>
   );
 
-  if (loading) {
-    return <div>Loading...</div>;
-  }
+    if (loading) {    return (      <div className="min-h-screen bg-gray-50 flex items-center justify-center">        <LoadingSpinner size="lg" />      </div>    );  }
 
   if (error || !department) {
     return <div>Error: {error || 'Không tìm thấy thông tin khoa'}</div>;

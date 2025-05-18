@@ -20,6 +20,7 @@ import Certificate from '../components/Certificate';
 import { UserIcon } from '@heroicons/react/outline';
 import CollaboratorsList from '../components/CollaboratorsList';
 import EventFeedbackList from '../components/EventFeedbackList';
+import LoadingSpinner from '../components/LoadingSpinner';
 
 const PostDetails: React.FC = () => {
   const { id } = useParams();
@@ -511,7 +512,7 @@ const PostDetails: React.FC = () => {
       <main className="container mx-auto px-4 py-8">
         {loading ? (
           <div className="flex justify-center items-center h-[calc(100vh-200px)]">
-            <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-orange-500"></div>
+            <LoadingSpinner size="lg" />
           </div>
         ) : error || !post ? (
           <div className="text-center py-12">
@@ -736,7 +737,22 @@ const EventSidebar: React.FC<EventSidebarProps> = ({ event, currentParticipants,
                     {participant.fullName}
                   </p>
                   <p className="text-xs text-gray-500">
-                    {participant.registrationStatus === 'approved' ? 'Đã tham gia' : 'Đã hủy'}
+                    {(() => {
+                      switch(participant.registrationStatus) {
+                        case 'approved':
+                          return 'Đã đăng ký';
+                        case 'attended':
+                          return 'Đã tham gia';
+                        case 'pending':
+                          return 'Đang chờ duyệt';
+                        case 'rejected':
+                          return 'Đã từ chối';
+                        case 'cancelled':
+                          return 'Đã hủy';
+                        default:
+                          return participant.registrationStatus || 'Không xác định';
+                      }
+                    })()}
                   </p>
                 </div>
               </div>

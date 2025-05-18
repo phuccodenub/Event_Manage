@@ -3,13 +3,14 @@ import { FaStar } from 'react-icons/fa';
 import feedbackService from '../services/feedbackService';
 import { FeedbackItem } from '../services/feedbackService';
 import { IoClose } from 'react-icons/io5';
+import { UserIcon } from '@heroicons/react/outline';
 
 interface EventFeedbackListProps {
   eventId: string;
 }
 
 interface AvatarWithUrl {
-  url: string;
+  url?: string;
   public_id?: string;
 }
 
@@ -273,20 +274,16 @@ const EventFeedbackList: React.FC<EventFeedbackListProps> = ({ eventId }) => {
               <div key={item._id} className="p-5 bg-white rounded-lg shadow-sm border border-gray-100 hover:border-orange-100 transition-colors">
                 <div className="flex items-start">
                   <div className="flex-shrink-0">
-                    {item.user.avatar ? (
+                    {item.user.avatar?.url? (
                       <img 
-                        src={typeof item.user.avatar === 'string' 
-                          ? item.user.avatar 
-                          : (item.user.avatar as AvatarWithUrl)?.url || ''} 
+                        src={item.user.avatar?.url} 
                         alt={item.user.fullName} 
-                        className="w-12 h-12 rounded-full object-cover border-2 border-orange-100"
+                        className="w-12 h-12 rounded-full object-cover border-2 border-orange-200"
                       />
                     ) : (
-                      <div className="w-12 h-12 bg-orange-100 rounded-full flex items-center justify-center border-2 border-orange-50">
-                        <span className="text-orange-600 font-semibold text-lg">
-                          {item.user.fullName.charAt(0)}
-                        </span>
-                      </div>
+                        <div className="w-12 h-12 rounded-full border-2 border-orange-200 bg-gray-100 flex items-center justify-center flex-shrink-0">
+                            <UserIcon className="w-6 h-6 text-gray-400" />
+                        </div>
                     )}
                   </div>
                   
