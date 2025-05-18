@@ -9,6 +9,7 @@ const errorHandler = require('./middleware/error');
 const connectDB = require('./config/db');
 const { createServer } = require('http');
 const { Server } = require('socket.io');
+const cron = require('node-cron');
 
 // Load env vars với đường dẫn tuyệt đối
 dotenv.config({ path: path.resolve(__dirname, '.env') });
@@ -177,6 +178,19 @@ const PORT = process.env.PORT || 5000;
 
 const server = httpServer.listen(PORT, () => {
   console.log(`Server running in ${process.env.NODE_ENV} mode on port ${PORT}`);
+  
+  // Set up cron job for updating event statuses and sending feedback notifications
+  // Run every 15 minutes
+  cron.schedule('*/15 * * * *', async () => {
+    try {
+      console.log('Running scheduled event status update...');
+      const Event = require('./models/eventModel');
+      await Event.updateEventStatus();
+      console.log('Scheduled event status update completed');
+    } catch (error) {
+      console.error('Error in scheduled event status update:', error);
+    }
+  });
 });
 
 // Handle unhandled promise rejections

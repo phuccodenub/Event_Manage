@@ -27,6 +27,8 @@ interface JoinEventButtonProps {
     fields: FormField[];
   };
   isCompact?: boolean;
+  creatorId?: string;
+  organizerId?: string;
 }
 
 const JoinEventButton: React.FC<JoinEventButtonProps> = ({
@@ -39,6 +41,8 @@ const JoinEventButton: React.FC<JoinEventButtonProps> = ({
   status,
   registrationForm,
   isCompact,
+  creatorId,
+  organizerId,
 }) => {
   const { user } = useAuth();
   const { fetchNotifications } = useNotifications();
@@ -49,6 +53,9 @@ const JoinEventButton: React.FC<JoinEventButtonProps> = ({
   const [formErrors, setFormErrors] = useState<{[key: string]: string}>({});
   const [registrationFields, setRegistrationFields] = useState<FormField[]>([]);
   const [windowWidth, setWindowWidth] = useState(typeof window !== 'undefined' ? window.innerWidth : 0);
+
+  const isCreator = user?._id === creatorId;
+  const isOrganizer = user?._id === organizerId;
 
   useEffect(() => {
     const handleResize = () => {
@@ -113,11 +120,19 @@ const JoinEventButton: React.FC<JoinEventButtonProps> = ({
 
   const updateNotifications = async () => {
     try {
+      // Check socket status
       getSocketStatus();
       
+      // Give the backend time to create notifications
       await new Promise(resolve => setTimeout(resolve, 500));
       
-      await fetchNotifications();
+      // Try fetching notifications multiple times with delay between attempts
+      for (let attempt = 0; attempt < 3; attempt++) {
+        await fetchNotifications();
+        if (attempt < 2) {
+          await new Promise(resolve => setTimeout(resolve, 1000));
+        }
+      }
     } catch (error) {
       console.error('Failed to update notifications:', error);
     }
@@ -190,6 +205,10 @@ const JoinEventButton: React.FC<JoinEventButtonProps> = ({
       setIsLoading(false);
     }
   };
+
+  if (!user || isCreator || isOrganizer) {
+    return null;
+  }
 
   const tooltipText = hasJoined ? 'Hủy tham gia' : 'Tham gia ngay';
 

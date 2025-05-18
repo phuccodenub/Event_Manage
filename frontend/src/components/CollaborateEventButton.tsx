@@ -33,6 +33,9 @@ interface CollaborateEventButtonProps {
   status?: string;
   // New prop for compact mode
   isCompact?: boolean;
+  // Add organizer and creator ids for checking
+  organizerId?: string;
+  creatorId?: string;
 }
 
 const CollaborateEventButton: React.FC<CollaborateEventButtonProps> = ({
@@ -48,6 +51,9 @@ const CollaborateEventButton: React.FC<CollaborateEventButtonProps> = ({
   status,
   // Default to auto-responsive mode if not specified
   isCompact,
+  // Event owner props
+  organizerId,
+  creatorId,
 }) => {
   const { user } = useAuth();
   const { fetchNotifications } = useNotifications();
@@ -107,9 +113,21 @@ const CollaborateEventButton: React.FC<CollaborateEventButtonProps> = ({
     }
   };
 
+  // Check if user is organizer or creator of the event
+  const isOrganizer = user?._id === organizerId;
+  const isCreator = user?._id === creatorId;
+  const hasFullAccess = user?.role === 'admin' || user?.role === 'superadmin' || 
+                       user?.role === 'department_admin' || user?.role === 'department_head';
+
   // Check collaborator status directly from API when component mounts
   useEffect(() => {
     if (!eventId || !user || !user._id) return;
+
+    // Skip check if user is organizer or creator
+    if (isOrganizer || isCreator) {
+      setIsInitialized(true);
+      return;
+    }
 
     const checkCollaboratorStatus = async () => {
       setIsLoading(true);
@@ -142,7 +160,10 @@ const CollaborateEventButton: React.FC<CollaborateEventButtonProps> = ({
               setCollaboratorStatus(userCollaborator.status);
             } else {
               // If no status info in event, fetch from collaborators endpoint
-              await fetchDetailedStatus(user._id, eventId);
+              // Chỉ gọi hàm nếu user._id là một chuỗi hợp lệ
+              if (user._id) {
+                await fetchDetailedStatus(user._id, eventId);
+              }
             }
           }
         }
@@ -162,7 +183,7 @@ const CollaborateEventButton: React.FC<CollaborateEventButtonProps> = ({
     };
     
     checkCollaboratorStatus();
-  }, [eventId, user, isUserCollaborator]);
+  }, [eventId, user, isUserCollaborator, isOrganizer, isCreator]);
 
   const handleJoinAsCollaborator = useCallback(async () => {
     if (!user || !eventId) return;
@@ -174,7 +195,15 @@ const CollaborateEventButton: React.FC<CollaborateEventButtonProps> = ({
       
       // Update local state
       setIsCollaborator(true);
-      setCollaboratorStatus('pending');
+      
+      // For users with fullAccess roles, immediately set to approved
+      if (hasFullAccess) {
+        setCollaboratorStatus('approved');
+        toast.success('Bạn đã được tự động duyệt làm cộng tác viên');
+      } else {
+        setCollaboratorStatus('pending');
+        toast.success(response.message || 'Đã gửi yêu cầu làm cộng tác viên thành công');
+      }
       
       // Update global state if needed
       if (onJoinSuccess) {
@@ -183,9 +212,6 @@ const CollaborateEventButton: React.FC<CollaborateEventButtonProps> = ({
       
       // Refresh the collaborator list to get the updated status
       await fetchCollaborators(eventId);
-      
-      // Show success message
-      toast.success(response.message || 'Đã gửi yêu cầu làm cộng tác viên thành công');
       
       // Update notifications
       await updateNotifications();
@@ -210,7 +236,7 @@ const CollaborateEventButton: React.FC<CollaborateEventButtonProps> = ({
     } finally {
       setIsLoading(false);
     }
-  }, [user, eventId, onJoinSuccess, fetchCollaborators]);
+  }, [user, eventId, onJoinSuccess, fetchCollaborators, hasFullAccess]);
 
   const handleLeaveAsCollaborator = useCallback(async () => {
     if (!user || !eventId) return;
@@ -255,12 +281,20 @@ const CollaborateEventButton: React.FC<CollaborateEventButtonProps> = ({
 
   const updateNotifications = async () => {
     try {
+      // Check socket status
       const socketStatus = getSocketStatus();
       console.log('Socket status:', socketStatus);
       
+      // Give the backend time to create notifications
       await new Promise(resolve => setTimeout(resolve, 500));
       
-      await fetchNotifications();
+      // Try fetching notifications multiple times with delay between attempts
+      for (let attempt = 0; attempt < 3; attempt++) {
+        await fetchNotifications();
+        if (attempt < 2) {
+          await new Promise(resolve => setTimeout(resolve, 1000));
+        }
+      }
     } catch (error) {
       console.error('Failed to update notifications:', error);
     }
@@ -278,20 +312,25 @@ const CollaborateEventButton: React.FC<CollaborateEventButtonProps> = ({
     return true;
   }, [endDate, status]);
 
-  // If no user or event is inactive, don't show the button
-  if (!user || !isEventActive()) {
+  // Don't show button if:
+  // 1. No user is logged in
+  // 2. Event is inactive (cancelled or ended)
+  // 3. User is the event organizer or creator
+  if (!user || !isEventActive() || isOrganizer || isCreator) {
     return null;
   }
 
   // If not initialized yet, show loading state
   if (!isInitialized) {
     return (
-      <button 
-        disabled
-        className="relative flex items-center justify-center gap-2 py-2.5 px-4 rounded-lg transition-colors border border-gray-300 text-gray-400 bg-gray-50"
-      >
-        <span className="animate-pulse">Đang tải...</span>
-      </button>
+      <div className="inline-block relative">
+        <button 
+          disabled
+          className="transition-colors px-5 py-2 rounded-xl font-medium bg-gray-200 text-gray-400 cursor-not-allowed"
+        >
+          <span className="animate-pulse">Đang tải...</span>
+        </button>
+      </div>
     );
   }
 
@@ -302,28 +341,24 @@ const CollaborateEventButton: React.FC<CollaborateEventButtonProps> = ({
 
   // Determine button appearance based on status
   let buttonText = isCollaborator ? 'Hủy CTV' : 'Đăng ký CTV';
-  let buttonIcon = isCollaborator ? <RiUserUnfollowLine /> : <RiUserAddLine />;
-  let buttonClass = isCollaborator
-    ? 'border border-red-500 text-red-500 hover:bg-red-50'
-    : 'border border-blue-500 text-blue-500 hover:bg-blue-50';
+  let buttonIcon = isCollaborator ? <RiUserUnfollowLine className="h-5 w-5" /> : <RiUserAddLine className="h-5 w-5" />;
+  let buttonClass = '';
   const isButtonDisabled = isLoading;
   
   // Adjust based on approval status
   if (isCollaborator && collaboratorStatus) {
     if (collaboratorStatus === 'pending') {
       buttonText = 'Đang chờ duyệt';
-      buttonIcon = <RiTimeLine />;
-      buttonClass = 'border border-amber-500 text-amber-500 hover:bg-amber-50';
-      // Don't disable the button - allow cancellation
+      buttonIcon = <RiTimeLine className="h-5 w-5" />;
     } else if (collaboratorStatus === 'approved') {
       buttonText = 'Đã là CTV';
-      buttonIcon = <RiUserReceivedLine />;
-      buttonClass = 'border border-green-500 text-green-500 hover:bg-green-50';
+      buttonIcon = <RiUserReceivedLine className="h-5 w-5" />;
     } else if (collaboratorStatus === 'rejected') {
       buttonText = 'Đã bị từ chối';
-      buttonClass = 'border border-gray-500 text-gray-500 hover:bg-gray-50';
     }
   }
+
+  const tooltipText = buttonText;
 
   // Show confirmation dialog for canceling a pending request
   if (showCancelConfirm) {
@@ -347,22 +382,54 @@ const CollaborateEventButton: React.FC<CollaborateEventButtonProps> = ({
     );
   }
   
+  // Style button based on status (similar to JoinEventButton)
+  if (isCollaborator) {
+    if (collaboratorStatus === 'pending') {
+      buttonClass = 'border-2 border-amber-500 text-amber-500 hover:bg-amber-50';
+    } else if (collaboratorStatus === 'approved') {
+      buttonClass = 'border-2 border-green-600 text-green-600 hover:bg-green-50';
+    } else if (collaboratorStatus === 'rejected') {
+      buttonClass = 'border-2 border-gray-500 text-gray-500 hover:bg-gray-50';
+    } else {
+      buttonClass = 'border-2 border-red-600 text-red-600 hover:bg-red-50';
+    }
+  } else {
+    buttonClass = 'bg-blue-600 text-white hover:bg-blue-700';
+  }
+  
   // Show compact or full version based on props or screen size
   return (
-    <button
-      onClick={isCollaborator ? handleLeaveAsCollaborator : handleJoinAsCollaborator}
-      disabled={isButtonDisabled}
-      className={`relative flex items-center justify-center gap-2 py-2.5 px-4 rounded-lg transition-colors ${buttonClass} ${
-        isLoading ? 'opacity-50 cursor-not-allowed' : ''
-      }`}
-      title={showCompact ? buttonText : undefined}
-    >
-      {collaboratorStatus === 'pending' && (
-        <span className="absolute -top-1 -right-1 w-3 h-3 bg-amber-500 rounded-full animate-pulse"></span>
+    <div className="inline-block relative group">
+      <button
+        onClick={isCollaborator ? handleLeaveAsCollaborator : handleJoinAsCollaborator}
+        disabled={isButtonDisabled}
+        title={tooltipText}
+        aria-label={tooltipText}
+        className={`transition-colors ${
+          showCompact 
+            ? `p-2 rounded-full flex items-center justify-center ${buttonClass}`
+            : `px-5 py-2 rounded-xl font-medium ${buttonClass}`
+        } ${isLoading ? 'opacity-70 cursor-not-allowed' : ''}`}
+      >
+        {showCompact ? (
+          isLoading ? (
+            <div className="h-5 w-5 border-2 border-t-transparent border-white rounded-full animate-spin"></div>
+          ) : (
+            buttonIcon
+          )
+        ) : (
+          isLoading 
+            ? 'Đang xử lý...'
+            : buttonText
+        )}
+      </button>
+
+      {showCompact && (
+        <div className="absolute left-1/2 -translate-x-1/2 bottom-full mb-2 px-2 py-1 bg-gray-800 text-white text-xs rounded opacity-0 group-hover:opacity-100 transition-opacity duration-200 whitespace-nowrap pointer-events-none z-10">
+          {tooltipText}
+        </div>
       )}
-      {buttonIcon}
-      {!showCompact && <span>{buttonText}</span>}
-    </button>
+    </div>
   );
 };
 

@@ -645,19 +645,14 @@ const Home: React.FC = () => {
               </span> */}
             </div>
             <div className="flex items-center gap-2">
-              <JoinEventButton
+              <JoinEventButton 
                 eventId={event._id}
-                participants={event.participants}
+                participants={event.participants || []}
                 startDate={event.startDate}
                 endDate={event.endDate}
                 status={event.status}
-                registrationForm={event.registrationForm}
-                onJoinSuccess={() => {
-                  updateEventParticipants(event._id, user?._id, true);
-                }}
-                onLeaveSuccess={() => {
-                  updateEventParticipants(event._id, user?._id, false);
-                }}
+                creatorId={event.creator?._id}
+                organizerId={event.organizer?._id}
               />
               
               {user && event.status !== 'cancelled' && event.status !== 'completed' && (
@@ -665,6 +660,8 @@ const Home: React.FC = () => {
                   eventId={event._id}
                   status={event.status}
                   collaborators={event.collaborators || []}
+                  organizerId={event.organizer?._id}
+                  creatorId={event.creator?._id}
                 />
               )}
             </div>

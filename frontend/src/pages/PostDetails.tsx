@@ -19,6 +19,7 @@ import { formatDescriptionWithLinks } from '@/utils/linkUtils';
 import Certificate from '../components/Certificate';
 import { UserIcon } from '@heroicons/react/outline';
 import CollaboratorsList from '../components/CollaboratorsList';
+import EventFeedbackList from '../components/EventFeedbackList';
 
 const PostDetails: React.FC = () => {
   const { id } = useParams();
@@ -392,12 +393,10 @@ const PostDetails: React.FC = () => {
                 startDate={typeof post.startDate === 'string' ? new Date(post.startDate) : post.startDate}
                 endDate={typeof post.endDate === 'string' ? new Date(post.endDate) : post.endDate}
                 status={post.status}
-                onJoinSuccess={() => {
-                  handleParticipantUpdate(true);
-                }}
-                onLeaveSuccess={() => {
-                  handleParticipantUpdate(false);
-                }}
+                onJoinSuccess={() => handleParticipantUpdate(true)}
+                onLeaveSuccess={() => handleParticipantUpdate(false)}
+                creatorId={post.creator?._id}
+                organizerId={post.organizer?._id}
               />
               
               {/* Collaborator Button */}
@@ -411,6 +410,8 @@ const PostDetails: React.FC = () => {
                     endDate={typeof post.endDate === 'string' ? new Date(post.endDate) : post.endDate}
                     onJoinSuccess={() => handleCollaboratorUpdate(true)}
                     onLeaveSuccess={() => handleCollaboratorUpdate(false)}
+                    organizerId={post.organizer?._id}
+                    creatorId={post.creator?._id}
                   />
                 )
               }
@@ -418,6 +419,15 @@ const PostDetails: React.FC = () => {
           </div>
         </div>
       </div>
+
+      {/* Event Feedback Section - Only show for completed events */}
+      {post.status === 'completed' && (
+        <div className="bg-white rounded-lg shadow-sm mt-4 overflow-hidden">
+          <div className="p-6">
+            <EventFeedbackList eventId={post._id} />
+          </div>
+        </div>
+      )}
     </div>
   );
 
@@ -609,6 +619,8 @@ const EventSidebar: React.FC<EventSidebarProps> = ({ event, currentParticipants,
               status={event.status}
               onJoinSuccess={() => handleParticipantUpdate(true)}
               onLeaveSuccess={() => handleParticipantUpdate(false)}
+              creatorId={event.creator?._id}
+              organizerId={event.organizer?._id}
             />
             
             {/* Collaborator Button */}
@@ -619,6 +631,8 @@ const EventSidebar: React.FC<EventSidebarProps> = ({ event, currentParticipants,
                 collaborators={currentCollaborators}
                 onJoinSuccess={() => handleCollaboratorUpdate(true)}
                 onLeaveSuccess={() => handleCollaboratorUpdate(false)}
+                organizerId={event.organizer?._id}
+                creatorId={event.creator?._id}
               />
             )}
           </div>

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useEvents } from '../context/EventContext';
 import { UserIcon } from '@heroicons/react/outline';
@@ -46,6 +46,21 @@ interface ErrorWithMessage {
   message?: string;
 }
 
+// Định nghĩa interface cho event details
+interface EventDetails {
+  _id: string;
+  title: string;
+  creator?: {
+    _id: string;
+    fullName?: string;
+  };
+  organizer?: {
+    _id: string;
+    fullName?: string;
+  };
+  // Thêm các trường khác nếu cần
+}
+
 const CollaboratorsList: React.FC<CollaboratorListProps> = ({ eventId, onUpdate }) => {
   const { user } = useAuth();
   const { currentCollaboratorList, fetchCollaborators, currentEvent } = useEvents();
@@ -55,14 +70,75 @@ const CollaboratorsList: React.FC<CollaboratorListProps> = ({ eventId, onUpdate 
   const [rejectionReason, setRejectionReason] = useState('');
   const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
   const [selectedUserName, setSelectedUserName] = useState<string>('');
+  const [eventDetails, setEventDetails] = useState<EventDetails | null>(null);
+  const [loadingEventDetails, setLoadingEventDetails] = useState(true);
+  const [showPermissionGuide, setShowPermissionGuide] = useState(false);
+  
+  // Fetch event details to get correct creator and organizer info
+  useEffect(() => {
+    const fetchEventDetails = async () => {
+      try {
+        setLoadingEventDetails(true);
+        const response = await eventService.getEventById(eventId);
+        if (response.success && response.data) {
+          setEventDetails(response.data);
+          console.log("Event details loaded:", response.data);
+        }
+      } catch (error) {
+        console.error("Error fetching event details:", error);
+      } finally {
+        setLoadingEventDetails(false);
+      }
+    };
+    
+    fetchEventDetails();
+  }, [eventId]);
   
   // Check for admin privileges or creator/organizer status
   const isAdmin = user?.role === 'admin';
-  const isCreator = currentEvent && user?._id === currentEvent.creator?._id;
-  const isOrganizer = currentEvent && user?._id === currentEvent.organizer?._id;
+  
+  // Use eventDetails for more accurate creator/organizer check
+  const isCreator = user?._id && eventDetails?.creator?._id === user._id;
+  const isOrganizer = user?._id && eventDetails?.organizer?._id === user._id;
+  
+  // Fallback to currentEvent if eventDetails isn't loaded yet
+  const isCreatorFallback = !eventDetails && currentEvent && user?._id === currentEvent.creator?._id;
+  const isOrganizerFallback = !eventDetails && currentEvent && user?._id === currentEvent.organizer?._id;
   
   // Only admins, creators, and organizers have admin access
-  const hasAdminAccess = isAdmin || isCreator || isOrganizer;
+  const hasAdminAccess = isAdmin || isCreator || isOrganizer || isCreatorFallback || isOrganizerFallback;
+  
+  // Auto-show permission guide on first load for admin users
+  useEffect(() => {
+    // Nếu người dùng là creator hoặc organizer và thông tin sự kiện đã được tải
+    if ((isCreator || isOrganizer) && !loadingEventDetails) {
+      setShowPermissionGuide(true);
+      
+      // Tự động ẩn sau 5 giây
+      const timer = setTimeout(() => {
+        setShowPermissionGuide(false);
+      }, 5000);
+      
+      return () => clearTimeout(timer);
+    }
+  }, [isCreator, isOrganizer, loadingEventDetails]);
+  
+  // Debug log permissions info
+  useEffect(() => {
+    if (process.env.NODE_ENV === 'development') {
+      console.log('Collaborator Permissions Debug:', {
+        userId: user?._id,
+        eventCreatorId: eventDetails?.creator?._id,
+        eventOrganizerId: eventDetails?.organizer?._id,
+        isAdmin,
+        isCreator,
+        isOrganizer,
+        isCreatorFallback,
+        isOrganizerFallback,
+        hasAdminAccess
+      });
+    }
+  }, [user, eventDetails, currentEvent, isAdmin, isCreator, isOrganizer, isCreatorFallback, isOrganizerFallback, hasAdminAccess]);
   
   // Convert the list to collaborators with status, ensuring safety
   let collaborators: Collaborator[] = [];
@@ -261,6 +337,9 @@ const CollaboratorsList: React.FC<CollaboratorListProps> = ({ eventId, onUpdate 
     );
   }
   
+  // Hiển thị thông báo cho người không có quyền admin khi có yêu cầu đang chờ phê duyệt
+  const showRequestPendingMessage = pendingCollaborators.length > 0 && !hasAdminAccess && user;
+  
   // Render a Facebook-style pending request card
   const renderPendingCollaboratorCard = (collaborator: Collaborator) => {
     // Make sure collaborator has proper structure
@@ -434,6 +513,14 @@ const CollaboratorsList: React.FC<CollaboratorListProps> = ({ eventId, onUpdate 
   
   return (
     <div className="space-y-6">
+      {/* Thông báo cho người dùng thông thường khi có yêu cầu đang chờ phê duyệt */}
+      {/*showRequestPendingMessage && (
+        <div className="bg-yellow-50 border border-yellow-100 rounded-lg p-4 text-sm text-yellow-700">
+          <p className="font-medium">Có {pendingCollaborators.length} yêu cầu đang chờ phê duyệt</p>
+          <p>Chỉ người tạo sự kiện, người tổ chức và quản trị viên mới có quyền phê duyệt yêu cầu làm cộng tác viên.</p>
+        </div>
+      )}*/}
+      
       {/* Pending requests section - Facebook style */}
       {pendingCollaborators.length > 0 && hasAdminAccess && (
         <div className="bg-white border border-gray-200 rounded-lg shadow-sm overflow-hidden">
@@ -441,7 +528,56 @@ const CollaboratorsList: React.FC<CollaboratorListProps> = ({ eventId, onUpdate 
             <h3 className="font-semibold text-lg text-gray-900 flex items-center">
               <span className="w-2 h-2 bg-amber-500 rounded-full mr-2 animate-pulse"></span>
               Yêu cầu làm cộng tác viên ({pendingCollaborators.length})
+              
+              {/* Icon dấu hỏi cho creator và organizer */}
+              {!loadingEventDetails && (isCreator || isOrganizer) && (
+                <button 
+                  onClick={() => setShowPermissionGuide(!showPermissionGuide)}
+                  className="ml-2 inline-flex items-center justify-center w-6 h-6 rounded-full bg-blue-500 text-white hover:bg-blue-600 transition-all hover:shadow-md relative group"
+                  title="Thông tin về quyền phê duyệt"
+                  aria-label="Hiển thị thông tin về quyền phê duyệt"
+                >
+                  <span className="text-xs font-bold">?</span>
+                  
+                  {/* Hiệu ứng gợi ý khi người dùng chưa từng click */}
+                  {/*!showPermissionGuide && (
+                    <span className="absolute -top-1 -right-1 w-3 h-3 bg-red-500 rounded-full animate-ping"></span>
+                  )*/}
+                  
+                  {/* Tooltip hiển thị khi hover */}
+                  <span 
+                    className="fixed transform -translate-x-1/2 px-3 py-2 bg-gray-800 text-white text-xs rounded opacity-0 group-hover:opacity-100 transition-opacity duration-200 whitespace-nowrap pointer-events-none z-[9999] shadow-lg border border-gray-700" 
+                    style={{ bottom: 'calc(100% + 20px)', left: '50%', marginBottom: '15px' }}
+                  >
+                    Quyền phê duyệt
+                  </span>
+                </button>
+              )}
             </h3>
+            
+            {/* Hiển thị trạng thái loading khi đang tải dữ liệu */}
+            {loadingEventDetails ? (
+              <div className="mt-2 p-3 bg-gray-50 border border-gray-100 rounded-md text-sm text-gray-600 animate-pulse">
+                <p className="font-medium">Đang tải thông tin sự kiện...</p>
+              </div>
+            ) : (
+              /* Hướng dẫn cho creator và organizer */
+              showPermissionGuide && (isCreator || isOrganizer) && (
+                <div className="mt-2 p-3 bg-blue-50 border border-blue-100 rounded-md text-sm text-blue-700">
+                  <div className="flex justify-between">
+                    <p className="font-medium">Bạn có quyền phê duyệt yêu cầu làm cộng tác viên</p>
+                    <button 
+                      onClick={() => setShowPermissionGuide(false)}
+                      className="text-blue-500 hover:text-blue-700"
+                    >
+                      &times;
+                    </button>
+                  </div>
+                  <p>Với vai trò là <span className="font-bold">{isCreator ? 'Người tạo sự kiện' : 'Người tổ chức'}</span>, bạn có thể chấp nhận hoặc từ chối các yêu cầu làm cộng tác viên bên dưới.</p>
+                  <p className="mt-1 text-xs">Sự kiện: {eventDetails?.title || currentEvent?.title || 'Đang tải...'}</p>
+                </div>
+              )
+            )}
           </div>
           
           <div className="divide-y divide-gray-100">

@@ -152,20 +152,15 @@ const RightSidebar: React.FC = () => {
                   className="mt-4 right-0 flex flex-col sm:flex-row sm:justify-end gap-2"
                   onClick={(e) => e.stopPropagation()}
                 >
-                  <JoinEventButton
+                  <JoinEventButton 
                     eventId={event._id}
-                    participants={event.participants}
-                    onJoinSuccess={() => {
-                      if (user?._id) {
-                        updateEventParticipants(event._id, user._id, true);
-                      }
-                    }}
-                    onLeaveSuccess={() => {
-                      if (user?._id) {
-                        updateEventParticipants(event._id, user._id, false);
-                      }
-                    }}
+                    participants={event.participants || []}
+                    startDate={event.startDate}
+                    endDate={event.endDate}
+                    status={event.status}
                     isCompact={true}
+                    creatorId={event.creator?._id}
+                    organizerId={event.organizer?._id}
                   />
                   
                   {user && user._id && event.status !== 'cancelled' && event.status !== 'completed' && (
@@ -174,6 +169,8 @@ const RightSidebar: React.FC = () => {
                       status={event.status}
                       collaborators={event.collaborators || []}
                       isCompact={true}
+                      organizerId={event.organizer?._id}
+                      creatorId={event.creator?._id}
                     />
                   )}
                 </div>

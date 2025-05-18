@@ -161,8 +161,30 @@ exports.updateEvent = async (req, res, next) => {
           if (!Array.isArray(eventData[field])) {
             eventData[field] = [];
           }
+          
+          // Đặc biệt xử lý cho mảng collaborators để đảm bảo mỗi phần tử đều có trường user
+          if (field === 'collaborators' && Array.isArray(eventData[field])) {
+            eventData[field] = eventData[field].filter(item => {
+              // Đảm bảo mỗi phần tử là đối tượng hợp lệ
+              if (!item || typeof item !== 'object') return false;
+              
+              // Đảm bảo có trường user hợp lệ
+              return item.user && (typeof item.user === 'string' || (typeof item.user === 'object' && item.user._id));
+            });
+            
+            // Nếu không có dữ liệu mới, sử dụng dữ liệu cũ để tránh mất thông tin
+            if (eventData[field].length === 0 && oldEvent && oldEvent[field]) {
+              eventData[field] = oldEvent[field];
+            }
+          }
         } catch (e) {
-          eventData[field] = [];
+          console.error(`Error processing ${field} array:`, e);
+          // Nếu có lỗi khi xử lý dữ liệu, giữ lại dữ liệu cũ
+          if (oldEvent && oldEvent[field]) {
+            eventData[field] = oldEvent[field];
+          } else {
+            eventData[field] = [];
+          }
         }
       }
     });
@@ -412,8 +434,12 @@ exports.leaveEvent = async (req, res, next) => {
       // Gửi thông báo sau khi đã commit transaction thành công
       try {
         const participant = await User.findById(req.user._id);
-        await NotificationService.createEventLeaveNotification(event, participant);
-        console.log('Leave event notification sent');
+        if (participant) {
+          await NotificationService.createEventLeaveNotification(event, participant);
+          console.log('Leave event notification sent');
+        } else {
+          console.error('User not found for leave notification:', req.user._id);
+        }
       } catch (notificationError) {
         console.error('Error sending leave notification:', notificationError);
         // Không throw lỗi ở đây để không ảnh hưởng đến response
@@ -539,12 +565,26 @@ exports.joinEventAsCollaborator = async (req, res, next) => {
     session.startTransaction();
     
     try {      
-      // Thêm user vào danh sách chờ duyệt collaborators với trạng thái pending
+      // Kiểm tra xem người dùng có quyền đặc biệt không
+      const isAdmin = ['admin', 'superadmin', 'department_head', 'department_admin'].includes(req.user.role);
+      const isCreator = event.creator.toString() === req.user.id;
+      const isOrganizer = event.organizer.toString() === req.user.id;
+      
+      // Người tạo, tổ chức, và admin đều có quyền phê duyệt
+      const hasFullAccess = isAdmin || isCreator || isOrganizer;
+      
+      // Thêm user vào danh sách collaborators với trạng thái tương ứng
       const newCollaborator = {
         user: req.user._id,
-        status: 'pending',
+        status: hasFullAccess ? 'approved' : 'pending', // Tự động phê duyệt
         requestedAt: new Date()
       };
+      
+      // Nếu là admin, thêm thông tin phê duyệt luôn
+      if (hasFullAccess) {
+        newCollaborator.approvedAt = new Date();
+        newCollaborator.approvedBy = req.user._id; // Tự phê duyệt
+      }
       
       await Event.findByIdAndUpdate(
         event._id,
@@ -557,25 +597,22 @@ exports.joinEventAsCollaborator = async (req, res, next) => {
         req.user._id,        
         { $addToSet: { collaboratorEvents: event._id } },        
         { session }      
-      );      
-      
-      // Gửi thông báo cho người tạo sự kiện     
-      await NotificationService.createNotification({        
-        recipient: event.creator,        
-        sender: req.user._id,        
-        type: 'event_collaborator_request',        
-        title: `Yêu cầu làm CTV sự kiện`,        
-        message: `${req.user.fullName} đã gửi yêu cầu làm cộng tác viên cho sự kiện "${event.title}"`,        
-        relatedModel: 'Event',        
-        relatedId: event._id,
-        link: `/events/${event._id}/collaborators`
-      });      
+      );
+
+      // Gửi thông báo cho người tạo sự kiện
+      await NotificationService.createCollaboratorJoinNotification(
+        event, 
+        req.user, 
+        hasFullAccess // Truyền flag auto-approved
+      );
       
       await session.commitTransaction();            
       
       res.status(200).json({        
         success: true,        
-        message: 'Đã gửi yêu cầu làm cộng tác viên thành công. Vui lòng chờ phê duyệt.'     
+        message: hasFullAccess 
+          ? 'Bạn đã được tự động phê duyệt làm cộng tác viên thành công.' 
+          : 'Đã gửi yêu cầu làm cộng tác viên thành công. Vui lòng chờ phê duyệt.'     
       });    
     } catch (error) {      
       await session.abortTransaction();      
@@ -595,27 +632,73 @@ exports.leaveEventAsCollaborator = async (req, res, next) => {
     const event = await Event.findById(req.params.id);    
     if (!event) {      
       return next(new ErrorResponse('Event not found', 404));    
-    }    
+    }
+
+    // Kiểm tra vai trò người dùng và cấu trúc collaborators
+    const isAdmin = req.user.role === 'admin' || req.user.role === 'superadmin';
     
-    // Kiểm tra xem user có phải là collaborator không    
-    const isCollaborator = event.collaborators.some(
-      collab => collab.user && collab.user.toString() === req.user._id.toString()
-    );
+    // Cải thiện cách kiểm tra isCollaborator để xử lý các trường hợp khác nhau của cấu trúc dữ liệu
+    const isCollaborator = event.collaborators.some(collab => {
+      if (!collab) return false;
+      
+      // Trường hợp 1: collab.user là một string (ObjectId)
+      if (collab.user && typeof collab.user === 'string') {
+        return collab.user === req.user._id.toString();
+      }
+      
+      // Trường hợp 2: collab.user là một đối tượng
+      if (collab.user && typeof collab.user === 'object' && collab.user._id) {
+        return collab.user._id.toString() === req.user._id.toString();
+      }
+      
+      // Trường hợp 3: collab là một string (ObjectId người dùng)
+      if (typeof collab === 'string') {
+        return collab === req.user._id.toString();
+      }
+      
+      // Trường hợp 4: collab là một đối tượng người dùng
+      if (typeof collab === 'object' && collab._id) {
+        return collab._id.toString() === req.user._id.toString();
+      }
+      
+      return false;
+    });
     
-    if (!isCollaborator) {      
+    console.log('Leave collaborator check:', { isAdmin, isCollaborator, userId: req.user._id });
+    
+    // Admin luôn có thể hủy, những người khác phải là collaborator
+    if (!isAdmin && !isCollaborator) {      
       return next(new ErrorResponse('Bạn không phải là cộng tác viên của sự kiện này', 400));    
     }
     
-    const session = await mongoose.startSession();    
+    const session = await mongoose.startSession();
     session.startTransaction();    
     
     try {      
-      // Xóa user khỏi collaborators      
-      await Event.findByIdAndUpdate(
-        event._id,
+      // Xóa user khỏi collaborators bằng updateOne với $pull      
+      await Event.updateOne(
+        { _id: event._id },
         { $pull: { collaborators: { user: req.user._id } } },
         { session }
       );
+      
+      // Thêm trường hợp đặc biệt nếu người dùng là admin
+      if (isAdmin && !isCollaborator) {
+        // Log thông tin để debug
+        console.log('Admin leaving event as collaborator but not found in standard format');
+        
+        // Thử các cách khác để xóa user khỏi collaborators
+        await Event.updateOne(
+          { _id: event._id },
+          { 
+            $pull: { 
+              collaborators: req.user._id,
+              'collaborators': { 'user._id': req.user._id }
+            } 
+          },
+          { session }
+        );
+      }
       
       // Cập nhật collaboratorEvents của user      
       await User.findByIdAndUpdate(        
@@ -625,15 +708,7 @@ exports.leaveEventAsCollaborator = async (req, res, next) => {
       );      
       
       // Gửi thông báo      
-      await NotificationService.createNotification({        
-        recipient: event.creator,        
-        sender: req.user._id,        
-        type: 'event_collaborator_leave',        
-        title: `Hủy đăng ký CTV sự kiện`,        
-        message: `${req.user.fullName} đã hủy đăng ký làm CTV cho sự kiện "${event.title}"`,        
-        relatedModel: 'Event',        
-        relatedId: event._id,      
-      });      
+      await NotificationService.createCollaboratorLeaveNotification(event, req.user);
       
       await session.commitTransaction();            
       
@@ -641,7 +716,7 @@ exports.leaveEventAsCollaborator = async (req, res, next) => {
         success: true,        
         message: 'Đã hủy đăng ký làm cộng tác viên thành công'      
       });    
-    } catch (error) {      
+    } catch (error) {
       await session.abortTransaction();      
       throw error;    
     } finally {
@@ -689,12 +764,20 @@ exports.approveCollaborator = async (req, res, next) => {
       return next(new ErrorResponse('Yêu cầu này đã được phê duyệt trước đó', 400));
     }
     
-    // Cập nhật trạng thái
-    event.collaborators[collaboratorIndex].status = 'approved';
-    event.collaborators[collaboratorIndex].approvedAt = new Date();
-    event.collaborators[collaboratorIndex].approvedBy = req.user._id;
-    
-    await event.save();
+    // Cập nhật trạng thái sử dụng updateOne thay vì cập nhật trực tiếp object
+    await Event.updateOne(
+      { 
+        _id: id, 
+        'collaborators.user': userId 
+      },
+      { 
+        $set: { 
+          'collaborators.$.status': 'approved',
+          'collaborators.$.approvedAt': new Date(),
+          'collaborators.$.approvedBy': req.user._id
+        } 
+      }
+    );
     
     // Tìm thông tin người dùng được phê duyệt
     const approvedUser = await User.findById(userId);
@@ -767,15 +850,21 @@ exports.rejectCollaborator = async (req, res, next) => {
       return next(new ErrorResponse('Yêu cầu này đã bị từ chối trước đó', 400));
     }
     
-    // Cập nhật trạng thái
-    event.collaborators[collaboratorIndex].status = 'rejected';
+    // Cập nhật trạng thái sử dụng updateOne
+    const updateObject = { 'collaborators.$.status': 'rejected' };
     
     // Lưu lý do từ chối nếu có
     if (req.body.reason) {
-      event.collaborators[collaboratorIndex].rejectionReason = req.body.reason;
+      updateObject['collaborators.$.rejectionReason'] = req.body.reason;
     }
     
-    await event.save();
+    await Event.updateOne(
+      { 
+        _id: id, 
+        'collaborators.user': userId 
+      },
+      { $set: updateObject }
+    );
     
     // Xóa sự kiện khỏi danh sách collaboratorEvents của người dùng
     await User.findByIdAndUpdate(

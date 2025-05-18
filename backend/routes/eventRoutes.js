@@ -21,6 +21,15 @@ const {
 } = require('../controllers/eventController');
 const Event = require('../models/eventModel'); // Assuming Event model is imported
 
+const { getPendingFeedbackEvents } = require('../controllers/feedbackController');
+
+// Include feedback routes
+const feedbackRoutes = require('./feedbackRoutes');
+router.use('/:eventId/feedback', feedbackRoutes);
+
+// Get events with pending feedback
+router.get('/pending-feedback', protect, getPendingFeedbackEvents);
+
 // Participants routes (đặt trước các routes dùng :id)
 router.get('/:id/participants', protect, getEventParticipants);
 

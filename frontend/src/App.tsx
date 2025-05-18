@@ -3,6 +3,7 @@ import AppRouter from "../src/routes/index";
 import { ToastContainer } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 import { DataPrefetcher } from './components/DataPrefetcher';
+import FeedbackHandler from './components/FeedbackHandler';
 
 function App() {
   return (
@@ -22,6 +23,7 @@ function App() {
           containerId="event-notifications"
           style={{ width: "auto", maxWidth: "420px" }}
         />
+        <FeedbackHandler />
       </DataPrefetcher>
     </Router>
   );

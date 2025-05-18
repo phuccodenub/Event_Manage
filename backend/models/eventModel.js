@@ -230,6 +230,7 @@ eventSchema.pre('save', async function(next) {
 eventSchema.statics.updateEventStatus = async function() {
   const now = new Date();
   
+  // Find events that just changed to ongoing
   await this.updateMany(
     {
       startDate: { $lte: now },
@@ -239,6 +240,13 @@ eventSchema.statics.updateEventStatus = async function() {
     { $set: { status: 'ongoing' } }
   );
 
+  // Find events that just completed
+  const justCompletedEvents = await this.find({
+    endDate: { $lte: now },
+    status: { $ne: 'completed' }
+  });
+  
+  // Update the status to completed
   await this.updateMany(
     {
       endDate: { $lte: now },
@@ -246,6 +254,25 @@ eventSchema.statics.updateEventStatus = async function() {
     },
     { $set: { status: 'completed' } }
   );
+  
+  // If we found events that just completed, send feedback requests for them
+  if (justCompletedEvents.length > 0) {
+    try {
+      const feedbackController = require('../controllers/feedbackController');
+      
+      // Send feedback requests for each completed event
+      for (const event of justCompletedEvents) {
+        try {
+          console.log(`Automatically sending feedback requests for event: ${event.title} (${event._id})`);
+          await feedbackController.sendFeedbackNotificationsAuto(event._id);
+        } catch (error) {
+          console.error(`Error sending auto feedback for event ${event._id}:`, error);
+        }
+      }
+    } catch (error) {
+      console.error('Error loading feedback controller for auto notifications:', error);
+    }
+  }
 
   await this.updateMany(
     {
