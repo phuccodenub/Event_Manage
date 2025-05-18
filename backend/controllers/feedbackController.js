@@ -83,7 +83,7 @@ exports.createFeedback = async (req, res, next) => {
 /**
  * @desc    Get all feedback for an event
  * @route   GET /api/v1/events/:eventId/feedback
- * @access  Private
+ * @access  Public
  */
 exports.getEventFeedback = async (req, res, next) => {
   try {
@@ -93,15 +93,6 @@ exports.getEventFeedback = async (req, res, next) => {
     const event = await Event.findById(eventId);
     if (!event) {
       return next(new ErrorResponse('Không tìm thấy sự kiện', 404));
-    }
-
-    // Check if user has permission (Admin or event organizer)
-    const isAdmin = req.user.role === 'admin';
-    const isOrganizer = event.organizer && event.organizer.toString() === req.user._id.toString();
-    const isCreator = event.creator && event.creator.toString() === req.user._id.toString();
-
-    if (!isAdmin && !isOrganizer && !isCreator) {
-      return next(new ErrorResponse('Không có quyền truy cập', 403));
     }
 
     // Get feedback

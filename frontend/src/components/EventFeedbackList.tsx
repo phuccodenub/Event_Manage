@@ -43,9 +43,12 @@ const EventFeedbackList: React.FC<EventFeedbackListProps> = ({ eventId }) => {
         } else {
           setError('Không thể tải đánh giá');
         }
-      } catch (error) {
+      } catch (error: unknown) {
         console.error('Error fetching feedback:', error);
-        setError('Đã xảy ra lỗi khi tải đánh giá');
+        // Attempt to extract error message if available
+        const errorResponse = error as { response?: { data?: { message?: string } } };
+        const errorMessage = errorResponse?.response?.data?.message || 'Đã xảy ra lỗi khi tải đánh giá';
+        setError(errorMessage);
       } finally {
         setLoading(false);
       }
@@ -253,62 +256,74 @@ const EventFeedbackList: React.FC<EventFeedbackListProps> = ({ eventId }) => {
       
       {renderStats()}
       
-      <div className="space-y-5">
-        {filteredFeedbackItems.length > 0 ? (
-          filteredFeedbackItems.map((item) => (
-            <div key={item._id} className="p-5 bg-white rounded-lg shadow-sm border border-gray-100 hover:border-orange-100 transition-colors">
-              <div className="flex items-start">
-                <div className="flex-shrink-0">
-                  {item.user.avatar ? (
-                    <img 
-                      src={typeof item.user.avatar === 'string' 
-                        ? item.user.avatar 
-                        : (item.user.avatar as AvatarWithUrl)?.url || ''} 
-                      alt={item.user.fullName} 
-                      className="w-12 h-12 rounded-full object-cover border-2 border-orange-100"
-                    />
-                  ) : (
-                    <div className="w-12 h-12 bg-orange-100 rounded-full flex items-center justify-center border-2 border-orange-50">
-                      <span className="text-orange-600 font-semibold text-lg">
-                        {item.user.fullName.charAt(0)}
-                      </span>
-                    </div>
-                  )}
-                </div>
-                
-                <div className="ml-4 flex-1">
-                  <div className="flex justify-between items-center mb-2">
-                    <h3 className="font-medium text-gray-900">{item.user.fullName}</h3>
-                    <span className="text-sm text-gray-500">{formatDate(item.createdAt)}</span>
+      {filteredFeedbackItems.length > 0 ? (
+        <div 
+          className={`
+            overflow-y-auto pr-2 rounded-lg 
+            ${filteredFeedbackItems.length > 5 ? 'max-h-[500px]' : ''}
+            custom-scrollbar
+          `}
+          style={{
+            scrollbarWidth: 'thin',
+            scrollbarColor: '#FED7AA #F3F4F6'
+          }}
+        >
+          <div className="space-y-5">
+            {filteredFeedbackItems.map((item) => (
+              <div key={item._id} className="p-5 bg-white rounded-lg shadow-sm border border-gray-100 hover:border-orange-100 transition-colors">
+                <div className="flex items-start">
+                  <div className="flex-shrink-0">
+                    {item.user.avatar ? (
+                      <img 
+                        src={typeof item.user.avatar === 'string' 
+                          ? item.user.avatar 
+                          : (item.user.avatar as AvatarWithUrl)?.url || ''} 
+                        alt={item.user.fullName} 
+                        className="w-12 h-12 rounded-full object-cover border-2 border-orange-100"
+                      />
+                    ) : (
+                      <div className="w-12 h-12 bg-orange-100 rounded-full flex items-center justify-center border-2 border-orange-50">
+                        <span className="text-orange-600 font-semibold text-lg">
+                          {item.user.fullName.charAt(0)}
+                        </span>
+                      </div>
+                    )}
                   </div>
                   
-                  <div className="mb-3">
-                    {renderStars(item.rating)}
-                  </div>
-                  
-                  {item.content && (
-                    <div className="mt-3 p-3 bg-gray-50 rounded-lg border border-gray-100">
-                      <p className="text-gray-700 whitespace-pre-line">{item.content}</p>
+                  <div className="ml-4 flex-1">
+                    <div className="flex justify-between items-center mb-2">
+                      <h3 className="font-medium text-gray-900">{item.user.fullName}</h3>
+                      <span className="text-sm text-gray-500">{formatDate(item.createdAt)}</span>
                     </div>
-                  )}
-                  
-                  {renderTags(item.tags)}
+                    
+                    <div className="mb-3">
+                      {renderStars(item.rating)}
+                    </div>
+                    
+                    {item.content && (
+                      <div className="mt-3 p-3 bg-gray-50 rounded-lg border border-gray-100">
+                        <p className="text-gray-700 whitespace-pre-line">{item.content}</p>
+                      </div>
+                    )}
+                    
+                    {renderTags(item.tags)}
+                  </div>
                 </div>
               </div>
-            </div>
-          ))
-        ) : (
-          <div className="p-8 text-center bg-gray-50 rounded-lg border border-orange-100">
-            <p className="text-orange-700">Không có đánh giá nào liên quan đến "{activeTagFilter}"</p>
-            <button 
-              onClick={clearFilters}
-              className="mt-2 px-4 py-2 bg-orange-50 text-orange-700 rounded-md hover:bg-orange-100 text-sm font-medium"
-            >
-              Xóa bộ lọc
-            </button>
+            ))}
           </div>
-        )}
-      </div>
+        </div>
+      ) : (
+        <div className="p-8 text-center bg-gray-50 rounded-lg border border-orange-100">
+          <p className="text-orange-700">Không có đánh giá nào liên quan đến "{activeTagFilter}"</p>
+          <button 
+            onClick={clearFilters}
+            className="mt-2 px-4 py-2 bg-orange-50 text-orange-700 rounded-md hover:bg-orange-100 text-sm font-medium"
+          >
+            Xóa bộ lọc
+          </button>
+        </div>
+      )}
     </div>
   );
 };

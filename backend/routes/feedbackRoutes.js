@@ -18,8 +18,7 @@ router.get('/check', protect, checkFeedbackEligibility);
 router.post('/notify', protect, sendFeedbackNotifications);
 
 // Routes for creating and getting feedback
-router.route('/')
-  .post(protect, createFeedback)
-  .get(protect, getEventFeedback);
+router.post('/', protect, createFeedback);
+router.get('/', getEventFeedback);
 
 module.exports = router; 

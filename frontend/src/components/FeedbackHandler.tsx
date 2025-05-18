@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback, useRef } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useNotifications } from '../context/NotificationContext';
@@ -23,19 +23,21 @@ const FeedbackHandler: React.FC = () => {
   const [eventTitle, setEventTitle] = useState<string>('');
   const [eventImage, setEventImage] = useState<string>('');
   const [checkedForPendingFeedback, setCheckedForPendingFeedback] = useState<boolean>(false);
-  // Add a state to track displayed event IDs to prevent showing the same event multiple times
-  const [displayedEventIds, setDisplayedEventIds] = useState<Set<string>>(new Set());
+  // Use useRef instead of useState for tracking displayed events to avoid re-renders
+  const displayedEventIdsRef = useRef<Set<string>>(new Set());
+  // Processing flag to prevent concurrent operations
+  const isProcessingRef = useRef<boolean>(false);
 
   // Check for pending feedback on initial load
   useEffect(() => {
-    if (user && !checkedForPendingFeedback) {
+    if (user && !checkedForPendingFeedback && !isProcessingRef.current) {
       checkForPendingFeedback();
     }
   }, [user, checkedForPendingFeedback]);
   
   // Check for feedback request in URL params
   useEffect(() => {
-    if (user && location.search) {
+    if (user && location.search && !isProcessingRef.current) {
       const queryParams = new URLSearchParams(location.search);
       const shouldShowFeedback = queryParams.get('feedback') === 'true';
       
@@ -44,7 +46,7 @@ const FeedbackHandler: React.FC = () => {
         const pathParts = location.pathname.split('/');
         const possibleEventId = pathParts[pathParts.indexOf('events') + 1];
         
-        if (possibleEventId && !displayedEventIds.has(possibleEventId)) {
+        if (possibleEventId && !displayedEventIdsRef.current.has(possibleEventId)) {
           setEventId(possibleEventId);
           checkAndShowFeedbackModal(possibleEventId);
           
@@ -57,33 +59,45 @@ const FeedbackHandler: React.FC = () => {
         }
       }
     }
-  }, [location, user, navigate, displayedEventIds]);
+  }, [location, user, navigate]);
 
   // Listen for feedback notifications
   useEffect(() => {
-    if (!notifications || notifications.length === 0) return;
+    if (!notifications || notifications.length === 0 || isProcessingRef.current || showFeedbackModal) return;
 
     // Find the most recent unread feedback request notification
     const feedbackNotification = notifications.find(
-      n => n.type === 'event_feedback_request' as any && !n.read && n.relatedId
+      n => (n.type as string) === 'event_feedback_request' && !n.read && n.relatedId
     );
 
     if (feedbackNotification && feedbackNotification.relatedId && 
-        !displayedEventIds.has(feedbackNotification.relatedId.toString())) {
+        !displayedEventIdsRef.current.has(feedbackNotification.relatedId.toString())) {
       console.log('Detected feedback request notification:', feedbackNotification);
       
-      // Check if user can submit feedback
-      checkAndShowFeedbackModal(feedbackNotification.relatedId.toString());
+      // Set processing flag
+      isProcessingRef.current = true;
       
-      // Mark notification as read
-      markAsRead(feedbackNotification._id).catch(err => 
-        console.error('Error marking notification as read:', err)
-      );
+      // Check if user can submit feedback
+      checkAndShowFeedbackModal(feedbackNotification.relatedId.toString())
+        .then(() => {
+          // Mark notification as read
+          return markAsRead(feedbackNotification._id);
+        })
+        .catch(err => {
+          console.error('Error processing feedback notification:', err);
+        })
+        .finally(() => {
+          // Clear processing flag
+          isProcessingRef.current = false;
+        });
     }
-  }, [notifications, markAsRead, displayedEventIds]);
+  }, [notifications, markAsRead, showFeedbackModal]);
 
   // Check for pending feedback events (events the user has attended but not yet provided feedback)
   const checkForPendingFeedback = async () => {
+    if (isProcessingRef.current) return;
+    
+    isProcessingRef.current = true;
     try {
       const response = await feedbackService.getPendingFeedbackEvents();
       setCheckedForPendingFeedback(true);
@@ -97,7 +111,8 @@ const FeedbackHandler: React.FC = () => {
         const eventIdStr = mostRecentEvent._id.toString();
         
         // Don't show if we've already displayed this event in this session
-        if (displayedEventIds.has(eventIdStr)) {
+        if (displayedEventIdsRef.current.has(eventIdStr)) {
+          isProcessingRef.current = false;
           return;
         }
         
@@ -113,11 +128,15 @@ const FeedbackHandler: React.FC = () => {
       }
     } catch (error) {
       console.error('Error checking for pending feedback:', error);
+    } finally {
+      isProcessingRef.current = false;
     }
   };
 
   // Check eligibility and show feedback modal
   const checkAndShowFeedbackModal = useCallback(async (id: string, showToast = true) => {
+    if (displayedEventIdsRef.current.has(id)) return;
+    
     try {
       const response = await feedbackService.checkFeedbackEligibility(id);
       
@@ -132,7 +151,7 @@ const FeedbackHandler: React.FC = () => {
           }
           
           // Add to displayed events to prevent showing again this session
-          setDisplayedEventIds(prev => new Set(prev).add(id));
+          displayedEventIdsRef.current.add(id);
           
           // Show the modal
           setShowFeedbackModal(true);
