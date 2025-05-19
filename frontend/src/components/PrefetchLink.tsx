@@ -3,6 +3,7 @@ import { Link, LinkProps } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import authService from '../services/authService';
 import eventService from '../services/eventService';
+import communityService from '../services/communityService';
 
 interface PrefetchLinkProps extends LinkProps {
   prefetchType?: 'events' | 'user' | 'community' | 'none';
@@ -43,8 +44,8 @@ export const PrefetchLink: React.FC<PrefetchLinkProps> = ({
         case 'community':
           // Prefetch community data if needed
           queryClient.prefetchQuery({
-            queryKey: ['communityGroups'],
-            queryFn: () => Promise.resolve([]),
+            queryKey: ['communities'],
+            queryFn: () => communityService.getAllCommunities(),
           });
           queryClient.prefetchQuery({
             queryKey: ['communityDiscussions'],

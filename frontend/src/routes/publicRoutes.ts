@@ -22,6 +22,8 @@ import DepartmentDetail from "@/pages/DepartmentDetail";
 import EventCheckin from "@/pages/EventCheckin";
 import SubmissionsPage from "@/pages/SubmissionsPage";
 import Certificates from "@/pages/Certificates";
+import CommunityList from "@/components/community/CommunityList";
+import CommunityDetail from "@/components/community/CommunityDetail";
 
 const PublicRoutes = () => {
   return React.createElement(
@@ -30,7 +32,8 @@ const PublicRoutes = () => {
     React.createElement(Route, { path: "/", component: Home }),
     React.createElement(Route, { path: "/login", component: Login }),
     React.createElement(Route, { path: "/events", component: Events }),
-    React.createElement(Route, { path: "/community", component: Community }),
+    React.createElement(Route, { path: "/community", component: CommunityList }),
+    React.createElement(Route, { path: "/community/:id", component: CommunityDetail }),
     React.createElement(Route, { path: "/notifications", component: AllNotifications }),
     React.createElement(Route, { path: "/profile/:id", component: Profile }),
     React.createElement(Route, { path: "/setting", component: Setting }),

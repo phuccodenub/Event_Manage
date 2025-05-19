@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { useLocation } from "wouter";
-import PublicRoutes from "./PublicRoutes";
-import PrivateRoutes from "./PrivateRoutes";
+import PublicRoutes from "./publicRoutes";
+import PrivateRoutes from "./privateRoutes";
 import authService from '../services/authService';
 
 const Router = () => {
