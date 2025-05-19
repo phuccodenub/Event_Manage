@@ -178,6 +178,26 @@ const userService = {
                  'Lỗi khi tải dữ liệu sự kiện' 
       };
     }
+  },
+
+  updatePrivacySettings: async (settings: { showProfileToOthers: boolean }): Promise<User> => {
+    try {
+      const response = await apiClient.put('/users/me/privacy', settings);
+      
+      if (!response.data?.success) {
+        throw new Error(response.data?.message || 'Không thể cập nhật cài đặt quyền riêng tư');
+      }
+      
+      return response.data?.data;
+    } catch (error: any) {
+      console.error('Privacy settings update error:', error.response || error);
+      throw new Error(
+        error.response?.data?.message || 
+        error.response?.data?.error || 
+        error.message || 
+        'Không thể cập nhật cài đặt quyền riêng tư'
+      );
+    }
   }
 };
 

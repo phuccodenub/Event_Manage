@@ -159,6 +159,11 @@ const userSchema = new mongoose.Schema({
     type: String,
     sparse: true
   },
+  showProfileToOthers: {
+    type: Boolean,
+    default: true,
+    description: 'Cho phép người dùng khác xem thông tin cơ bản của người dùng'
+  },
 }, { timestamps: true });
 
 // Mã hóa mật khẩu trước khi lưu

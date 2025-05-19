@@ -313,3 +313,38 @@ exports.changePassword = async (req, res, next) => {
   }
 };
 
+// @desc: Cập nhật cài đặt quyền riêng tư
+// @route: PUT /api/v1/users/me/privacy
+// @access: Private
+exports.updatePrivacySettings = async (req, res, next) => {
+  try {
+    const userId = req.user.id;
+    const { showProfileToOthers } = req.body;
+
+    // Validate input
+    if (typeof showProfileToOthers !== 'boolean') {
+      return next(new ErrorResponse('Giá trị showProfileToOthers phải là boolean', 400));
+    }
+
+    // Update user privacy settings
+    const updatedUser = await User.findByIdAndUpdate(
+      userId,
+      { showProfileToOthers },
+      { new: true, runValidators: true }
+    ).select('-password');
+
+    if (!updatedUser) {
+      return next(new ErrorResponse('Không tìm thấy người dùng', 404));
+    }
+
+    res.status(200).json({
+      success: true,
+      message: 'Cập nhật cài đặt quyền riêng tư thành công',
+      data: updatedUser
+    });
+  } catch (error) {
+    console.error('Error updating privacy settings:', error);
+    next(new ErrorResponse('Lỗi khi cập nhật cài đặt quyền riêng tư', 500));
+  }
+};
+

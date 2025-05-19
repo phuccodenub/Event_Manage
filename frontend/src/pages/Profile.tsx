@@ -41,6 +41,7 @@ const Profile = () => {
   const [loadingCertificates, setLoadingCertificates] = useState<boolean>(false);
   const [isOwner, setIsOwner] = useState(false);
   const [dataLoaded, setDataLoaded] = useState(false);
+  const [canViewPrivateInfo, setCanViewPrivateInfo] = useState(false);
 
   // Tải dữ liệu người dùng và chứng chỉ
   useEffect(() => {
@@ -70,7 +71,15 @@ const Profile = () => {
         setUser(userData);
         
         // Kiểm tra quyền sở hữu
-        setIsOwner(currentUser?._id === userData._id);
+        const isProfileOwner = currentUser?._id === userData._id;
+        setIsOwner(isProfileOwner);
+        
+        // Kiểm tra quyền xem thông tin riêng tư
+        // Có thể xem nếu là chủ sở hữu, là admin, hoặc người dùng cho phép xem thông tin
+        const canViewPrivate = isProfileOwner || 
+                              currentUser?.role === 'admin' || 
+                              userData.showProfileToOthers !== false;
+        setCanViewPrivateInfo(canViewPrivate);
         
         // Tải chứng chỉ nếu user có id hợp lệ
         if (userData && userData._id) {
@@ -186,7 +195,7 @@ const Profile = () => {
   };
 
   const handleGoBack = () => {
-    setLocation('/events');
+    setLocation('/');
   };
 
   // Chỉ chuyển tab, không tải dữ liệu
@@ -355,279 +364,339 @@ const Profile = () => {
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             {activeSection === 'personal' && (
               <>
-                <div className="lg:col-span-2 space-y-6">
-                  {/* Basic Information Card */}
-                  <div className="bg-white rounded-xl shadow-sm overflow-hidden">
-                    <div className="bg-gradient-to-r from-orange-500 to-orange-600 p-4">
-                      <h2 className="text-lg font-semibold text-orange-600 flex items-center">
-                        <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" viewBox="0 0 20 20" fill="currentColor">
-                          <path fillRule="evenodd" d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z" clipRule="evenodd" />
-                        </svg>
-                        Thông tin cơ bản
-                      </h2>
-                    </div>
-                    
-                    <div className="p-6 border-t border-gray-100">
-                      <div className="grid md:grid-cols-2 gap-6">
-                        <InfoField
-                          icon={IoSchoolOutline}
-                          label="MSSV"
-                          value={user?.userId || 'Chưa cập nhật'}
-                          highlight={true}
-                        />
-                        <InfoField
-                          icon={IoMailOutline}
-                          label="Email"
-                          value={user?.email || 'Chưa cập nhật'}
-                          highlight={true}
-                        />
-                        <InfoField
-                          icon={IoCallOutline}
-                          label="Số điện thoại"
-                          value={user?.phone || 'Chưa cập nhật'}
-                          isPrivate={!isOwner && !!user?.phone}
-                        />
-                        <InfoField
-                          icon={IoCalendarOutline}
-                          label="Ngày sinh"
-                          value={user?.birthday ? new Date(user.birthday).toLocaleDateString('vi-VN') : 'Chưa cập nhật'}
-                          isPrivate={!isOwner && !!user?.birthday}
-                        />
-                      </div>
-                      
-                    </div>
-                  </div>
-
-                  {/* Education Card */}
-                  <div className="bg-white rounded-xl shadow-sm overflow-hidden">
-                    <div className="bg-gradient-to-r from-blue-500 to-blue-600 p-4">
-                      <h2 className="text-lg font-semibold text-orange-600 flex items-center">
-                        <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" viewBox="0 0 20 20" fill="currentColor">
-                          <path d="M10.394 2.08a1 1 0 00-.788 0l-7 3a1 1 0 000 1.84L5.25 8.051a.999.999 0 01.356-.257l4-1.714a1 1 0 11.788 1.838L7.667 9.088l1.94.831a1 1 0 00.787 0l7-3a1 1 0 000-1.838l-7-3zM3.31 9.397L5 10.12v4.102a8.969 8.969 0 00-1.05-.174 1 1 0 01-.89-.89 11.115 11.115 0 01.25-3.762zM9.3 16.573A9.026 9.026 0 007 14.935v-3.957l1.818.78a3 3 0 002.364 0l5.508-2.361a11.026 11.026 0 01.25 3.762 1 1 0 01-.89.89 8.968 8.968 0 00-5.35 2.524 1 1 0 01-1.4 0zM6 18a1 1 0 001-1v-2.065a8.935 8.935 0 00-2-.712V17a1 1 0 001 1z" />
-                        </svg>
-                        Học vấn
-                      </h2>
-                    </div>
-                    
-                    <div className="p-6 border-t border-gray-100">
-                      <div className="flex items-center gap-4">
-                        <div className="h-16 w-16 flex-shrink-0 rounded-xl border border-blue-100 bg-blue-50 flex items-center justify-center">
-                          <img src="/hutech-logo.png" alt="HUTECH" className="h-10 w-10 object-contain" onError={(e) => {
-                            (e.target as HTMLImageElement).style.display = 'none';
-                            (e.target as HTMLImageElement).parentElement!.innerHTML = `<span class="text-3xl font-bold text-blue-500">H</span>`;
-                          }} />
+                {canViewPrivateInfo ? (
+                  <>
+                    <div className="lg:col-span-2 space-y-6">
+                      {/* Basic Information Card */}
+                      <div className="bg-white rounded-xl shadow-sm overflow-hidden">
+                        <div className="bg-gradient-to-r from-orange-500 to-orange-600 p-4">
+                          <h2 className="text-lg font-semibold text-orange-600 flex items-center">
+                            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" viewBox="0 0 20 20" fill="currentColor">
+                              <path fillRule="evenodd" d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z" clipRule="evenodd" />
+                            </svg>
+                            Thông tin cơ bản
+                          </h2>
                         </div>
-                        <div>
-                          <h3 className="font-semibold text-gray-900">HUTECH University</h3>
-                          <p className="text-sm text-gray-500 mt-1">Công nghệ thông tin • 2021 - Hiện tại</p>
-                          <div className="flex items-center mt-2">
-                            <span className="text-xs px-2 py-1 bg-blue-100 text-blue-700 rounded-full">Đang theo học</span>
+                        
+                        <div className="p-6 border-t border-gray-100">
+                          <div className="grid md:grid-cols-2 gap-6">
+                            <InfoField
+                              icon={IoSchoolOutline}
+                              label="MSSV"
+                              value={user?.userId || 'Chưa cập nhật'}
+                              highlight={true}
+                              isPrivate={false}
+                            />
+                            <InfoField
+                              icon={IoMailOutline}
+                              label="Email"
+                              value={user?.email || 'Chưa cập nhật'}
+                              highlight={true}
+                              isPrivate={false}
+                            />
+                            <InfoField
+                              icon={IoCallOutline}
+                              label="Số điện thoại"
+                              value={user?.phone || 'Chưa cập nhật'}
+                              isPrivate={false}
+                            />
+                            <InfoField
+                              icon={IoCalendarOutline}
+                              label="Ngày sinh"
+                              value={user?.birthday ? new Date(user.birthday).toLocaleDateString('vi-VN') : 'Chưa cập nhật'}
+                              isPrivate={false}
+                            />
                           </div>
                         </div>
                       </div>
-                      
-                    </div>
-                  </div>
 
-                  {/* Social Media Card */}
-                  <div className="bg-white rounded-xl shadow-sm overflow-hidden">
-                    <div className="bg-gradient-to-r from-purple-500 to-purple-600 p-4">
-                      <h2 className="text-lg font-semibold text-orange-600 flex items-center">
-                        <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" viewBox="0 0 20 20" fill="currentColor">
-                          <path d="M6 15a3 3 0 100-6 3 3 0 000 6zM14 15a3 3 0 100-6 3 3 0 000 6zM10 8a2 2 0 100-4 2 2 0 000 4z" />
-                          <path fillRule="evenodd" d="M10 3a5 5 0 00-5 5v2a5 5 0 0010 0V8a5 5 0 00-5-5zm-5 7v-2a5 5 0 0110 0v2a5 5 0 01-10 0z" clipRule="evenodd" />
-                        </svg>
-                        Liên kết mạng xã hội
-                      </h2>
-                    </div>
-                    
-                    <div className="p-6 border-t border-gray-100">
-                      {(user?.socialMedia?.facebook || user?.socialMedia?.linkedin || 
-                        user?.socialMedia?.github || user?.socialMedia?.instagram) ? (
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                          {user?.socialMedia?.facebook && (
-                            <a href={user.socialMedia.facebook} target="_blank" rel="noopener noreferrer" 
-                               className="flex items-center p-3 bg-blue-50 rounded-lg hover:bg-blue-100 transition-colors">
-                              <FaFacebook className="text-blue-600 text-xl mr-3" />
-                              <div>
-                                <div className="text-sm font-medium text-gray-800">Facebook</div>
-                                <div className="text-xs text-gray-500 truncate max-w-[200px]">{user.socialMedia.facebook}</div>
+                      {/* Education Card */}
+                      <div className="bg-white rounded-xl shadow-sm overflow-hidden">
+                        <div className="bg-gradient-to-r from-blue-500 to-blue-600 p-4">
+                          <h2 className="text-lg font-semibold text-orange-600 flex items-center">
+                            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" viewBox="0 0 20 20" fill="currentColor">
+                              <path d="M10.394 2.08a1 1 0 00-.788 0l-7 3a1 1 0 000 1.84L5.25 8.051a.999.999 0 01.356-.257l4-1.714a1 1 0 11.788 1.838L7.667 9.088l1.94.831a1 1 0 00.787 0l7-3a1 1 0 000-1.838l-7-3zM3.31 9.397L5 10.12v4.102a8.969 8.969 0 00-1.05-.174 1 1 0 01-.89-.89 11.115 11.115 0 01.25-3.762zM9.3 16.573A9.026 9.026 0 007 14.935v-3.957l1.818.78a3 3 0 002.364 0l5.508-2.361a11.026 11.026 0 01.25 3.762 1 1 0 01-.89.89 8.968 8.968 0 00-5.35 2.524 1 1 0 01-1.4 0zM6 18a1 1 0 001-1v-2.065a8.935 8.935 0 00-2-.712V17a1 1 0 001 1z" />
+                            </svg>
+                            Học vấn
+                          </h2>
+                        </div>
+                        
+                        <div className="p-6 border-t border-gray-100">
+                          <div className="flex items-center gap-4">
+                            <div className="h-16 w-16 flex-shrink-0 rounded-xl border border-blue-100 bg-blue-50 flex items-center justify-center">
+                              <img src="/hutech-logo.png" alt="HUTECH" className="h-10 w-10 object-contain" onError={(e) => {
+                                (e.target as HTMLImageElement).style.display = 'none';
+                                (e.target as HTMLImageElement).parentElement!.innerHTML = `<span class="text-3xl font-bold text-blue-500">H</span>`;
+                              }} />
+                            </div>
+                            <div>
+                              <h3 className="font-semibold text-gray-900">HUTECH University</h3>
+                              <p className="text-sm text-gray-500 mt-1">Công nghệ thông tin • 2021 - Hiện tại</p>
+                              <div className="flex items-center mt-2">
+                                <span className="text-xs px-2 py-1 bg-blue-100 text-blue-700 rounded-full">Đang theo học</span>
                               </div>
-                            </a>
-                          )}
-                          
-                          {user?.socialMedia?.linkedin && (
-                            <a href={user.socialMedia.linkedin} target="_blank" rel="noopener noreferrer" 
-                               className="flex items-center p-3 bg-blue-50 rounded-lg hover:bg-blue-100 transition-colors">
-                              <FaLinkedin className="text-blue-700 text-xl mr-3" />
-                              <div>
-                                <div className="text-sm font-medium text-gray-800">LinkedIn</div>
-                                <div className="text-xs text-gray-500 truncate max-w-[200px]">{user.socialMedia.linkedin}</div>
-                              </div>
-                            </a>
-                          )}
-                          
-                          {user?.socialMedia?.github && (
-                            <a href={user.socialMedia.github} target="_blank" rel="noopener noreferrer" 
-                               className="flex items-center p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors">
-                              <FaGithub className="text-gray-800 text-xl mr-3" />
-                              <div>
-                                <div className="text-sm font-medium text-gray-800">GitHub</div>
-                                <div className="text-xs text-gray-500 truncate max-w-[200px]">{user.socialMedia.github}</div>
-                              </div>
-                            </a>
-                          )}
-                          
-                          {user?.socialMedia?.instagram && (
-                            <a href={user.socialMedia.instagram} target="_blank" rel="noopener noreferrer" 
-                               className="flex items-center p-3 bg-pink-50 rounded-lg hover:bg-pink-100 transition-colors">
-                              <FaInstagram className="text-pink-600 text-xl mr-3" />
-                              <div>
-                                <div className="text-sm font-medium text-gray-800">Instagram</div>
-                                <div className="text-xs text-gray-500 truncate max-w-[200px]">{user.socialMedia.instagram}</div>
-                              </div>
-                            </a>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Social Media Card */}
+                      <div className="bg-white rounded-xl shadow-sm overflow-hidden">
+                        <div className="bg-gradient-to-r from-purple-500 to-purple-600 p-4">
+                          <h2 className="text-lg font-semibold text-orange-600 flex items-center">
+                            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" viewBox="0 0 20 20" fill="currentColor">
+                              <path d="M6 15a3 3 0 100-6 3 3 0 000 6zM14 15a3 3 0 100-6 3 3 0 000 6zM10 8a2 2 0 100-4 2 2 0 000 4z" />
+                              <path fillRule="evenodd" d="M10 3a5 5 0 00-5 5v2a5 5 0 0010 0V8a5 5 0 00-5-5zm-5 7v-2a5 5 0 0110 0v2a5 5 0 01-10 0z" clipRule="evenodd" />
+                            </svg>
+                            Liên kết mạng xã hội
+                          </h2>
+                        </div>
+                        
+                        <div className="p-6 border-t border-gray-100">
+                          {(user?.socialMedia?.facebook || user?.socialMedia?.linkedin || 
+                            user?.socialMedia?.github || user?.socialMedia?.instagram) ? (
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                              {user?.socialMedia?.facebook && (
+                                <a href={user.socialMedia.facebook} target="_blank" rel="noopener noreferrer" 
+                                  className="flex items-center p-3 bg-blue-50 rounded-lg hover:bg-blue-100 transition-colors">
+                                  <FaFacebook className="text-blue-600 text-xl mr-3" />
+                                  <div>
+                                    <div className="text-sm font-medium text-gray-800">Facebook</div>
+                                    <div className="text-xs text-gray-500 truncate max-w-[200px]">{user.socialMedia.facebook}</div>
+                                  </div>
+                                </a>
+                              )}
+                              
+                              {user?.socialMedia?.linkedin && (
+                                <a href={user.socialMedia.linkedin} target="_blank" rel="noopener noreferrer" 
+                                  className="flex items-center p-3 bg-blue-50 rounded-lg hover:bg-blue-100 transition-colors">
+                                  <FaLinkedin className="text-blue-700 text-xl mr-3" />
+                                  <div>
+                                    <div className="text-sm font-medium text-gray-800">LinkedIn</div>
+                                    <div className="text-xs text-gray-500 truncate max-w-[200px]">{user.socialMedia.linkedin}</div>
+                                  </div>
+                                </a>
+                              )}
+                              
+                              {user?.socialMedia?.github && (
+                                <a href={user.socialMedia.github} target="_blank" rel="noopener noreferrer" 
+                                  className="flex items-center p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors">
+                                  <FaGithub className="text-gray-800 text-xl mr-3" />
+                                  <div>
+                                    <div className="text-sm font-medium text-gray-800">GitHub</div>
+                                    <div className="text-xs text-gray-500 truncate max-w-[200px]">{user.socialMedia.github}</div>
+                                  </div>
+                                </a>
+                              )}
+                              
+                              {user?.socialMedia?.instagram && (
+                                <a href={user.socialMedia.instagram} target="_blank" rel="noopener noreferrer" 
+                                  className="flex items-center p-3 bg-pink-50 rounded-lg hover:bg-pink-100 transition-colors">
+                                  <FaInstagram className="text-pink-600 text-xl mr-3" />
+                                  <div>
+                                    <div className="text-sm font-medium text-gray-800">Instagram</div>
+                                    <div className="text-xs text-gray-500 truncate max-w-[200px]">{user.socialMedia.instagram}</div>
+                                  </div>
+                                </a>
+                              )}
+                            </div>
+                          ) : (
+                            <div className="text-center py-6 text-gray-500">
+                              <p className="mb-2">Chưa có liên kết mạng xã hội nào</p>
+                              {isOwner && (
+                                <button 
+                                  onClick={handleEditProfile}
+                                  className="text-sm text-orange-600 hover:text-orange-700"
+                                >
+                                  + Thêm liên kết
+                                </button>
+                              )}
+                            </div>
                           )}
                         </div>
-                      ) : (
-                        <div className="text-center py-6 text-gray-500">
-                          <p className="mb-2">Chưa có liên kết mạng xã hội nào</p>
-                          {isOwner && (
-                            <button 
-                              onClick={handleEditProfile}
-                              className="text-sm text-orange-600 hover:text-orange-700"
-                            >
-                              + Thêm liên kết
-                            </button>
-                          )}
+                      </div>
+                    </div>
+
+                    {/* Sidebar */}
+                    <div className="space-y-6">
+                      {/* Thông tin quyền riêng tư cho người xem */}
+                      {!isOwner && !canViewPrivateInfo && (
+                        <div className="bg-yellow-50 rounded-xl shadow-sm p-5 text-yellow-800 text-sm">
+                          <div className="flex items-start gap-3">
+                            <div className="p-2 bg-yellow-100 rounded-full">
+                              <IoEye className="text-xl text-yellow-600" />
+                            </div>
+                            <div>
+                              <h3 className="font-medium mb-1 text-yellow-700">Thông tin bị giới hạn</h3>
+                              <p>Người dùng này đã giới hạn quyền xem hồ sơ của họ. Một số thông tin cá nhân đã được ẩn.</p>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Thống kê hoạt động Card */}
+                      <div className="bg-white rounded-xl shadow-sm overflow-hidden">
+                        <div className="bg-gradient-to-r from-green-500 to-green-600 p-4">
+                          <h2 className="text-lg font-semibold text-orange-600 flex items-center">
+                            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" viewBox="0 0 20 20" fill="currentColor">
+                              <path d="M2 11a1 1 0 011-1h2a1 1 0 011 1v5a1 1 0 01-1 1H3a1 1 0 01-1-1v-5zM8 7a1 1 0 011-1h2a1 1 0 011 1v9a1 1 0 01-1 1H9a1 1 0 01-1-1V7zM14 4a1 1 0 011-1h2a1 1 0 011 1v12a1 1 0 01-1 1h-2a1 1 0 01-1-1V4z" />
+                            </svg>
+                            Thống kê hoạt động
+                          </h2>
+                        </div>
+                        
+                        <div className="p-6 border-t border-gray-100">
+                          <div className="space-y-5">
+                            <StatItem 
+                              label="Sự kiện đã tham gia" 
+                              value={user?.uniqueEventCount?.toString() || "0"} 
+                              tooltip="Tổng số sự kiện đã tham gia (không trùng lặp)"
+                              icon={
+                                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-green-500" viewBox="0 0 20 20" fill="currentColor">
+                                  <path fillRule="evenodd" d="M6 2a1 1 0 00-1 1v1H4a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V6a2 2 0 00-2-2h-1V3a1 1 0 10-2 0v1H7V3a1 1 0 00-1-1zm0 5a1 1 0 000 2h8a1 1 0 100-2H6z" clipRule="evenodd" />
+                                </svg>
+                              }
+                            />
+                            <StatItem 
+                              label="Đăng ký làm người tham dự" 
+                              value={user?.registeredEvents?.length?.toString() || "0"}
+                              icon={
+                                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-blue-500" viewBox="0 0 20 20" fill="currentColor">
+                                  <path d="M8 9a3 3 0 100-6 3 3 0 000 6zM8 11a6 6 0 016 6H2a6 6 0 016-6zM16 7a1 1 0 10-2 0v1h-1a1 1 0 100 2h1v1a1 1 0 102 0v-1h1a1 1 0 100-2h-1V7z" />
+                                </svg>
+                              }
+                            />
+                            <StatItem 
+                              label="Đăng ký làm CTV" 
+                              value={user?.collaboratorEvents?.length?.toString() || "0"}
+                              icon={
+                                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-orange-500" viewBox="0 0 20 20" fill="currentColor">
+                                  <path d="M13 6a3 3 0 11-6 0 3 3 0 016 0zM18 8a2 2 0 11-4 0 2 2 0 014 0zM14 15a4 4 0 00-8 0v3h8v-3zM6 8a2 2 0 11-4 0 2 2 0 014 0zM16 18v-3a5.972 5.972 0 00-.75-2.906A3.005 3.005 0 0119 15v3h-3zM4.75 12.094A5.973 5.973 0 004 15v3H1v-3a3 3 0 013.75-2.906z" />
+                                </svg>
+                              }
+                            />
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Permission Note for Viewers */}
+                      {!isOwner && (
+                        <div className="bg-gradient-to-br from-blue-50 to-indigo-50 rounded-xl shadow-sm p-5 text-blue-800 text-sm">
+                          <div className="flex items-start gap-3">
+                            <div className="p-2 bg-blue-100 rounded-full">
+                              <IoShieldCheckmark className="text-xl text-blue-500" />
+                            </div>
+                            <div>
+                              <h3 className="font-medium mb-1 text-blue-700">Chế độ xem</h3>
+                              <p>Bạn đang xem hồ sơ của {user?.fullName || 'người dùng này'}. Một số thông tin cá nhân có thể được ẩn và bạn không thể thay đổi hồ sơ này.</p>
+                            </div>
+                          </div>
                         </div>
                       )}
                     </div>
-                  </div>
-
-                </div>
-
-                {/* Sidebar */}
-                <div className="space-y-6">
-                  {/* Thống kê hoạt động Card */}
-                  <div className="bg-white rounded-xl shadow-sm overflow-hidden">
-                    <div className="bg-gradient-to-r from-green-500 to-green-600 p-4">
-                      <h2 className="text-lg font-semibold text-orange-600 flex items-center">
-                        <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" viewBox="0 0 20 20" fill="currentColor">
-                          <path d="M2 11a1 1 0 011-1h2a1 1 0 011 1v5a1 1 0 01-1 1H3a1 1 0 01-1-1v-5zM8 7a1 1 0 011-1h2a1 1 0 011 1v9a1 1 0 01-1 1H9a1 1 0 01-1-1V7zM14 4a1 1 0 011-1h2a1 1 0 011 1v12a1 1 0 01-1 1h-2a1 1 0 01-1-1V4z" />
+                  </>
+                ) : (
+                  <div className="lg:col-span-3 bg-white rounded-xl shadow-sm py-12 px-6 md:px-10">
+                    <div className="flex flex-col items-center text-center max-w-2xl mx-auto">
+                      <div className="mb-6 p-4 bg-gray-100 rounded-full">
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-12 w-12 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21" />
                         </svg>
-                        Thống kê hoạt động
-                      </h2>
-                    </div>
-                    
-                    <div className="p-6 border-t border-gray-100">
-                      <div className="space-y-5">
-                        <StatItem 
-                          label="Sự kiện đã tham gia" 
-                          value={user?.uniqueEventCount?.toString() || "0"} 
-                          tooltip="Tổng số sự kiện đã tham gia (không trùng lặp)"
-                          icon={
-                            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-green-500" viewBox="0 0 20 20" fill="currentColor">
-                              <path fillRule="evenodd" d="M6 2a1 1 0 00-1 1v1H4a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V6a2 2 0 00-2-2h-1V3a1 1 0 10-2 0v1H7V3a1 1 0 00-1-1zm0 5a1 1 0 000 2h8a1 1 0 100-2H6z" clipRule="evenodd" />
-                            </svg>
-                          }
-                        />
-                        <StatItem 
-                          label="Đăng ký làm người tham dự" 
-                          value={user?.registeredEvents?.length?.toString() || "0"}
-                          icon={
-                            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-blue-500" viewBox="0 0 20 20" fill="currentColor">
-                              <path d="M8 9a3 3 0 100-6 3 3 0 000 6zM8 11a6 6 0 016 6H2a6 6 0 016-6zM16 7a1 1 0 10-2 0v1h-1a1 1 0 100 2h1v1a1 1 0 102 0v-1h1a1 1 0 100-2h-1V7z" />
-                            </svg>
-                          }
-                        />
-                        <StatItem 
-                          label="Đăng ký làm CTV" 
-                          value={user?.collaboratorEvents?.length?.toString() || "0"}
-                          icon={
-                            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-orange-500" viewBox="0 0 20 20" fill="currentColor">
-                              <path d="M13 6a3 3 0 11-6 0 3 3 0 016 0zM18 8a2 2 0 11-4 0 2 2 0 014 0zM14 15a4 4 0 00-8 0v3h8v-3zM6 8a2 2 0 11-4 0 2 2 0 014 0zM16 18v-3a5.972 5.972 0 00-.75-2.906A3.005 3.005 0 0119 15v3h-3zM4.75 12.094A5.973 5.973 0 004 15v3H1v-3a3 3 0 013.75-2.906z" />
-                            </svg>
-                          }
-                        />
                       </div>
+                      <h2 className="text-2xl font-bold text-gray-900 mb-3">Thông tin cá nhân được bảo vệ</h2>
+                      <p className="text-gray-600 mb-6">Người dùng đã giới hạn quyền xem thông tin cá nhân của họ.</p>
+                      <div className="px-5 py-2 bg-gray-100 text-gray-600 rounded-full text-sm mb-4">
+                        Không thể xem thông tin chi tiết
+                      </div>
+                      {!isOwner && (
+                        <p className="text-sm text-gray-500 max-w-lg mt-4">
+                          Bạn có thể xem hồ sơ đầy đủ của người dùng sau khi họ thay đổi cài đặt quyền riêng tư hoặc cấp quyền cho bạn.
+                        </p>
+                      )}
                     </div>
                   </div>
-
-                  {/* Permission Note for Viewers */}
-                  {!isOwner && (
-                    <div className="bg-gradient-to-br from-blue-50 to-indigo-50 rounded-xl shadow-sm p-5 text-blue-800 text-sm">
-                      <div className="flex items-start gap-3">
-                        <div className="p-2 bg-blue-100 rounded-full">
-                          <IoShieldCheckmark className="text-xl text-blue-500" />
-                        </div>
-                        <div>
-                          <h3 className="font-medium mb-1 text-blue-700">Chế độ xem</h3>
-                          <p>Bạn đang xem hồ sơ của {user?.fullName || 'người dùng này'}. Một số thông tin cá nhân có thể được ẩn và bạn không thể thay đổi hồ sơ này.</p>
-                        </div>
-                      </div>
-                    </div>
-                  )}
-                </div>
+                )}
               </>
             )}
 
             {activeSection === 'certificates' && (
               <div className="lg:col-span-3">
-                <div className="bg-white rounded-xl shadow-sm p-6">
-                  <h2 className="text-lg font-semibold text-gray-900 mb-4">Chứng nhận</h2>
-                  
-                  {loadingCertificates ? (
-                    <div className="text-center py-8">
-                      <LoadingSpinner size="sm" className="inline-block" />
-                      <p className="mt-2 text-gray-500">Đang tải chứng nhận...</p>
-                    </div>
-                  ) : error && error.includes("chứng nhận") ? (
-                    <div className="text-center py-8 text-red-500">
-                      <p>{error}</p>
-                      <button 
-                        onClick={() => user?._id && loadCertificates(user._id)}
-                        className="mt-3 px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition-colors text-sm"
-                      >
-                        Thử lại
-                      </button>
-                    </div>
-                  ) : userCertificates.length > 0 ? (
-                    <div>
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        {userCertificates.map((cert) => (
-                          <div 
-                            key={`${cert.eventId}-${cert.type}`} 
-                            className="border border-gray-200 rounded-lg overflow-hidden bg-gray-50 hover:shadow-md transition-shadow"
-                          >
-                            <div className="p-4">
-                              <h3 className="font-medium text-gray-900 mb-1">{cert.eventName}</h3>
-                              <p className="text-sm text-gray-500 mb-3">
-                                Ngày: {new Date(cert.eventDate).toLocaleDateString('vi-VN')}
-                              </p>
-                              <div className="flex items-center gap-2 text-sm">
-                                <div className="bg-green-100 text-green-700 px-2 py-1 rounded-full flex items-center">
-                                  <IoCheckmarkCircle className="mr-1" />
-                                  <span>{cert.type === 'participant' ? 'Đã tham gia' : 'Đã cộng tác'}</span>
+                {canViewPrivateInfo ? (
+                  <div className="bg-white rounded-xl shadow-sm p-6">
+                    <h2 className="text-lg font-semibold text-gray-900 mb-4">Chứng nhận</h2>
+                    
+                    {loadingCertificates ? (
+                      <div className="text-center py-8">
+                        <LoadingSpinner size="sm" className="inline-block" />
+                        <p className="mt-2 text-gray-500">Đang tải chứng nhận...</p>
+                      </div>
+                    ) : error && error.includes("chứng nhận") ? (
+                      <div className="text-center py-8 text-red-500">
+                        <p>{error}</p>
+                        <button 
+                          onClick={() => user?._id && loadCertificates(user._id)}
+                          className="mt-3 px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition-colors text-sm"
+                        >
+                          Thử lại
+                        </button>
+                      </div>
+                    ) : userCertificates.length > 0 ? (
+                      <div>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          {userCertificates.map((cert) => (
+                            <div 
+                              key={`${cert.eventId}-${cert.type}`} 
+                              className="border border-gray-200 rounded-lg overflow-hidden bg-gray-50 hover:shadow-md transition-shadow"
+                            >
+                              <div className="p-4">
+                                <h3 className="font-medium text-gray-900 mb-1">{cert.eventName}</h3>
+                                <p className="text-sm text-gray-500 mb-3">
+                                  Ngày: {new Date(cert.eventDate).toLocaleDateString('vi-VN')}
+                                </p>
+                                <div className="flex items-center gap-2 text-sm">
+                                  <div className="bg-green-100 text-green-700 px-2 py-1 rounded-full flex items-center">
+                                    <IoCheckmarkCircle className="mr-1" />
+                                    <span>{cert.type === 'participant' ? 'Đã tham gia' : 'Đã cộng tác'}</span>
+                                  </div>
                                 </div>
+                                <p className="text-xs text-gray-500 mt-3">
+                                  Để tải chứng nhận, vui lòng truy cập trang Chứng nhận
+                                </p>
                               </div>
-                              <p className="text-xs text-gray-500 mt-3">
-                                Để tải chứng nhận, vui lòng truy cập trang Chứng nhận
-                              </p>
                             </div>
-                          </div>
-                        ))}
+                          ))}
+                        </div>
                       </div>
-                    </div>
-                  ) : (
-                    <div className="text-center py-8 text-gray-500">
-                      <div className="flex justify-center mb-4">
-                        <IoDocumentTextOutline className="text-5xl text-gray-300" />
+                    ) : (
+                      <div className="text-center py-8 text-gray-500">
+                        <div className="flex justify-center mb-4">
+                          <IoDocumentTextOutline className="text-5xl text-gray-300" />
+                        </div>
+                        {isOwner ? 'Bạn chưa có chứng nhận nào' : `${user?.fullName || 'Người dùng này'} chưa có chứng nhận nào`}
                       </div>
-                      {isOwner ? 'Bạn chưa có chứng nhận nào' : `${user?.fullName || 'Người dùng này'} chưa có chứng nhận nào`}
+                    )}
+                  </div>
+                ) : (
+                  <div className="bg-white rounded-xl shadow-sm py-12 px-6 md:px-10">
+                    <div className="flex flex-col items-center text-center max-w-2xl mx-auto">
+                      <div className="mb-6 p-4 bg-gray-100 rounded-full">
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-12 w-12 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21" />
+                        </svg>
+                      </div>
+                      <h2 className="text-2xl font-bold text-gray-900 mb-3">Thông tin chứng nhận được bảo vệ</h2>
+                      <p className="text-gray-600 mb-6">Người dùng đã giới hạn quyền xem thông tin chứng nhận của họ.</p>
+                      <div className="px-5 py-2 bg-gray-100 text-gray-600 rounded-full text-sm mb-4">
+                        Không thể xem danh sách chứng nhận
+                      </div>
+                      {!isOwner && (
+                        <p className="text-sm text-gray-500 max-w-lg mt-4">
+                          Bạn có thể xem chứng nhận của người dùng sau khi họ thay đổi cài đặt quyền riêng tư.
+                        </p>
+                      )}
                     </div>
-                  )}
-                </div>
+                  </div>
+                )}
               </div>
             )}
           </div>
@@ -679,7 +748,9 @@ const InfoField = ({
       <p className="text-sm text-gray-500">{label}</p>
       {isPrivate ? (
         <p className="font-medium text-gray-400">
-          <span className="text-xs bg-gray-100 px-2 py-0.5 rounded">Hidden for privacy</span>
+          <span className="text-xs bg-gray-100 px-2 py-0.5 rounded" title="Thông tin này được bảo vệ bởi cài đặt quyền riêng tư của người dùng">
+            Thông tin bị ẩn
+          </span>
         </p>
       ) : (
         <p className={`font-medium ${highlight ? 'text-orange-700' : 'text-gray-900'}`}>{value}</p>

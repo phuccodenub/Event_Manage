@@ -25,6 +25,7 @@ export interface User {
   registeredEvents: string[];
   avatar?: Avatar;
   uniqueEventCount?: number;
+  showProfileToOthers?: boolean;
 }
 
 export interface FormField {

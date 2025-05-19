@@ -293,9 +293,42 @@ const Settings = () => {
     }
   };
 
+  // Handle toggle changes
+  const handleToggleChange = (key: string) => {
+    setPreferences(prev => {
+      const newPreferences = {
+        ...prev,
+        [key]: !prev[key as keyof typeof prev]
+      };
+      
+      // Lưu preferences vào localStorage - chỉ lưu cục bộ, không gửi lên server ngay
+      localStorage.setItem('userPreferences', JSON.stringify(newPreferences));
+      
+      return newPreferences;
+    });
+  };
+
+  // Lưu cài đặt quyền riêng tư lên server
+  const savePrivacySettings = async () => {
+    try {
+      await userService.updatePrivacySettings({ 
+        showProfileToOthers: preferences.showProfileToOthers 
+      });
+      toast.success('Cài đặt quyền riêng tư đã được cập nhật');
+    } catch (error: any) {
+      toast.error(error.message || 'Không thể cập nhật cài đặt quyền riêng tư');
+    }
+  };
+
   // Save preferences to localStorage
   const savePreferences = () => {
     localStorage.setItem('userPreferences', JSON.stringify(preferences));
+    
+    // Nếu đang ở tab quyền riêng tư, cập nhật cài đặt lên server
+    if (activeTab === 'privacy') {
+      savePrivacySettings();
+    }
+    
     toast.success('Đã lưu cài đặt của bạn');
     
     // Apply theme changes using ThemeContext
@@ -308,15 +341,6 @@ const Settings = () => {
     document.documentElement.style.fontSize = 
       preferences.fontSize === 'small' ? '14px' : 
       preferences.fontSize === 'large' ? '18px' : '16px';
-  };
-
-  // Handle toggle changes
-  const handleToggleChange = (key: string) => {
-    setPreferences(prev => {
-      const updated = { ...prev, [key]: !prev[key as keyof typeof prev] };
-      localStorage.setItem('userPreferences', JSON.stringify(updated));
-      return updated;
-    });
   };
 
   const settingTabs = [
@@ -396,7 +420,7 @@ const Settings = () => {
         </div>
       </div>
 
-      <div className="container mx-auto px-4">
+      <div className="container mx-auto px-4 mb-10">
         <div className="max-w-9xl mx-auto">
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 relative -mt-8">
             {/* Sidebar Navigation */}
@@ -1126,13 +1150,13 @@ const ToggleSetting = ({ title, description, isEnabled, onChange }: {
     </div>
     <button
       onClick={onChange}
-      className={`relative inline-flex items-center h-6 rounded-full w-11 transition-colors focus:outline-none ${
+      className={`relative inline-flex items-center justify-between h-6 w-12 flex-shrink-0 cursor-pointer rounded-full transition-colors duration-200 ease-in-out focus:outline-none ${
         isEnabled ? 'bg-orange-600' : 'bg-gray-200'
       }`}
     >
       <span
-        className={`inline-block w-5 h-5 transform bg-white rounded-full transition-transform ${
-          isEnabled ? 'translate-x-6' : 'translate-x-1'
+        className={`inline-block h-5.5 w-5.5 transform rounded-full bg-white shadow-sm ring-0 transition duration-200 ease-in-out ${
+          isEnabled ? 'translate-x-3' : 'translate-x-0'
         }`}
       />
     </button>

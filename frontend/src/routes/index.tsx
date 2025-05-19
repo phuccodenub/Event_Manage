@@ -18,7 +18,7 @@ const Router = () => {
           setUserRole(user.role);
           
           if (location === '/login') {
-            setLocation(user.role === 'admin' ? '/admin/dashboard' : '/');
+            setLocation(user.role === 'admin' ? '/' : '/');
           }
           else if (location.startsWith('/admin') && user.role !== 'admin') {
             setLocation('/');

@@ -9,7 +9,8 @@ const {
   deleteAvatar,
   resetUserPassword,
   getUserEvents,
-  changePassword
+  changePassword,
+  updatePrivacySettings
 } = require('../controllers/userController');
 const { protect, authorize } = require('../middleware/auth');
 
@@ -44,6 +45,9 @@ router.delete('/me/avatar', protect, deleteAvatar);
 
 // Password change route
 router.put('/me/password', protect, changePassword);
+
+// Privacy settings route
+router.put('/me/privacy', protect, updatePrivacySettings);
 
 // @route: POST /api/v1/users/:id/reset-password
 router.post('/:id/reset-password', protect, authorize('admin'), resetUserPassword);
