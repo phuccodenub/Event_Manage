@@ -8,7 +8,7 @@ const { deleteFromCloudinary } = require('../utils/cloudinary');
 const getAllCommunities = catchAsyncErrors(async (req, res, next) => {
   const communities = await Community.find()
     .populate('leader', 'fullName avatar')
-    .select('name description avatar members');
+    .select('name description avatar banner members');
 
   res.status(200).json({
     success: true,
@@ -87,7 +87,7 @@ const createCommunity = catchAsyncErrors(async (req, res, next) => {
       path: 'members.user',
       select: 'fullName avatar'
     });
-
+  
   res.status(201).json({
     success: true,
     community: populatedCommunity

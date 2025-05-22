@@ -6,8 +6,11 @@ import type { Community } from '../../services/communityService';
 import LoadingSpinner from '../LoadingSpinner';
 import ErrorAlert from '../ErrorAlert';
 import Header from '../Header';
-import { IoArrowBack, IoImageOutline } from 'react-icons/io5';
+import { IoArrowBack, IoImageOutline, IoTrashOutline, IoCloudUploadOutline, IoWarningOutline } from 'react-icons/io5';
 import uploadService from '../../services/uploadService';
+
+// Kích thước tối đa cho file ảnh (2MB)
+const MAX_FILE_SIZE = 2 * 1024 * 1024; 
 
 interface FormData {
   name: string;
@@ -49,6 +52,8 @@ const CommunityForm: React.FC = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [uploadProgress, setUploadProgress] = useState<{avatar: number, banner: number}>({avatar: 0, banner: 0});
+  const [imageErrors, setImageErrors] = useState<{avatar?: string, banner?: string}>({});
   const isEdit = Boolean(id);
 
   // Redirect if not admin or teacher
@@ -106,9 +111,45 @@ const CommunityForm: React.FC = () => {
     }
   };
 
+  const validateImageFile = (file: File, field: 'avatar' | 'banner'): boolean => {
+    // Kiểm tra kích thước file
+    if (file.size > MAX_FILE_SIZE) {
+      setImageErrors(prev => ({
+        ...prev,
+        [field]: `File quá lớn. Kích thước tối đa là 2MB (file hiện tại: ${(file.size / (1024 * 1024)).toFixed(2)}MB)`
+      }));
+      return false;
+    }
+    
+    // Kiểm tra loại file
+    const validTypes = ['image/jpeg', 'image/png', 'image/jpg', 'image/gif'];
+    if (!validTypes.includes(file.type)) {
+      setImageErrors(prev => ({
+        ...prev,
+        [field]: 'Định dạng file không hợp lệ. Chỉ chấp nhận JPG, PNG, GIF'
+      }));
+      return false;
+    }
+    
+    // Xóa lỗi nếu file hợp lệ
+    setImageErrors(prev => {
+      const newErrors = {...prev};
+      delete newErrors[field];
+      return newErrors;
+    });
+    
+    return true;
+  };
+
   const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>, field: 'avatar' | 'banner') => {
     const file = e.target.files?.[0];
     if (!file) return;
+    
+    // Validate file trước khi hiển thị preview
+    if (!validateImageFile(file, field)) {
+      e.target.value = ''; // Reset input file
+      return;
+    }
 
     // Tạm thời chỉ lưu URL để hiển thị preview
     const imageUrl = URL.createObjectURL(file);
@@ -119,6 +160,20 @@ const CommunityForm: React.FC = () => {
         file // Lưu file để upload sau
       }
     }));
+    
+    setUploadProgress(prev => ({...prev, [field]: 0}));
+  };
+  
+  const handleRemoveImage = (field: 'avatar' | 'banner') => {
+    setFormData(prev => ({
+      ...prev,
+      [field]: {
+        url: '',
+        public_id: undefined,
+        file: undefined
+      }
+    }));
+    setUploadProgress(prev => ({...prev, [field]: 0}));
   };
 
   const handleBackToList = () => {
@@ -131,6 +186,12 @@ const CommunityForm: React.FC = () => {
     // Validate
     if (!formData.name.trim()) {
       setError('Tên cộng đồng không được để trống');
+      return;
+    }
+    
+    // Kiểm tra nếu có lỗi file ảnh
+    if (Object.keys(imageErrors).length > 0) {
+      setError('Vui lòng khắc phục lỗi file ảnh trước khi tiếp tục');
       return;
     }
 
@@ -148,7 +209,9 @@ const CommunityForm: React.FC = () => {
       // Upload avatar nếu có
       if (formData.avatar?.file) {
         try {
+          setUploadProgress(prev => ({...prev, avatar: 10}));
           const avatarResult = await uploadService.uploadCommunityImage(formData.avatar.file, 'avatar');
+          setUploadProgress(prev => ({...prev, avatar: 100}));
           submitData.avatar = {
             public_id: avatarResult.public_id,
             url: avatarResult.url
@@ -164,7 +227,9 @@ const CommunityForm: React.FC = () => {
       // Upload banner nếu có
       if (formData.banner?.file) {
         try {
+          setUploadProgress(prev => ({...prev, banner: 10}));
           const bannerResult = await uploadService.uploadCommunityImage(formData.banner.file, 'banner');
+          setUploadProgress(prev => ({...prev, banner: 100}));
           submitData.banner = {
             public_id: bannerResult.public_id,
             url: bannerResult.url
@@ -282,8 +347,8 @@ const CommunityForm: React.FC = () => {
                 </label>
                 <div className="border border-dashed border-gray-300 bg-gray-50 rounded-lg p-4">
                   {formData.avatar?.url ? (
-                    <div className="flex flex-col items-center mb-4">
-                      <div className="w-28 h-28 rounded-lg overflow-hidden mb-2">
+                    <div className="flex flex-col items-center mb-4 relative">
+                      <div className="w-28 h-28 rounded-lg overflow-hidden mb-2 shadow-md">
                         <img
                           src={formData.avatar.url}
                           alt="Avatar preview"
@@ -295,17 +360,32 @@ const CommunityForm: React.FC = () => {
                           }}
                         />
                       </div>
-                      <p className="text-xs text-gray-500">Ảnh hiện tại</p>
+                      {/* Progress indicator */}
+                      {uploadProgress.avatar > 0 && uploadProgress.avatar < 100 && (
+                        <div className="absolute inset-0 flex items-center justify-center bg-black bg-opacity-40 rounded-lg">
+                          <div className="text-white font-bold">
+                            {uploadProgress.avatar}%
+                          </div>
+                        </div>
+                      )}
+                      {/* Remove button */}
+                      <button 
+                        type="button"
+                        onClick={() => handleRemoveImage('avatar')}
+                        className="absolute -top-2 -right-2 bg-red-100 text-red-600 rounded-full p-1 shadow-md hover:bg-red-200"
+                      >
+                        <IoTrashOutline size={16} />
+                      </button>
                     </div>
                   ) : (
-                    <div className="flex items-center justify-center h-28 mb-4">
+                    <div className="flex items-center justify-center h-28 mb-4 bg-gray-100 rounded-lg">
                       <IoImageOutline className="text-4xl text-gray-400" />
                     </div>
                   )}
                   <div className="flex items-center justify-center">
                     <label className="cursor-pointer px-4 py-2 bg-orange-50 hover:bg-orange-100 text-orange-700 rounded-lg inline-block">
                       <span className="flex items-center">
-                        <IoImageOutline className="mr-2" />
+                        <IoCloudUploadOutline className="mr-2" />
                         {formData.avatar?.url ? 'Thay đổi ảnh đại diện' : 'Tải lên ảnh đại diện'}
                       </span>
                       <input
@@ -314,11 +394,18 @@ const CommunityForm: React.FC = () => {
                         name="avatar"
                         onChange={(e) => handleImageChange(e, 'avatar')}
                         className="hidden"
-                        accept="image/*"
+                        accept="image/png, image/jpeg, image/jpg, image/gif"
                       />
                     </label>
                   </div>
-                  <p className="text-xs text-gray-500 text-center mt-2">Hỗ trợ file PNG, JPG. Kích thước tối đa 2MB</p>
+                  {imageErrors.avatar ? (
+                    <div className="mt-2 text-xs text-red-600 flex items-center">
+                      <IoWarningOutline className="mr-1 flex-shrink-0" />
+                      <span>{imageErrors.avatar}</span>
+                    </div>
+                  ) : (
+                    <p className="text-xs text-gray-500 text-center mt-2">Hỗ trợ file PNG, JPG. Kích thước tối đa 2MB</p>
+                  )}
                 </div>
               </div>
 
@@ -329,12 +416,30 @@ const CommunityForm: React.FC = () => {
                 </label>
                 <div className="border border-dashed border-gray-300 bg-gray-50 rounded-lg p-4">
                   {formData.banner?.url ? (
-                    <div className="w-full h-40 rounded-lg overflow-hidden mb-4">
-                      <img
-                        src={formData.banner.url}
-                        alt="Banner preview"
-                        className="w-full h-full object-cover"
-                      />
+                    <div className="relative">
+                      <div className="w-full h-40 rounded-lg overflow-hidden mb-4 shadow-md">
+                        <img
+                          src={formData.banner.url}
+                          alt="Banner preview"
+                          className="w-full h-full object-cover"
+                        />
+                      </div>
+                      {/* Progress indicator */}
+                      {uploadProgress.banner > 0 && uploadProgress.banner < 100 && (
+                        <div className="absolute inset-0 flex items-center justify-center bg-black bg-opacity-40 rounded-lg">
+                          <div className="text-white font-bold">
+                            {uploadProgress.banner}%
+                          </div>
+                        </div>
+                      )}
+                      {/* Remove button */}
+                      <button 
+                        type="button"
+                        onClick={() => handleRemoveImage('banner')}
+                        className="absolute top-2 right-2 bg-red-100 text-red-600 rounded-full p-1 shadow-md hover:bg-red-200"
+                      >
+                        <IoTrashOutline size={16} />
+                      </button>
                     </div>
                   ) : (
                     <div className="flex items-center justify-center h-40 mb-4 bg-gray-100 rounded-lg">
@@ -344,7 +449,7 @@ const CommunityForm: React.FC = () => {
                   <div className="flex items-center justify-center">
                     <label className="cursor-pointer px-4 py-2 bg-orange-50 hover:bg-orange-100 text-orange-700 rounded-lg inline-block">
                       <span className="flex items-center">
-                        <IoImageOutline className="mr-2" />
+                        <IoCloudUploadOutline className="mr-2" />
                         {formData.banner?.url ? 'Thay đổi ảnh bìa' : 'Tải lên ảnh bìa'}
                       </span>
                       <input
@@ -353,11 +458,18 @@ const CommunityForm: React.FC = () => {
                         name="banner"
                         onChange={(e) => handleImageChange(e, 'banner')}
                         className="hidden"
-                        accept="image/*"
+                        accept="image/png, image/jpeg, image/jpg, image/gif"
                       />
                     </label>
                   </div>
-                  <p className="text-xs text-gray-500 text-center mt-2">Kích thước tối ưu: 1200x400px</p>
+                  {imageErrors.banner ? (
+                    <div className="mt-2 text-xs text-red-600 flex items-center">
+                      <IoWarningOutline className="mr-1 flex-shrink-0" />
+                      <span>{imageErrors.banner}</span>
+                    </div>
+                  ) : (
+                    <p className="text-xs text-gray-500 text-center mt-2">Kích thước tối ưu: 1200x400px. Tối đa 2MB.</p>
+                  )}
                 </div>
               </div>
 
@@ -393,7 +505,7 @@ const CommunityForm: React.FC = () => {
                 <button
                   type="submit"
                   className="px-6 py-2.5 bg-orange-600 text-white rounded-lg hover:bg-orange-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                  disabled={isSubmitting}
+                  disabled={isSubmitting || Object.keys(imageErrors).length > 0}
                 >
                   {isSubmitting ? (
                     <span className="flex items-center">

@@ -339,51 +339,42 @@ const CollaborateEventButton: React.FC<CollaborateEventButtonProps> = ({
     setShowCancelConfirm(false);
   };
 
+  // Render button text based on collaborator status
+  const renderButtonText = () => {
+    // If loading, show loading text
+    if (isLoading) {
+      return showCompact ? 'Đang xử lý...' : 'Đang xử lý yêu cầu...';
+    }
+    
+    // User is a collaborator - show appropriate status text
+    if (isCollaborator) {
+      // Handle different statuses
+      if (collaboratorStatus === 'pending') {
+        return showCompact ? 'Chờ duyệt' : 'Đang chờ phê duyệt';
+      } else if (collaboratorStatus === 'approved') {
+        return showCancelConfirm 
+          ? (showCompact ? 'Xác nhận hủy?' : 'Xác nhận hủy đăng ký?')
+          : (showCompact ? 'Đã là CTV' : 'Bạn đã là CTV');
+      } else if (collaboratorStatus === 'rejected') {
+        return showCompact ? 'Đã từ chối' : 'Yêu cầu đã bị từ chối';
+      }
+      
+      // Default collaborator text
+      return showCompact ? 'Đã là CTV' : 'Bạn đã là CTV';
+    }
+    
+    // User is not a collaborator yet
+    return showCompact ? 'Đăng ký CTV' : 'Đăng ký làm CTV';
+  };
+
   // Determine button appearance based on status
-  let buttonText = isCollaborator ? 'Hủy CTV' : 'Đăng ký CTV';
+  let buttonText = renderButtonText();
   let buttonIcon = isCollaborator ? <RiUserUnfollowLine className="h-5 w-5" /> : <RiUserAddLine className="h-5 w-5" />;
   let buttonClass = '';
   const isButtonDisabled = isLoading;
   
   // Adjust based on approval status
   if (isCollaborator && collaboratorStatus) {
-    if (collaboratorStatus === 'pending') {
-      buttonText = 'Đang chờ duyệt';
-      buttonIcon = <RiTimeLine className="h-5 w-5" />;
-    } else if (collaboratorStatus === 'approved') {
-      buttonText = 'Đã là CTV';
-      buttonIcon = <RiUserReceivedLine className="h-5 w-5" />;
-    } else if (collaboratorStatus === 'rejected') {
-      buttonText = 'Đã bị từ chối';
-    }
-  }
-
-  const tooltipText = buttonText;
-
-  // Show confirmation dialog for canceling a pending request
-  if (showCancelConfirm) {
-    return (
-      <div className="flex items-center gap-2">
-        <span className="text-sm text-gray-600">Hủy yêu cầu?</span>
-        <button
-          onClick={handleLeaveAsCollaborator}
-          disabled={isLoading}
-          className="p-2 bg-red-500 text-white rounded hover:bg-red-600 transition disabled:opacity-50"
-        >
-          <RiCloseLine />
-        </button>
-        <button
-          onClick={handleCancelConfirmClose}
-          className="p-2 bg-gray-300 text-gray-700 rounded hover:bg-gray-400 transition"
-        >
-          <RiCloseLine />
-        </button>
-      </div>
-    );
-  }
-  
-  // Style button based on status (similar to JoinEventButton)
-  if (isCollaborator) {
     if (collaboratorStatus === 'pending') {
       buttonClass = 'border-2 border-amber-500 text-amber-500 hover:bg-amber-50';
     } else if (collaboratorStatus === 'approved') {
@@ -403,8 +394,8 @@ const CollaborateEventButton: React.FC<CollaborateEventButtonProps> = ({
       <button
         onClick={isCollaborator ? handleLeaveAsCollaborator : handleJoinAsCollaborator}
         disabled={isButtonDisabled}
-        title={tooltipText}
-        aria-label={tooltipText}
+        title={buttonText}
+        aria-label={buttonText}
         className={`transition-colors ${
           showCompact 
             ? `p-2 rounded-full flex items-center justify-center ${buttonClass}`
@@ -426,7 +417,7 @@ const CollaborateEventButton: React.FC<CollaborateEventButtonProps> = ({
 
       {showCompact && (
         <div className="absolute left-1/2 -translate-x-1/2 bottom-full mb-2 px-2 py-1 bg-gray-800 text-white text-xs rounded opacity-0 group-hover:opacity-100 transition-opacity duration-200 whitespace-nowrap pointer-events-none z-10">
-          {tooltipText}
+          {buttonText}
         </div>
       )}
     </div>

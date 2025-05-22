@@ -16,7 +16,13 @@ import {
   IoPencil,
   IoTrash,
   IoClose,
-  IoImageOutline
+  IoImageOutline,
+  IoCalendarOutline,
+  IoAddOutline,
+  IoChatbubbleOutline,
+  IoSendOutline,
+  IoTimeOutline,
+  IoLocationOutline
 } from 'react-icons/io5';
 import uploadService from '../../services/uploadService';
 
@@ -63,6 +69,12 @@ const CommunityDetail: React.FC = () => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [formData, setFormData] = useState<FormData>(initialFormData);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [activeTab, setActiveTab] = useState<'about' | 'events' | 'discussions'>('about');
+  const [showEventForm, setShowEventForm] = useState(false);
+  const [showDiscussionForm, setShowDiscussionForm] = useState(false);
+  const [newMessage, setNewMessage] = useState('');
+  const [discussions, setDiscussions] = useState<any[]>([]);
+  const [events, setEvents] = useState<any[]>([]);
 
   const isAdminOrTeacher = user && ['admin', 'teacher'].includes(user.role);
 
@@ -242,6 +254,94 @@ const CommunityDetail: React.FC = () => {
     }
   };
 
+  // Mock data for events
+  useEffect(() => {
+    if (community) {
+      // Thay thế bằng API thực tế khi triển khai
+      setEvents([
+        {
+          id: '1',
+          title: 'Workshop Lập Trình Web',
+          description: 'Học cách xây dựng website từ cơ bản đến nâng cao với các công nghệ hiện đại',
+          date: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // 7 days from now
+          location: 'Phòng Lab A1, HUTECH',
+          image: 'https://placehold.co/600x400/orange/white?text=Workshop'
+        },
+        {
+          id: '2',
+          title: 'Hackathon HUTECH 2023',
+          description: 'Cuộc thi lập trình 48 giờ để tạo ra ứng dụng giải quyết các vấn đề xã hội',
+          date: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000), // 14 days from now
+          location: 'Hội trường A, HUTECH',
+          image: 'https://placehold.co/600x400/blue/white?text=Hackathon'
+        }
+      ]);
+    }
+  }, [community]);
+
+  // Mock data for discussions
+  useEffect(() => {
+    if (community) {
+      // Thay thế bằng API thực tế khi triển khai
+      setDiscussions([
+        {
+          id: '1',
+          author: {
+            name: community.leader.fullName,
+            avatar: community.leader.avatar?.url || '/default-avatar.png',
+            role: 'Leader'
+          },
+          content: 'Chào mừng mọi người đến với cộng đồng ' + community.name + '! Hãy giới thiệu về bản thân và chia sẻ về lý do bạn tham gia cộng đồng này nhé.',
+          timestamp: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000), // 3 days ago
+          likes: 5,
+          comments: 2
+        },
+        {
+          id: '2',
+          author: {
+            name: community.members[0]?.user.fullName || 'Thành viên',
+            avatar: community.members[0]?.user.avatar?.url || '/default-avatar.png',
+            role: 'Member'
+          },
+          content: 'Mình rất vui được tham gia cộng đồng này. Mình đang tìm kiếm cơ hội để học hỏi và trao đổi kinh nghiệm với mọi người.',
+          timestamp: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000), // 2 days ago
+          likes: 3,
+          comments: 1
+        }
+      ]);
+    }
+  }, [community]);
+
+  const handleCreateEvent = () => {
+    setShowEventForm(true);
+  };
+
+  const handleCreateDiscussion = () => {
+    setShowDiscussionForm(true);
+  };
+
+  const handleSendMessage = () => {
+    if (!newMessage.trim()) return;
+    
+    // Thêm tin nhắn mới vào danh sách discussions
+    const newDiscussion = {
+      id: Date.now().toString(),
+      author: {
+        name: user?.fullName || 'Bạn',
+        avatar: user?.avatar?.url || '/default-avatar.png',
+        role: isLeader ? 'Leader' : isDeputy ? 'Deputy' : 'Member'
+      },
+      content: newMessage,
+      timestamp: new Date(),
+      likes: 0,
+      comments: 0
+    };
+    
+    setDiscussions([newDiscussion, ...discussions]);
+    setNewMessage('');
+    setShowDiscussionForm(false);
+  };
+
   if (isLoading) {
     return (
       <div className="min-h-screen flex flex-col bg-gray-50">
@@ -279,7 +379,7 @@ const CommunityDetail: React.FC = () => {
       <div className="min-h-screen flex flex-col bg-gray-50">
         <Header />
         <div className="container mx-auto px-4 py-8 text-center">
-          <h2 className="text-2xl font-bold text-gray-800">Không tìm thấy cộng đồng</h2>
+        <h2 className="text-2xl font-bold text-gray-800">Không tìm thấy cộng đồng</h2>
           <button 
             onClick={handleBackToList}
             className="mt-4 px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700"
@@ -297,28 +397,242 @@ const CommunityDetail: React.FC = () => {
   );
   const isLeader = community.leader._id === user?._id;
   const isDeputy = community.deputies?.some(deputy => deputy._id === user?._id);
-  const canManage = isLeader || isDeputy || (user && ['admin', 'teacher'].includes(user.role));
+  const canManage = isLeader || isDeputy || isAdminOrTeacher;
+
+  // Render Tab Navigation
+  const renderTabs = () => (
+    <div className="bg-white shadow rounded-lg mb-6 overflow-hidden">
+      <div className="flex border-b">
+        <button
+          className={`flex-1 py-3 px-4 text-center font-medium ${
+            activeTab === 'about' 
+              ? 'text-orange-600 border-b-2 border-orange-600' 
+              : 'text-gray-500 hover:text-gray-700'
+          }`}
+          onClick={() => setActiveTab('about')}
+        >
+          Giới thiệu
+        </button>
+        <button
+          className={`flex-1 py-3 px-4 text-center font-medium ${
+            activeTab === 'events' 
+              ? 'text-orange-600 border-b-2 border-orange-600' 
+              : 'text-gray-500 hover:text-gray-700'
+          }`}
+          onClick={() => setActiveTab('events')}
+        >
+          Sự kiện
+        </button>
+        <button
+          className={`flex-1 py-3 px-4 text-center font-medium ${
+            activeTab === 'discussions' 
+              ? 'text-orange-600 border-b-2 border-orange-600' 
+              : 'text-gray-500 hover:text-gray-700'
+          }`}
+          onClick={() => setActiveTab('discussions')}
+        >
+          Thảo luận
+        </button>
+      </div>
+    </div>
+  );
+
+  // Render Events Section
+  const renderEvents = () => (
+    <div className="bg-white rounded-xl shadow p-6 mb-6">
+      <div className="flex justify-between items-center mb-6">
+        <h2 className="text-xl font-semibold text-gray-800 flex items-center">
+          <IoCalendarOutline className="mr-2 text-orange-500" />
+          Sự kiện
+        </h2>
+        {canManage && (
+          <button
+            onClick={handleCreateEvent}
+            className="flex items-center px-3 py-1.5 bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition-colors"
+          >
+            <IoAddOutline className="mr-1" />
+            Tạo sự kiện
+          </button>
+        )}
+      </div>
+
+      {events.length > 0 ? (
+        <div className="space-y-4">
+          {events.map(event => (
+            <div key={event.id} className="flex flex-col md:flex-row border border-gray-200 rounded-lg overflow-hidden">
+              <div className="md:w-1/3 h-48 md:h-auto">
+                <img
+                  src={event.image}
+                  alt={event.title}
+                  className="w-full h-full object-cover"
+                />
+              </div>
+              <div className="p-4 md:p-6 flex-1">
+                <h3 className="text-lg font-semibold text-gray-800 mb-2">{event.title}</h3>
+                <p className="text-gray-600 mb-4">{event.description}</p>
+                <div className="flex flex-wrap gap-3">
+                  <div className="flex items-center text-gray-500">
+                    <IoTimeOutline className="mr-1" />
+                    <span>{event.date.toLocaleDateString()}</span>
+                  </div>
+                  <div className="flex items-center text-gray-500">
+                    <IoLocationOutline className="mr-1" />
+                    <span>{event.location}</span>
+                  </div>
+                </div>
+                <div className="mt-4">
+                  <button className="px-4 py-2 bg-orange-50 text-orange-600 hover:bg-orange-100 rounded-lg transition-colors">
+                    Xem chi tiết
+                  </button>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      ) : (
+        <div className="text-center py-10 bg-gray-50 rounded-lg">
+          <div className="inline-block p-3 bg-gray-100 rounded-full mb-4">
+            <IoCalendarOutline className="text-3xl text-gray-400" />
+          </div>
+          <h3 className="text-lg font-medium text-gray-700">Chưa có sự kiện nào</h3>
+          <p className="text-gray-500 mt-1">Hiện tại chưa có sự kiện nào được tạo trong cộng đồng này</p>
+          {canManage && (
+            <button
+              onClick={handleCreateEvent}
+              className="mt-4 px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700"
+            >
+              Tạo sự kiện đầu tiên
+            </button>
+          )}
+        </div>
+      )}
+    </div>
+  );
+
+  // Render Discussions Section
+  const renderDiscussions = () => (
+    <div className="bg-white rounded-xl shadow p-6 mb-6">
+      <div className="flex justify-between items-center mb-6">
+        <h2 className="text-xl font-semibold text-gray-800 flex items-center">
+          <IoChatbubbleOutline className="mr-2 text-orange-500" />
+          Thảo luận
+        </h2>
+      </div>
+
+      {/* New discussion form */}
+      {isMember && (
+        <div className="mb-6 bg-gray-50 p-4 rounded-lg">
+          <div className="flex space-x-3 items-center">
+            <div className="w-10 h-10 rounded-lg overflow-hidden border border-gray-200">
+              <img
+                src={user?.avatar?.url || '/default-avatar.png'}
+                alt={user?.fullName || 'Avatar'}
+                className="w-full h-full object-cover"
+                onError={(e) => {
+                  const target = e.target as HTMLImageElement;
+                  target.onerror = null;
+                  target.src = '/default-avatar.png';
+                }}
+              />
+            </div>
+            <div className="flex-1">
+              <textarea
+                value={newMessage}
+                onChange={(e) => setNewMessage(e.target.value)}
+                placeholder="Bạn muốn chia sẻ điều gì với cộng đồng?"
+                className="w-full border border-gray-300 rounded-lg p-3 focus:ring-2 focus:ring-orange-500 focus:border-orange-500 min-h-[100px]"
+              ></textarea>
+              <div className="flex justify-end mt-2">
+                <button
+                  onClick={handleSendMessage}
+                  disabled={!newMessage.trim()}
+                  className="px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 disabled:bg-gray-300 disabled:cursor-not-allowed flex items-center"
+                >
+                  <IoSendOutline className="mr-1" />
+                  Đăng bài
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {discussions.length > 0 ? (
+        <div className="space-y-6">
+          {discussions.map(discussion => (
+            <div key={discussion.id} className="border border-gray-200 rounded-lg p-4">
+              <div className="flex items-start">
+                <img
+                  src={discussion.author.avatar}
+                  alt={discussion.author.name}
+                  className="w-10 h-10 rounded-lg mr-3"
+                />
+                <div className="flex-1">
+                  <div className="flex items-center mb-1">
+                    <span className="font-medium text-gray-800">{discussion.author.name}</span>
+                    {discussion.author.role === 'Leader' && (
+                      <span className="ml-2 text-xs bg-orange-50 text-orange-600 px-2 py-0.5 rounded-full">Leader</span>
+                    )}
+                    {discussion.author.role === 'Deputy' && (
+                      <span className="ml-2 text-xs bg-blue-50 text-blue-600 px-2 py-0.5 rounded-full">Deputy</span>
+                    )}
+                  </div>
+                  <p className="text-gray-600 mb-2">{discussion.content}</p>
+                  <div className="flex items-center text-sm text-gray-500">
+                    <span>{new Date(discussion.timestamp).toLocaleString()}</span>
+                    <span className="mx-2">•</span>
+                    <button className="hover:text-gray-700">Thích ({discussion.likes})</button>
+                    <span className="mx-2">•</span>
+                    <button className="hover:text-gray-700">Bình luận ({discussion.comments})</button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      ) : (
+        <div className="text-center py-10 bg-gray-50 rounded-lg">
+          <div className="inline-block p-3 bg-gray-100 rounded-full mb-4">
+            <IoChatbubbleOutline className="text-3xl text-gray-400" />
+          </div>
+          <h3 className="text-lg font-medium text-gray-700">Chưa có thảo luận nào</h3>
+          <p className="text-gray-500 mt-1">Hãy bắt đầu cuộc trò chuyện đầu tiên trong cộng đồng!</p>
+        </div>
+      )}
+    </div>
+  );
 
   return (
     <div className="min-h-screen flex flex-col bg-gray-50">
       <Header />
       
-      {/* Banner */}
+        {/* Banner */}
       <div className="relative h-48 md:h-64 lg:h-80 bg-gray-300 overflow-hidden">
         {community.banner?.url ? (
-          <img
-            src={community.banner.url}
-            alt={community.name}
-            className="w-full h-full object-cover"
-          />
+            <img
+              src={community.banner.url}
+              alt={community.name}
+              className="w-full h-full object-cover"
+              onError={(e) => {
+                console.log('Banner load error in Detail');
+                const target = e.target as HTMLImageElement;
+                target.onerror = null; // Tránh vòng lặp vô hạn
+                target.style.display = 'none';
+                // Hiển thị banner dự phòng
+                target.parentElement!.classList.add('bg-gradient-to-r', 'from-orange-500', 'to-orange-600', 'flex', 'items-center', 'justify-center');
+                const icon = document.createElement('div');
+                icon.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" class="h-16 w-16 text-white opacity-50" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" /></svg>';
+                target.parentElement!.appendChild(icon);
+              }}
+            />
         ) : (
           <div className="w-full h-full bg-gradient-to-r from-orange-500 to-orange-600 flex items-center justify-center">
             <IoPeopleOutline className="text-6xl text-white opacity-50" />
           </div>
-        )}
-      </div>
+          )}
+        </div>
 
-      {/* Community Info */}
+        {/* Community Info */}
       <div className="container mx-auto px-4">
         <div className="relative -mt-16 mb-6">
           <div className="flex flex-col md:flex-row bg-white rounded-2xl shadow-lg border border-gray-100 p-6 md:p-8">
@@ -357,14 +671,14 @@ const CommunityDetail: React.FC = () => {
                 </div>
                 
                 <div className="flex space-x-3 mt-4 md:mt-0">
-                  {!isLeader && !isDeputy && (
-                    <JoinRequestButton
-                      communityId={community._id}
-                      isMember={isMember}
-                      hasPendingRequest={hasPendingRequest}
-                      onRequestSent={loadCommunityDetails}
-                    />
-                  )}
+            {!isLeader && !isDeputy && (
+              <JoinRequestButton
+                communityId={community._id}
+                isMember={isMember}
+                hasPendingRequest={hasPendingRequest}
+                onRequestSent={loadCommunityDetails}
+              />
+            )}
                   
                   {canManage && (
                     <div className="flex space-x-2">
@@ -385,8 +699,8 @@ const CommunityDetail: React.FC = () => {
                     </div>
                   )}
                 </div>
-              </div>
-              
+          </div>
+
               <div className="mt-4 bg-orange-50 p-4 rounded-lg">
                 <h2 className="font-semibold text-orange-800 mb-2">Giới thiệu</h2>
                 <p className="text-gray-700">{community.description}</p>
@@ -395,54 +709,65 @@ const CommunityDetail: React.FC = () => {
           </div>
         </div>
         
+        {/* Tab Navigation */}
+        {renderTabs()}
+        
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
-          {/* Left column: Members */}
+          {/* Left column: Content based on active tab */}
           <div className="lg:col-span-2">
-            {/* Members */}
-            <div className="bg-white p-6 rounded-xl shadow mb-6">
-              <h2 className="text-xl font-semibold text-gray-800 mb-4 flex items-center">
-                <IoPeopleOutline className="mr-2 text-orange-500" />
-                Thành viên ({community.members.length})
-              </h2>
-              
-              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
-                {community.members.map(member => (
-                  <div key={member._id} className="flex flex-col items-center text-center">
-                    <div className="w-16 h-16 rounded-full overflow-hidden mb-2 border border-gray-200">
-                      <img
-                        src={member.user.avatar?.url || '/default-avatar.png'}
-                        alt={member.user.fullName}
-                        className="w-full h-full object-cover"
-                        onError={(e) => {
-                          const target = e.target as HTMLImageElement;
-                          target.onerror = null;
-                          target.src = '/default-avatar.png';
-                        }}
-                      />
-                    </div>
-                    <span className="text-sm text-gray-800 font-medium line-clamp-1">
-                      {member.user.fullName}
-                    </span>
-                    {community.leader._id === member.user._id && (
-                      <span className="text-xs text-orange-600 mt-1 bg-orange-50 px-2 py-0.5 rounded-full">Leader</span>
-                    )}
-                    {community.deputies?.some(deputy => deputy._id === member.user._id) && (
-                      <span className="text-xs text-blue-600 mt-1 bg-blue-50 px-2 py-0.5 rounded-full">Deputy</span>
-                    )}
+            {activeTab === 'about' && (
+              <>
+                {/* Members Section */}
+                <div className="bg-white p-6 rounded-xl shadow mb-6">
+                  <h2 className="text-xl font-semibold text-gray-800 mb-4 flex items-center">
+                    <IoPeopleOutline className="mr-2 text-orange-500" />
+                    Thành viên ({community.members.length})
+                  </h2>
+                  
+                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
+                    {community.members.map(member => (
+                      <div key={member._id} className="flex flex-col items-center text-center">
+                        <div className="w-16 h-16 rounded-lg overflow-hidden mb-2 border border-gray-200">
+                          <img
+                            src={member.user.avatar?.url || '/default-avatar.png'}
+                            alt={member.user.fullName}
+                            className="w-full h-full object-cover"
+                            onError={(e) => {
+                              const target = e.target as HTMLImageElement;
+                              target.onerror = null;
+                              target.src = '/default-avatar.png';
+                            }}
+                          />
+                        </div>
+                        <span className="text-sm text-gray-800 font-medium line-clamp-1">
+                          {member.user.fullName}
+                        </span>
+                        {community.leader._id === member.user._id && (
+                          <span className="text-xs text-orange-600 mt-1 bg-orange-50 px-2 py-0.5 rounded-full">Leader</span>
+                        )}
+                        {community.deputies?.some(deputy => deputy._id === member.user._id) && (
+                          <span className="text-xs text-blue-600 mt-1 bg-blue-50 px-2 py-0.5 rounded-full">Deputy</span>
+                        )}
                   </div>
                 ))}
               </div>
             </div>
+              </>
+            )}
+            
+            {activeTab === 'events' && renderEvents()}
+            
+            {activeTab === 'discussions' && renderDiscussions()}
           </div>
-          
-          {/* Right column: Pending Requests */}
+
+          {/* Right column: Pending Requests and Quick Actions */}
           <div className="lg:col-span-1">
-            {/* Pending Requests - Only visible to leader and deputies */}
-            {canManage && community.pendingRequests?.length > 0 && (
-              <div className="bg-white p-6 rounded-xl shadow">
+          {/* Pending Requests - Only visible to leader and deputies */}
+            {canManage && community.pendingRequests?.filter(r => r.status === 'pending').length > 0 && (
+              <div className="bg-white p-6 rounded-xl shadow mb-6">
                 <h2 className="text-xl font-semibold text-gray-800 mb-4">
                   Yêu cầu tham gia ({community.pendingRequests.filter(r => r.status === 'pending').length})
-                </h2>
+              </h2>
                 {processingRequest && (
                   <div className="mb-4 bg-blue-50 p-2 rounded text-blue-700 text-sm flex items-center">
                     <svg className="animate-spin h-4 w-4 mr-2" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
@@ -453,51 +778,87 @@ const CommunityDetail: React.FC = () => {
                   </div>
                 )}
                 <div className="space-y-3">
-                  {community.pendingRequests
-                    .filter(request => request.status === 'pending')
-                    .map(request => (
-                      <div
-                        key={request._id}
-                        className="flex items-center justify-between bg-gray-50 p-4 rounded-lg"
-                      >
+                {community.pendingRequests
+                  .filter(request => request.status === 'pending')
+                  .map(request => (
+                    <div
+                      key={request._id}
+                      className="flex items-center justify-between bg-gray-50 p-4 rounded-lg"
+                    >
                         <div className="flex items-center space-x-3">
-                          <img
-                            src={request.user.avatar?.url || '/default-avatar.png'}
-                            alt={request.user.fullName}
-                            className="w-10 h-10 rounded-full"
-                            onError={(e) => {
-                              const target = e.target as HTMLImageElement;
-                              target.onerror = null;
-                              target.src = '/default-avatar.png';
-                            }}
-                          />
-                          <div>
-                            <p className="font-medium text-gray-800">
-                              {request.user.fullName}
-                            </p>
+                          <div className="w-10 h-10 rounded-lg overflow-hidden border border-gray-200">
+                        <img
+                              src={request.user.avatar?.url || '/default-avatar.png'}
+                          alt={request.user.fullName}
+                              className="w-full h-full object-cover"
+                              onError={(e) => {
+                                const target = e.target as HTMLImageElement;
+                                target.onerror = null;
+                                target.src = '/default-avatar.png';
+                              }}
+                            />
+                          </div>
+                        <div>
+                          <p className="font-medium text-gray-800">
+                            {request.user.fullName}
+                          </p>
                             <p className="text-xs text-gray-500">
                               {new Date(request.requestDate).toLocaleDateString()}
-                            </p>
-                          </div>
-                        </div>
-                        <div className="flex space-x-2">
-                          <button
-                            onClick={() => handleJoinRequest(request._id, 'approved')}
-                            disabled={processingRequest}
-                            className="px-2 py-1 bg-green-600 text-white rounded hover:bg-green-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed text-sm"
-                          >
-                            Duyệt
-                          </button>
-                          <button
-                            onClick={() => handleJoinRequest(request._id, 'rejected')}
-                            disabled={processingRequest}
-                            className="px-2 py-1 bg-red-600 text-white rounded hover:bg-red-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed text-sm"
-                          >
-                            Từ chối
-                          </button>
+                          </p>
                         </div>
                       </div>
-                    ))}
+                      <div className="flex space-x-2">
+                        <button
+                          onClick={() => handleJoinRequest(request._id, 'approved')}
+                            disabled={processingRequest}
+                            className="px-2 py-1 bg-green-600 text-white rounded hover:bg-green-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed text-sm"
+                        >
+                            Duyệt
+                        </button>
+                        <button
+                          onClick={() => handleJoinRequest(request._id, 'rejected')}
+                            disabled={processingRequest}
+                            className="px-2 py-1 bg-red-600 text-white rounded hover:bg-red-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed text-sm"
+                        >
+                          Từ chối
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+              </div>
+            </div>
+          )}
+            
+            {/* Quick Actions */}
+            {isMember && (
+              <div className="bg-white p-6 rounded-xl shadow mb-6">
+                <h2 className="text-xl font-semibold text-gray-800 mb-4">
+                  Hành động nhanh
+                </h2>
+                <div className="space-y-3">
+                  <button 
+                    onClick={() => setActiveTab('discussions')}
+                    className="w-full flex items-center justify-between p-3 bg-orange-50 hover:bg-orange-100 text-orange-700 rounded-lg transition-colors"
+                  >
+                    <span className="flex items-center">
+                      <IoChatbubbleOutline className="mr-2" />
+                      Thảo luận mới
+                    </span>
+                    <IoAddOutline />
+                  </button>
+                  
+                  {canManage && (
+                    <button 
+                      onClick={handleCreateEvent}
+                      className="w-full flex items-center justify-between p-3 bg-blue-50 hover:bg-blue-100 text-blue-700 rounded-lg transition-colors"
+                    >
+                      <span className="flex items-center">
+                        <IoCalendarOutline className="mr-2" />
+                        Tạo sự kiện mới
+                      </span>
+                      <IoAddOutline />
+                    </button>
+                  )}
                 </div>
               </div>
             )}
@@ -731,6 +1092,70 @@ const CommunityDetail: React.FC = () => {
                       </button>
                     </div>
                   </form>
+                </Dialog.Panel>
+              </Transition.Child>
+            </div>
+          </div>
+        </Dialog>
+      </Transition>
+      
+      {/* Create Event Modal (placeholder) */}
+      <Transition show={showEventForm} as={Fragment}>
+        <Dialog as="div" className="relative z-50" onClose={() => setShowEventForm(false)}>
+          <Transition.Child
+            as={Fragment}
+            enter="ease-out duration-300"
+            enterFrom="opacity-0"
+            enterTo="opacity-100"
+            leave="ease-in duration-200"
+            leaveFrom="opacity-100"
+            leaveTo="opacity-0"
+          >
+            <div className="fixed inset-0 bg-black bg-opacity-25" />
+          </Transition.Child>
+
+          <div className="fixed inset-0 overflow-y-auto">
+            <div className="flex min-h-full items-center justify-center p-4 text-center">
+              <Transition.Child
+                as={Fragment}
+                enter="ease-out duration-300"
+                enterFrom="opacity-0 scale-95"
+                enterTo="opacity-100 scale-100"
+                leave="ease-in duration-200"
+                leaveFrom="opacity-100 scale-100"
+                leaveTo="opacity-0 scale-95"
+              >
+                <Dialog.Panel className="w-full max-w-3xl transform overflow-hidden rounded-2xl bg-white p-6 text-left align-middle shadow-xl transition-all">
+                  <Dialog.Title
+                    as="div"
+                    className="flex justify-between items-center border-b pb-3 mb-4"
+                  >
+                    <h3 className="text-lg font-medium leading-6 text-gray-900">
+                      Tạo sự kiện mới
+                    </h3>
+                    <button
+                      type="button"
+                      className="text-gray-400 hover:text-gray-500"
+                      onClick={() => setShowEventForm(false)}
+                    >
+                      <IoClose className="h-5 w-5" />
+                    </button>
+                  </Dialog.Title>
+
+                  <div className="mt-4 text-center">
+                    <p className="text-gray-700">Tính năng đang được phát triển!</p>
+                    <p className="text-gray-500 mt-2">Chúng tôi đang làm việc để sớm hoàn thiện tính năng này.</p>
+                  </div>
+
+                  <div className="mt-6 flex justify-end">
+                    <button
+                      type="button"
+                      className="px-4 py-2 bg-gray-200 text-gray-800 rounded-lg hover:bg-gray-300"
+                      onClick={() => setShowEventForm(false)}
+                    >
+                      Đóng
+                    </button>
+                  </div>
                 </Dialog.Panel>
               </Transition.Child>
             </div>

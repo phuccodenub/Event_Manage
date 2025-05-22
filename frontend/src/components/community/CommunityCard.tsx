@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link } from 'wouter';
 import type { Community } from '../../services/communityService';
 import communityService from '../../services/communityService';
@@ -14,6 +14,23 @@ interface CommunityCardProps {
 const CommunityCard: React.FC<CommunityCardProps> = ({ community, isAdminOrTeacher, onDelete, onEdit }) => {
   const [isDeleting, setIsDeleting] = useState(false);
   const [showActions, setShowActions] = useState(false);
+
+  // Cải thiện useEffect logging để xem rõ hơn vấn đề
+  useEffect(() => {
+    if (community.banner) {
+      console.log('Banner URL:', community.banner.url);
+    } else {
+      console.log('Community has no banner');
+    }
+  }, [community]);
+  
+  // Hàm đơn giản hóa chỉ trả về URL gốc hoặc URL ảnh
+  const getBannerUrl = () => {
+    if (!community.banner?.url) return '';
+    
+    // Xử lý trực tiếp URL Cloudinary (không cần proxy)
+    return community.banner.url;
+  };
 
   const handleDelete = async (e: React.MouseEvent) => {
     e.preventDefault();
@@ -58,29 +75,37 @@ const CommunityCard: React.FC<CommunityCardProps> = ({ community, isAdminOrTeach
       to={`/community/${community._id}`}
       className="block"
     >
-      <div className="bg-white rounded-lg shadow-md hover:shadow-lg transition-all duration-300 overflow-hidden">
-        {/* Banner */}
-        <div className="relative w-full h-32">
+      <div className="bg-white rounded-lg shadow-md hover:shadow-lg transition-all duration-300 overflow-hidden group">
+        {/* Banner với height cố định */}
+        <div className="relative w-full h-36 overflow-hidden bg-gray-200">
           {community.banner?.url ? (
             <img 
-              src={community.banner.url} 
+              src={getBannerUrl()} 
               alt={`${community.name} banner`}
               className="w-full h-full object-cover"
               onError={(e) => {
+                console.log('Banner load error');
                 const target = e.target as HTMLImageElement;
-                target.onerror = null;
-                target.src = '/default-banner.png';
+                target.onerror = null; // Tránh vòng lặp vô hạn
+                // Set style để hiển thị banner dự phòng
+                target.style.display = 'none';
+                // Hiển thị banner dự phòng (container cha đã có bg-gray-200)
+                target.parentElement!.classList.add('bg-gradient-to-r', 'from-orange-500', 'to-orange-600', 'flex', 'items-center', 'justify-center');
+                const textElement = document.createElement('span');
+                textElement.className = 'text-white text-opacity-80 text-xl font-bold';
+                textElement.textContent = 'HUTECH';
+                target.parentElement!.appendChild(textElement);
               }}
             />
           ) : (
-            <div className="w-full h-full bg-gradient-to-r from-orange-400 to-orange-600 flex items-center justify-center">
-              <span className="text-white text-opacity-50 text-xl font-bold">HUTECH</span>
+            <div className="w-full h-full bg-gradient-to-r from-orange-500 to-orange-600 flex items-center justify-center">
+              <span className="text-white text-opacity-80 text-xl font-bold">HUTECH</span>
             </div>
           )}
         </div>
 
         {/* Content Section with Avatar */}
-        <div className="p-4">
+        <div className="p-4 mt-2">
           <div className="flex">
             {/* Avatar (Square) */}
             <div className="mr-3 flex-shrink-0">
@@ -148,7 +173,7 @@ const CommunityCard: React.FC<CommunityCardProps> = ({ community, isAdminOrTeach
                 {community.members?.length || 0} thành viên
               </span>
             </div>
-            <span className="ml-auto text-orange-500 text-sm font-medium">Xem chi tiết →</span>
+            <span className="ml-auto text-orange-500 text-sm font-medium group-hover:translate-x-1 transition-transform duration-300">Xem chi tiết →</span>
           </div>
         </div>
       </div>

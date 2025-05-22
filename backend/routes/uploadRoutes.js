@@ -1,6 +1,7 @@
 const express = require('express');
 const { protect } = require('../middleware/auth');
 const { uploadToCloudinary, deleteFromCloudinary } = require('../utils/cloudinary');
+const cloudinary = require('cloudinary').v2;
 const router = express.Router();
 
 // @route POST /api/v1/upload/events
@@ -92,6 +93,43 @@ router.delete('/:publicId', protect, async (req, res) => {
     res.status(500).json({
       success: false,
       error: 'Error deleting image'
+    });
+  }
+});
+
+// @route GET /api/v1/upload/proxy/:folder/:publicId
+// @desc Proxy an image from Cloudinary through our backend
+router.get('/proxy/:folder/:publicId', async (req, res) => {
+  try {
+    const { folder, publicId } = req.params;
+    if (!publicId || !folder) {
+      return res.status(400).json({
+        success: false,
+        error: 'Public ID and folder are required'
+      });
+    }
+
+    // Tạo full publicId đúng định dạng
+    const fullPublicId = `${folder}/${publicId}`;
+    console.log('Proxying image with publicId:', fullPublicId);
+
+    // Tạo URL Cloudinary từ public_id
+    const cloudinaryUrl = cloudinary.url(fullPublicId, {
+      secure: true,
+      transformation: req.query.type === 'banner' 
+        ? [{ width: 1200, height: 400, crop: 'fill' }] 
+        : [{ width: 250, height: 250, crop: 'fill' }]
+    });
+
+    console.log('Generated Cloudinary URL:', cloudinaryUrl);
+
+    // Redirect đến URL Cloudinary
+    res.redirect(cloudinaryUrl);
+  } catch (error) {
+    console.error('Error proxying image:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Error retrieving image'
     });
   }
 });

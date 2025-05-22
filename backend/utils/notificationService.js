@@ -159,6 +159,12 @@ class NotificationService {
         isAutoApproved
       });
 
+      // Kiểm tra event và event.creator có tồn tại không
+      if (!event || !event.creator) {
+        console.error('Lỗi: event hoặc event.creator không tồn tại', { event });
+        return; // Thoát khỏi hàm nếu không có thông tin cần thiết
+      }
+
       // Thông báo cho người tổ chức
       const organizerNotification = await NotificationModel.create({
         recipient: event.creator,
@@ -178,22 +184,28 @@ class NotificationService {
       });
       
       // Gửi thông báo qua socket cho người tổ chức
-      const organizerSocket = global.userSockets.get(event.creator.toString());
-      if (organizerSocket) {
-        console.log('Đang gửi thông báo CTV đến người tổ chức:', event.creator);
-        
-        // Populate sender information before emitting
-        const populatedNotification = await NotificationModel.findById(organizerNotification._id)
-          .populate('sender', 'fullName avatar');
+      // Chuyển đổi event.creator thành string và kiểm tra global.userSockets trước khi gọi .get()
+      const creatorId = event.creator.toString();
+      if (global.userSockets && typeof global.userSockets.get === 'function') {
+        const organizerSocket = global.userSockets.get(creatorId);
+        if (organizerSocket) {
+          console.log('Đang gửi thông báo CTV đến người tổ chức:', creatorId);
           
-        organizerSocket.emit('newNotification', populatedNotification);
-        
-        // Cập nhật số lượng thông báo chưa đọc
-        const unreadCount = await NotificationModel.countDocuments({
-          recipient: event.creator,
-          read: false
-        });
-        organizerSocket.emit('unreadCount', { count: unreadCount });
+          // Populate sender information before emitting
+          const populatedNotification = await NotificationModel.findById(organizerNotification._id)
+            .populate('sender', 'fullName avatar');
+            
+          organizerSocket.emit('newNotification', populatedNotification);
+          
+          // Cập nhật số lượng thông báo chưa đọc
+          const unreadCount = await NotificationModel.countDocuments({
+            recipient: event.creator,
+            read: false
+          });
+          organizerSocket.emit('unreadCount', { count: unreadCount });
+        }
+      } else {
+        console.log('UserSockets không khả dụng hoặc không có phương thức get');
       }
     } catch (error) {
       console.error('Lỗi trong createCollaboratorJoinNotification:', error);
@@ -203,6 +215,12 @@ class NotificationService {
 
   static async createCollaboratorLeaveNotification(event, collaborator) {
     try {
+      // Kiểm tra event và event.creator có tồn tại không
+      if (!event || !event.creator) {
+        console.error('Lỗi: event hoặc event.creator không tồn tại trong createCollaboratorLeaveNotification', { event });
+        return; // Thoát khỏi hàm nếu không có thông tin cần thiết
+      }
+
       // Thông báo cho người tổ chức
       const organizerNotification = await NotificationModel.create({
         recipient: event.creator,
@@ -218,22 +236,28 @@ class NotificationService {
       });
       
       // Gửi thông báo qua socket cho người tổ chức
-      const organizerSocket = global.userSockets.get(event.creator.toString());
-      if (organizerSocket) {
-        console.log('Đang gửi thông báo hủy CTV đến người tổ chức:', event.creator);
-        
-        // Populate sender information before emitting
-        const populatedNotification = await NotificationModel.findById(organizerNotification._id)
-          .populate('sender', 'fullName avatar');
-        
-        organizerSocket.emit('newNotification', populatedNotification);
-        
-        // Cập nhật số lượng thông báo chưa đọc
-        const unreadCount = await NotificationModel.countDocuments({
-          recipient: event.creator,
-          read: false
-        });
-        organizerSocket.emit('unreadCount', { count: unreadCount });
+      // Chuyển đổi event.creator thành string và kiểm tra global.userSockets trước khi gọi .get()
+      const creatorId = event.creator.toString();
+      if (global.userSockets && typeof global.userSockets.get === 'function') {
+        const organizerSocket = global.userSockets.get(creatorId);
+        if (organizerSocket) {
+          console.log('Đang gửi thông báo hủy CTV đến người tổ chức:', creatorId);
+          
+          // Populate sender information before emitting
+          const populatedNotification = await NotificationModel.findById(organizerNotification._id)
+            .populate('sender', 'fullName avatar');
+          
+          organizerSocket.emit('newNotification', populatedNotification);
+          
+          // Cập nhật số lượng thông báo chưa đọc
+          const unreadCount = await NotificationModel.countDocuments({
+            recipient: event.creator,
+            read: false
+          });
+          organizerSocket.emit('unreadCount', { count: unreadCount });
+        }
+      } else {
+        console.log('UserSockets không khả dụng hoặc không có phương thức get trong createCollaboratorLeaveNotification');
       }
     } catch (error) {
       console.error('Lỗi khi tạo thông báo hủy CTV sự kiện:', error);

@@ -715,36 +715,42 @@ const Home: React.FC = () => {
                   <UserIcon className="w-6 h-6 text-gray-400" />
                 </div>
               )}
-              <div onClick={() => setIsModalOpen(true)} className="flex-grow cursor-pointer">
-                <div className="bg-gray-100 hover:bg-gray-200 rounded-full py-3.5 px-4 transition-colors">
-                  <p className="text-[#666666]">Chia sẻ sự kiện với cộng đồng của bạn...</p>
+              {/* Chỉ hiển thị cho Admin và Teacher, không hiển thị cho Student */}
+              {user && (user.role === 'admin' || user.role === 'teacher') && (
+                <div onClick={() => setIsModalOpen(true)} className="flex-grow cursor-pointer">
+                  <div className="bg-gray-100 hover:bg-gray-200 rounded-full py-3.5 px-4 transition-colors">
+                    <p className="text-[#666666]">Chia sẻ sự kiện với cộng đồng của bạn...</p>
+                  </div>
                 </div>
-              </div>
+              )}
             </div>
 
-            <div className="flex items-center justify-between mt-4 pt-2 border-t">
-              <button
-                onClick={() => setIsModalOpen(true)}
-                className="flex items-center justify-center space-x-2 px-4 py-2.5 hover:bg-gray-100 rounded-lg transition-colors flex-1"
-              >
-                <MdImage className="text-[#378fe9] text-xl" />
-                <span className="text-[#666666] text-sm font-medium">Ảnh</span>
-              </button>
-              <button
-                onClick={() => setIsModalOpen(true)}
-                className="flex items-center justify-center space-x-2 px-4 py-2.5 hover:bg-gray-100 rounded-lg transition-colors flex-1"
-              >
-                <BiCalendarEvent className="text-[#c37d16] text-xl" />
-                <span className="text-[#666666] text-sm font-medium">Sự kiện</span>
-              </button>
-              <button
-                onClick={() => setIsModalOpen(true)}
-                className="flex items-center justify-center space-x-2 px-4 py-2.5 hover:bg-gray-100 rounded-lg transition-colors flex-1"
-              >
-                <IoLocationOutline className="text-[#e16745] text-xl" />
-                <span className="text-[#666666] text-sm font-medium">Vị trí</span>
-              </button>
-            </div>
+            {/* Chỉ hiển thị cho Admin và Teacher, không hiển thị cho Student */}
+            {user && (user.role === 'admin' || user.role === 'teacher') && (
+              <div className="flex mt-3 items-center justify-around border-t pt-3">
+                <button
+                  onClick={() => setIsModalOpen(true)}
+                  className="flex items-center justify-center space-x-2 px-4 py-2.5 hover:bg-gray-100 rounded-lg transition-colors flex-1"
+                >
+                  <MdImage className="text-[#378fe9] text-xl" />
+                  <span className="text-[#666666] text-sm font-medium">Ảnh</span>
+                </button>
+                <button
+                  onClick={() => setIsModalOpen(true)}
+                  className="flex items-center justify-center space-x-2 px-4 py-2.5 hover:bg-gray-100 rounded-lg transition-colors flex-1"
+                >
+                  <BiCalendarEvent className="text-[#c37d16] text-xl" />
+                  <span className="text-[#666666] text-sm font-medium">Sự kiện</span>
+                </button>
+                <button
+                  onClick={() => setIsModalOpen(true)}
+                  className="flex items-center justify-center space-x-2 px-4 py-2.5 hover:bg-gray-100 rounded-lg transition-colors flex-1"
+                >
+                  <IoLocationOutline className="text-[#e16745] text-xl" />
+                  <span className="text-[#666666] text-sm font-medium">Vị trí</span>
+                </button>
+              </div>
+            )}
           </div>
 
           {events.length === 0 && announcements.length === 0 ? (

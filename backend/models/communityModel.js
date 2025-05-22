@@ -51,7 +51,7 @@ const communitySchema = new mongoose.Schema({
     },
     url: {
       type: String,
-      default: 'https://example.com/default-avatar.jpg'
+      default: '/default-community.png'
     }
   },
   banner: {
@@ -61,7 +61,7 @@ const communitySchema = new mongoose.Schema({
     },
     url: {
       type: String,
-      default: 'https://example.com/default-banner.jpg'
+      default: '/default-banner.png'
     }
   },
   leader: {
