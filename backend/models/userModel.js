@@ -144,9 +144,21 @@ const userSchema = new mongoose.Schema({
   ],
   collaboratorEvents: [
     {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: 'Event',
-    },
+      event: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Event'
+      },
+      schedule: {
+        start: {
+          type: Date,
+          required: true
+        },
+        end: {
+          type: Date,
+          required: true
+        }
+      }
+    }
   ],
   resetPasswordToken: String,
   resetPasswordExpire: Date,
@@ -205,7 +217,7 @@ userSchema.methods.getResetPasswordToken = function() {
 };
 
 // Thêm phương thức static để cập nhật sự kiện đã đăng ký
-userSchema.statics.updateRegisteredEvents = async function(userId, eventId, action) {
+userSchema.statics.updateRegisteredEvents = async function(userId, eventId, action, schedule = null) {
   try {
     const user = await this.findById(userId);
     if (!user) throw new Error('User not found');
@@ -216,6 +228,24 @@ userSchema.statics.updateRegisteredEvents = async function(userId, eventId, acti
       user.registeredEvents = user.registeredEvents.filter(
         id => id.toString() !== eventId.toString()
       );
+    } else if (action === 'collaborate' && schedule) {
+      // Kiểm tra xung đột lịch
+      const hasScheduleConflict = user.collaboratorEvents.some(collab => {
+        return (
+          (schedule.start >= collab.schedule.start && schedule.start < collab.schedule.end) ||
+          (schedule.end > collab.schedule.start && schedule.end <= collab.schedule.end)
+        );
+      });
+
+      if (hasScheduleConflict) {
+        throw new Error('Lịch làm việc bị trùng với sự kiện khác');
+      }
+
+      // Thêm vào danh sách sự kiện làm cộng tác viên
+      user.collaboratorEvents.push({
+        event: eventId,
+        schedule: schedule
+      });
     }
 
     await user.save();

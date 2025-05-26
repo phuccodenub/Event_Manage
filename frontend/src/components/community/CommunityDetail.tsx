@@ -7,6 +7,7 @@ import JoinRequestButton from './JoinRequestButton';
 import LoadingSpinner from '../LoadingSpinner';
 import ErrorAlert from '../ErrorAlert';
 import Header from '../Header';
+import CreateCommunityEventModal from '../CreateCommunityEventModal';
 import { Dialog, Transition } from '@headlessui/react';
 import { Fragment } from 'react';
 import { 
@@ -71,6 +72,7 @@ const CommunityDetail: React.FC = () => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [activeTab, setActiveTab] = useState<'about' | 'events' | 'discussions'>('about');
   const [showEventForm, setShowEventForm] = useState(false);
+  const [showCreateEventModal, setShowCreateEventModal] = useState(false);
   const [showDiscussionForm, setShowDiscussionForm] = useState(false);
   const [newMessage, setNewMessage] = useState('');
   const [discussions, setDiscussions] = useState<any[]>([]);
@@ -313,7 +315,7 @@ const CommunityDetail: React.FC = () => {
   }, [community]);
 
   const handleCreateEvent = () => {
-    setShowEventForm(true);
+    setShowCreateEventModal(true);
   };
 
   const handleCreateDiscussion = () => {
@@ -340,6 +342,11 @@ const CommunityDetail: React.FC = () => {
     setDiscussions([newDiscussion, ...discussions]);
     setNewMessage('');
     setShowDiscussionForm(false);
+  };
+
+  const handleEventCreated = () => {
+    // Reload community details to get updated events
+    loadCommunityDetails();
   };
 
   if (isLoading) {
@@ -708,7 +715,7 @@ const CommunityDetail: React.FC = () => {
             </div>
           </div>
         </div>
-        
+
         {/* Tab Navigation */}
         {renderTabs()}
         
@@ -728,7 +735,7 @@ const CommunityDetail: React.FC = () => {
                     {community.members.map(member => (
                       <div key={member._id} className="flex flex-col items-center text-center">
                         <div className="w-16 h-16 rounded-lg overflow-hidden mb-2 border border-gray-200">
-                          <img
+                    <img
                             src={member.user.avatar?.url || '/default-avatar.png'}
                             alt={member.user.fullName}
                             className="w-full h-full object-cover"
@@ -753,8 +760,8 @@ const CommunityDetail: React.FC = () => {
               </div>
             </div>
               </>
-            )}
-            
+          )}
+
             {activeTab === 'events' && renderEvents()}
             
             {activeTab === 'discussions' && renderDiscussions()}
@@ -796,7 +803,7 @@ const CommunityDetail: React.FC = () => {
                                 target.onerror = null;
                                 target.src = '/default-avatar.png';
                               }}
-                            />
+                        />
                           </div>
                         <div>
                           <p className="font-medium text-gray-800">
@@ -1099,69 +1106,14 @@ const CommunityDetail: React.FC = () => {
         </Dialog>
       </Transition>
       
-      {/* Create Event Modal (placeholder) */}
-      <Transition show={showEventForm} as={Fragment}>
-        <Dialog as="div" className="relative z-50" onClose={() => setShowEventForm(false)}>
-          <Transition.Child
-            as={Fragment}
-            enter="ease-out duration-300"
-            enterFrom="opacity-0"
-            enterTo="opacity-100"
-            leave="ease-in duration-200"
-            leaveFrom="opacity-100"
-            leaveTo="opacity-0"
-          >
-            <div className="fixed inset-0 bg-black bg-opacity-25" />
-          </Transition.Child>
-
-          <div className="fixed inset-0 overflow-y-auto">
-            <div className="flex min-h-full items-center justify-center p-4 text-center">
-              <Transition.Child
-                as={Fragment}
-                enter="ease-out duration-300"
-                enterFrom="opacity-0 scale-95"
-                enterTo="opacity-100 scale-100"
-                leave="ease-in duration-200"
-                leaveFrom="opacity-100 scale-100"
-                leaveTo="opacity-0 scale-95"
-              >
-                <Dialog.Panel className="w-full max-w-3xl transform overflow-hidden rounded-2xl bg-white p-6 text-left align-middle shadow-xl transition-all">
-                  <Dialog.Title
-                    as="div"
-                    className="flex justify-between items-center border-b pb-3 mb-4"
-                  >
-                    <h3 className="text-lg font-medium leading-6 text-gray-900">
-                      Tạo sự kiện mới
-                    </h3>
-                    <button
-                      type="button"
-                      className="text-gray-400 hover:text-gray-500"
-                      onClick={() => setShowEventForm(false)}
-                    >
-                      <IoClose className="h-5 w-5" />
-                    </button>
-                  </Dialog.Title>
-
-                  <div className="mt-4 text-center">
-                    <p className="text-gray-700">Tính năng đang được phát triển!</p>
-                    <p className="text-gray-500 mt-2">Chúng tôi đang làm việc để sớm hoàn thiện tính năng này.</p>
-                  </div>
-
-                  <div className="mt-6 flex justify-end">
-                    <button
-                      type="button"
-                      className="px-4 py-2 bg-gray-200 text-gray-800 rounded-lg hover:bg-gray-300"
-                      onClick={() => setShowEventForm(false)}
-                    >
-                      Đóng
-                    </button>
-                  </div>
-                </Dialog.Panel>
-              </Transition.Child>
-            </div>
-          </div>
-        </Dialog>
-      </Transition>
+      {/* Create Event Modal */}
+      <CreateCommunityEventModal
+        isOpen={showCreateEventModal}
+        onClose={() => setShowCreateEventModal(false)}
+        onEventCreated={handleEventCreated}
+        communityId={id || ''}
+        communityName={community?.name || ''}
+      />
     </div>
   );
 };

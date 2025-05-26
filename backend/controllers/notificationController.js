@@ -136,21 +136,27 @@ exports.createMassNotification = async (req, res, next) => {
     populatedNotifications.forEach(notification => {
       try {
         const recipientId = notification.recipient.toString();
-        const recipientSocket = global.userSockets.get(recipientId);
         
-        if (recipientSocket) {
-          console.log(`Gửi thông báo "${type}" đến người dùng ${recipientId}`);
-          recipientSocket.emit('newNotification', notification);
+        // Check if global.userSockets exists and is a Map
+        if (global.userSockets && global.userSockets instanceof Map) {
+          const recipientSocket = global.userSockets.get(recipientId);
           
-          // Đánh dấu người dùng đã nhận thông báo
-          notifiedUsers.add(recipientId);
-          
-          // Also update unread count
-          getUnreadCount(recipientId).then(count => {
-            recipientSocket.emit('unreadCount', { count });
-          });
+          if (recipientSocket) {
+            console.log(`Gửi thông báo "${type}" đến người dùng ${recipientId}`);
+            recipientSocket.emit('newNotification', notification);
+            
+            // Đánh dấu người dùng đã nhận thông báo
+            notifiedUsers.add(recipientId);
+            
+            // Also update unread count
+            getUnreadCount(recipientId).then(count => {
+              recipientSocket.emit('unreadCount', { count });
+            });
+          } else {
+            console.log(`Người dùng ${recipientId} không trực tuyến để nhận thông báo "${type}"`);
+          }
         } else {
-          console.log(`Người dùng ${recipientId} không trực tuyến để nhận thông báo "${type}"`);
+          console.log('Socket system not initialized, skipping real-time notification');
         }
       } catch (error) {
         console.error(`Lỗi khi gửi thông báo đến người dùng ${notification.recipient}:`, error);
@@ -162,7 +168,7 @@ exports.createMassNotification = async (req, res, next) => {
       console.log('Phát thông báo về sự kiện mới đến những người dùng kết nối chưa nhận thông báo');
       const firstNotification = populatedNotifications[0];
       
-      if (firstNotification) {
+      if (firstNotification && global.userSockets && global.userSockets instanceof Map) {
         // Thay vì dùng global.io.emit (gửi cho tất cả)
         // Duyệt qua tất cả socket và gửi cho những người chưa nhận
         for (const [userId, socket] of global.userSockets.entries()) {

@@ -9,6 +9,7 @@ import notificationService from '../services/notificationService';
 import { toast } from 'react-toastify';
 import { formatDistanceToNow } from 'date-fns';
 import { vi } from 'date-fns/locale';
+import CollaboratorScheduleDisplay from './CollaboratorScheduleDisplay';
 
 interface CollaboratorListProps {
   eventId: string;
@@ -35,6 +36,10 @@ interface Collaborator {
     fullName: string;
   };
   rejectionReason?: string;
+  workingSchedule?: {
+    start: string | Date;
+    end: string | Date;
+  };
 }
 
 interface ErrorWithMessage {
@@ -270,21 +275,21 @@ const CollaboratorsList: React.FC<CollaboratorListProps> = ({ eventId, onUpdate 
     setShowDeleteModal(true);
   };
   
-  const handleDelete = async () => {
-    if (!eventId || !selectedUserId) return;
+  const handleDelete = async (userId: string) => {
+    if (!eventId || !userId) return;
     
     try {
-      setLoading(prev => ({ ...prev, [selectedUserId]: true }));
+      setLoading(prev => ({ ...prev, [userId]: true }));
       
       // Use the API to remove the collaborator
-      await eventService.leaveEventAsCollaborator(eventId, selectedUserId);
+      await eventService.leaveEventAsCollaborator(eventId, userId);
       toast.success(`Đã xóa ${selectedUserName} khỏi danh sách cộng tác viên!`);
       
       // Send notification
       if (currentEvent) {
         try {
           await notificationService.createMassNotification({
-            recipients: [selectedUserId],
+            recipients: [userId],
             type: 'event_collaborator_removed',
             title: 'Bạn đã bị xóa khỏi danh sách CTV',
             message: `Bạn đã bị xóa khỏi danh sách cộng tác viên của sự kiện "${currentEvent.title}"`,
@@ -305,7 +310,14 @@ const CollaboratorsList: React.FC<CollaboratorListProps> = ({ eventId, onUpdate 
       const err = error as ErrorWithMessage;
       toast.error(err.response?.data?.message || err.message || 'Có lỗi xảy ra khi xóa cộng tác viên');
     } finally {
-      setLoading(prev => ({ ...prev, [selectedUserId as string]: false }));
+      setLoading(prev => ({ ...prev, [userId]: false }));
+    }
+  };
+  
+  const handleDeleteClick = (e: React.MouseEvent<HTMLButtonElement>) => {
+    e.preventDefault();
+    if (selectedUserId) {
+      handleDelete(selectedUserId);
     }
   };
   
@@ -342,76 +354,72 @@ const CollaboratorsList: React.FC<CollaboratorListProps> = ({ eventId, onUpdate 
   
   // Render a Facebook-style pending request card
   const renderPendingCollaboratorCard = (collaborator: Collaborator) => {
-    // Make sure collaborator has proper structure
-    if (!collaborator || !collaborator.user || typeof collaborator.user !== 'object') {
-      console.error('Invalid collaborator structure:', collaborator);
-      return null;
-    }
-    
-    const { user: collaboratorUser, requestedAt } = collaborator;
-    
-    // Safety check to ensure _id exists
-    if (!collaboratorUser._id) {
-      console.error('Collaborator user missing _id:', collaboratorUser);
-      return null;
-    }
-    
+    const isLoading = loading[collaborator.user._id] || false;
+
     return (
-      <div key={collaboratorUser._id} className="border mb-2 border-gray-200 rounded-lg shadow-sm bg-white overflow-hidden">
-        <div className="p-4 flex flex-col">
-          {/* User info header */}
-          <div className="flex items-start gap-3 mb-3">
-            {collaboratorUser && collaboratorUser.avatar && collaboratorUser.avatar.url ? (
-              <img 
-                src={collaboratorUser.avatar.url} 
-                alt="" 
-                className="w-12 h-12 rounded-full object-cover flex-shrink-0"
-              />
-            ) : (
-              <div className="w-12 h-12 rounded-full bg-gray-100 flex items-center justify-center flex-shrink-0">
-                <UserIcon className="w-7 h-7 text-gray-400" />
+      <div key={collaborator.user._id} className="bg-white rounded-lg border border-gray-200 overflow-hidden mb-4">
+        <div className="p-4">
+          <div className="flex justify-between items-start">
+            <div className="flex items-center gap-3">
+              {/* Avatar */}
+              <div className="h-12 w-12 rounded-full overflow-hidden bg-gray-100 flex items-center justify-center">
+                {collaborator.user.avatar?.url ? (
+                  <img 
+                    src={collaborator.user.avatar.url} 
+                    alt={collaborator.user.fullName} 
+                    className="h-full w-full object-cover"
+                  />
+                ) : (
+                  <UserIcon className="h-6 w-6 text-gray-400" />
+                )}
               </div>
-            )}
-            <div className="flex-1">
-              <p className="font-medium text-gray-900">
-                {collaboratorUser.fullName || 'Người dùng không xác định'}
-              </p>
-              {collaboratorUser.email && (
-                <p className="text-xs text-gray-500">{collaboratorUser.email}</p>
-              )}
-              <p className="text-xs text-gray-500 flex items-center gap-1">
-                <RiTimeLine className="inline" />
-                <span>Yêu cầu {formatDistanceToNow(new Date(requestedAt), { addSuffix: true, locale: vi })}</span>
-              </p>
+              
+              {/* User info */}
+              <div>
+                <h3 className="font-medium text-gray-800">{collaborator.user.fullName}</h3>
+                <p className="text-sm text-gray-500">{collaborator.user.email || 'Email không khả dụng'}</p>
+                <p className="text-xs text-gray-400">
+                  Đăng ký: {formatDistanceToNow(new Date(collaborator.requestedAt), { locale: vi, addSuffix: true })}
+                </p>
+              </div>
             </div>
           </div>
           
-          {/* Description - only visible to admins */}
-          {hasAdminAccess && (
-            <div className="text-sm text-gray-600 mb-4">
-              <p>Người dùng này muốn trở thành cộng tác viên cho sự kiện này.</p>
+          {/* Hiển thị lịch làm việc nếu có */}
+          {collaborator.workingSchedule && (
+            <div className="mt-4">
+              <CollaboratorScheduleDisplay 
+                collaborator={collaborator} 
+                showUserInfo={false} 
+                className="bg-gray-50"
+              />
             </div>
           )}
-          
-          {/* Action buttons - only for admins */}
-          {hasAdminAccess && (
-            <div className="flex gap-2 mt-1">
-              <button
-                onClick={() => handleApprove(collaboratorUser._id, collaboratorUser.fullName || 'Người dùng')}
-                disabled={loading[collaboratorUser._id]}
-                className="flex-1 py-2 bg-blue-600 text-white font-medium rounded-md hover:bg-blue-700 transition disabled:opacity-50"
-              >
-                {loading[collaboratorUser._id] ? 'Đang xử lý...' : 'Chấp nhận'}
-              </button>
-              <button
-                onClick={() => openRejectModal(collaboratorUser._id, collaboratorUser.fullName || 'Người dùng')}
-                disabled={loading[collaboratorUser._id]}
-                className="flex-1 py-2 bg-gray-200 text-gray-800 font-medium rounded-md hover:bg-gray-300 transition disabled:opacity-50"
-              >
-                Từ chối
-              </button>
-            </div>
-          )}
+        </div>
+        
+        {/* Action buttons */}
+        <div className="bg-gray-50 p-3 flex gap-2 justify-end">
+          <button
+            onClick={() => openRejectModal(collaborator.user._id, collaborator.user.fullName || 'Người dùng')}
+            disabled={isLoading}
+            className="px-3 py-1.5 text-sm font-medium text-red-600 bg-white border border-red-200 rounded-lg hover:bg-red-50 disabled:opacity-50"
+          >
+            Từ chối
+          </button>
+          <button
+            onClick={() => handleApprove(collaborator.user._id, collaborator.user.fullName || 'Người dùng')}
+            disabled={isLoading}
+            className="px-3 py-1.5 text-sm font-medium text-white bg-green-600 rounded-lg hover:bg-green-700 disabled:opacity-50 flex items-center gap-1"
+          >
+            {isLoading ? (
+              <>
+                <div className="h-4 w-4 border-2 border-t-transparent border-white rounded-full animate-spin"></div>
+                <span>Đang xử lý...</span>
+              </>
+            ) : (
+              'Chấp nhận'
+            )}
+          </button>
         </div>
       </div>
     );
@@ -419,91 +427,56 @@ const CollaboratorsList: React.FC<CollaboratorListProps> = ({ eventId, onUpdate 
   
   // Render an approved or rejected collaborator card
   const renderCollaboratorCard = (collaborator: Collaborator) => {
-    // Safety check for collaborator structure
-    if (!collaborator || !collaborator.user || typeof collaborator.user !== 'object') {
-      console.error('Invalid collaborator structure:', collaborator);
-      return null;
-    }
-    
-    const { user: collaboratorUser, status, approvedAt, approvedBy, rejectionReason } = collaborator;
-    
-    // Safety check for collaborator user _id
-    if (!collaboratorUser._id) {
-      console.error('Collaborator user missing _id:', collaboratorUser);
-      return null;
-    }
-    
-    const isApproved = status === 'approved';
-    const isRejected = status === 'rejected';
-    
     return (
-      <div key={collaboratorUser._id} className="bg-white p-4 rounded-lg shadow-sm border border-gray-100 transition hover:shadow-md">
-        <div className="flex justify-between">
-          <div className="flex items-center gap-3">
-            {collaboratorUser && collaboratorUser.avatar && collaboratorUser.avatar.url ? (
-              <img 
-                src={collaboratorUser.avatar.url} 
-                alt="" 
-                className="w-12 h-12 rounded-full object-cover flex-shrink-0"
-              />
-            ) : (
-              <div className="w-12 h-12 rounded-full bg-gray-100 flex items-center justify-center flex-shrink-0">
-                <UserIcon className="w-7 h-7 text-gray-400" />
+      <div key={collaborator.user._id} className="bg-white rounded-lg border border-gray-200 overflow-hidden mb-4">
+        <div className="p-4">
+          <div className="flex justify-between items-start">
+            <div className="flex items-center gap-3">
+              {/* Avatar */}
+              <div className="h-12 w-12 rounded-full overflow-hidden bg-gray-100 flex items-center justify-center">
+                {collaborator.user.avatar?.url ? (
+                  <img 
+                    src={collaborator.user.avatar.url} 
+                    alt={collaborator.user.fullName} 
+                    className="h-full w-full object-cover"
+                  />
+                ) : (
+                  <UserIcon className="h-6 w-6 text-gray-400" />
+                )}
               </div>
-            )}
-            <div>
-              <p className="font-medium text-gray-900">
-                {collaboratorUser.fullName || 'Người dùng không xác định'}
-              </p>
-              <p className="text-xs text-gray-500">
-                {isApproved && approvedAt && (
-                  <span className="text-green-600">
-                    Phê duyệt {formatDistanceToNow(new Date(approvedAt), { addSuffix: true, locale: vi })}
-                    {approvedBy && approvedBy.fullName && ` bởi ${approvedBy.fullName}`}
-                  </span>
-                )}
-                {isRejected && (
-                  <span className="text-red-600">
-                    {rejectionReason ? `Lý do từ chối: ${rejectionReason}` : 'Đã từ chối'}
-                  </span>
-                )}
-              </p>
+              
+              {/* User info */}
+              <div>
+                <h3 className="font-medium text-gray-800">{collaborator.user.fullName}</h3>
+                <p className="text-sm text-gray-500">{collaborator.user.email || 'Email không khả dụng'}</p>
+                <p className="text-xs text-gray-400">
+                  Đăng ký: {formatDistanceToNow(new Date(collaborator.requestedAt), { locale: vi, addSuffix: true })}
+                </p>
+              </div>
             </div>
-          </div>
-          
-          {/* Only show action buttons for admins/organizers */}
-          {hasAdminAccess && (
-            <div className="flex items-center">
-              {isApproved && (
+            
+            {/* Admin actions */}
+            {hasAdminAccess && (
+              <div className="flex gap-2">
                 <button
-                  onClick={() => openDeleteModal(collaboratorUser._id, collaboratorUser.fullName || 'Người dùng')}
-                  disabled={loading[collaboratorUser._id]}
-                  className="p-2 text-gray-500 hover:text-red-500 hover:bg-gray-50 rounded-full transition disabled:opacity-50"
+                  onClick={() => openDeleteModal(collaborator.user._id, collaborator.user.fullName || 'cộng tác viên')}
+                  className="p-2 text-red-500 hover:bg-red-50 rounded-full transition-colors"
                   title="Xóa cộng tác viên"
                 >
-                  <FaTrash className="text-sm" />
+                  <FaTrash className="h-4 w-4" />
                 </button>
-              )}
-              
-              {isRejected && (
-                <div className="flex gap-1">
-                  <button
-                    onClick={() => handleApprove(collaboratorUser._id, collaboratorUser.fullName || 'Người dùng')}
-                    disabled={loading[collaboratorUser._id]}
-                    className="px-3 py-1.5 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition disabled:opacity-50 text-sm font-medium"
-                  >
-                    Duyệt lại
-                  </button>
-                  <button
-                    onClick={() => openDeleteModal(collaboratorUser._id, collaboratorUser.fullName || 'Người dùng')}
-                    disabled={loading[collaboratorUser._id]}
-                    className="p-1.5 border border-gray-300 text-gray-500 rounded-md hover:bg-gray-50 transition disabled:opacity-50"
-                    title="Xóa khỏi danh sách"
-                  >
-                    <FaTrash className="text-xs" />
-                  </button>
-                </div>
-              )}
+              </div>
+            )}
+          </div>
+          
+          {/* Hiển thị lịch làm việc nếu có */}
+          {collaborator.workingSchedule && (
+            <div className="mt-4">
+              <CollaboratorScheduleDisplay 
+                collaborator={collaborator} 
+                showUserInfo={false}
+                className="bg-gray-50"
+              />
             </div>
           )}
         </div>
@@ -514,12 +487,12 @@ const CollaboratorsList: React.FC<CollaboratorListProps> = ({ eventId, onUpdate 
   return (
     <div className="space-y-6">
       {/* Thông báo cho người dùng thông thường khi có yêu cầu đang chờ phê duyệt */}
-      {/*showRequestPendingMessage && (
+      {showRequestPendingMessage && (
         <div className="bg-yellow-50 border border-yellow-100 rounded-lg p-4 text-sm text-yellow-700">
           <p className="font-medium">Có {pendingCollaborators.length} yêu cầu đang chờ phê duyệt</p>
           <p>Chỉ người tạo sự kiện, người tổ chức và quản trị viên mới có quyền phê duyệt yêu cầu làm cộng tác viên.</p>
         </div>
-      )}*/}
+      )}
       
       {/* Pending requests section - Facebook style */}
       {pendingCollaborators.length > 0 && hasAdminAccess && (
@@ -538,11 +511,6 @@ const CollaboratorsList: React.FC<CollaboratorListProps> = ({ eventId, onUpdate 
                   aria-label="Hiển thị thông tin về quyền phê duyệt"
                 >
                   <span className="text-xs font-bold">?</span>
-                  
-                  {/* Hiệu ứng gợi ý khi người dùng chưa từng click */}
-                  {/*!showPermissionGuide && (
-                    <span className="absolute -top-1 -right-1 w-3 h-3 bg-red-500 rounded-full animate-ping"></span>
-                  )*/}
                   
                   {/* Tooltip hiển thị khi hover */}
                   <span 
@@ -666,7 +634,7 @@ const CollaboratorsList: React.FC<CollaboratorListProps> = ({ eventId, onUpdate 
                 Hủy
               </button>
               <button
-                onClick={handleDelete}
+                onClick={handleDeleteClick}
                 className="px-4 py-2 bg-red-500 text-white rounded-md hover:bg-red-600 transition"
               >
                 Xóa

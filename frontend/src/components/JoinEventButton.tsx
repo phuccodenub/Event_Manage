@@ -29,6 +29,16 @@ interface JoinEventButtonProps {
   isCompact?: boolean;
   creatorId?: string;
   organizerId?: string;
+  eventDays?: Array<{
+    date: string;
+    sessions: Array<{
+      type: string;
+      startTime: string;
+      endTime: string;
+      label: string;
+    }>;
+  }>;
+  eventTitle?: string;
 }
 
 const JoinEventButton: React.FC<JoinEventButtonProps> = ({
@@ -43,6 +53,8 @@ const JoinEventButton: React.FC<JoinEventButtonProps> = ({
   isCompact,
   creatorId,
   organizerId,
+  eventDays,
+  eventTitle,
 }) => {
   const { user } = useAuth();
   const { fetchNotifications } = useNotifications();
@@ -270,6 +282,8 @@ const JoinEventButton: React.FC<JoinEventButtonProps> = ({
         onSubmit={handleFormSubmit}
         fields={registrationFields}
         loading={isLoading}
+        eventDays={eventDays}
+        eventTitle={eventTitle}
       />
     </div>
   );

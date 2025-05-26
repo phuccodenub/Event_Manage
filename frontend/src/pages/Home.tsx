@@ -24,6 +24,14 @@ import CollaborateEventButton from '../components/CollaborateEventButton';
 import { formatDescriptionWithLinks } from '@/utils/linkUtils';
 import { UserIcon } from '@heroicons/react/outline';
 import LoadingSpinner from '../components/LoadingSpinner';
+import { 
+  getEventStartDate, 
+  getEventEndDate, 
+  getEventStatusFromEventDays, 
+  formatEventDaysDisplay, 
+  formatEventTimeDisplay,
+  formatDate
+} from '../utils/dateUtils';
 
 // Define cache keys
 const CACHE_KEYS = {
@@ -73,8 +81,13 @@ const Home: React.FC = () => {
   const sortEvents = (events: Event[]) => {
     const now = new Date();
     return events.sort((a, b) => {
-      const startDateA = new Date(a.startDate);
-      const startDateB = new Date(b.startDate);
+      const startDateA = a.eventDays ? getEventStartDate(a.eventDays) : null;
+      const startDateB = b.eventDays ? getEventStartDate(b.eventDays) : null;
+      
+      if (!startDateA && !startDateB) return 0;
+      if (!startDateA) return 1;
+      if (!startDateB) return -1;
+      
       const isUpcomingA = startDateA > now;
       const isUpcomingB = startDateB > now;
 
@@ -104,7 +117,7 @@ const Home: React.FC = () => {
   };
 
   const handleTimeClick = (post: Event | Announcement) => {
-    if ('startDate' in post) {
+    if ('eventDays' in post) {
       navigate(`/events/${post._id}`);
     } else {
       navigate(`/announcements/${post._id}`);
@@ -534,34 +547,34 @@ const Home: React.FC = () => {
               <UserIcon className="w-6 h-6 text-gray-400" />
             </div>
           )}
-          <div className="ml-3">
-            <h3 className="text-sm font-semibold text-[#000000]">
-              {event.organizer?.fullName || 'Anonymous'}
-              {event.department && (
-                <>
-                  <span className="text-sm font-normal text-gray-600 ml-1">tại</span>
-                  <span className="text-sm font-semibold text-[#000000] ml-1">
-                    {event.department.name}
-                  </span>
-                </>
-              )}
-            </h3>
-            <div className="flex items-center gap-2">
-              <span 
-                className="text-xs text-gray-500 hover:text-orange-600 cursor-pointer"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  handleTimeClick(event);
-                }}
-              >
-                {formatTimeAgo(event.createdAt)}
-              </span>
-              <div className="flex items-center gap-3">
+          <div className="ml-3 flex-1">
+            <div className="flex flex-col gap-1">
+              <div className="flex items-start justify-between gap-2">
+                <div className="flex items-center gap-2 flex-wrap min-w-0 flex-1">
+                  <h3 className="font-semibold text-gray-900 text-sm">
+                    {event.organizer?.fullName || 'Unknown'}
+                  </h3>
+                  {event.department?.name && (
+                    <span className="text-xs text-gray-500">• {event.department.name}</span>
+                  )}
+                  {event.community?.name && (
+                    <span className="text-xs text-blue-600 font-medium">
+                      {event.department?.name ? ' • ' : ' • '}trong {event.community.name}
+                    </span>
+                  )}
+                </div>
+                <span className="text-xs text-gray-500 hover:text-orange-600 cursor-pointer whitespace-nowrap flex-shrink-0 ml-2">
+                  {event.createdAt ? formatTimeAgo(event.createdAt) : ''}
+                </span>
+              </div>
+              
+              {/* Location info on separate line */}
+              <div className="flex items-center gap-3 flex-wrap">
                 {(event.eventType === 'offline' || event.eventType === 'hybrid') && 
                   event.location?.physical?.address && (
                     <div className="flex items-center space-x-1">
                       <IoLocationOutline className="text-orange-500 w-3 h-3" />
-                      <span className="text-xs text-gray-500 truncate max-w-[150px]">
+                      <span className="text-xs text-gray-500 truncate max-w-[200px]">
                         {event.location.physical.room 
                           ? `${event.location.physical.address} - ${event.location.physical.room}`
                           : event.location.physical.address}
@@ -603,11 +616,11 @@ const Home: React.FC = () => {
           <div className="flex items-center gap-6 mt-3 text-sm text-gray-600">
             <div className="flex items-center gap-2">
               <BsCalendarEvent className="text-orange-500" />
-              <span>Bắt đầu: {new Date(event.startDate).toLocaleString('vi-VN')}</span>
+              <span>Ngày: {event.eventDays ? formatEventDaysDisplay(event.eventDays) : 'Chưa xác định'}</span>
             </div>
             <div className="flex items-center gap-2">
               <BsCalendarCheck className="text-orange-500" />
-              <span>Kết thúc: {new Date(event.endDate).toLocaleString('vi-VN')}</span>
+              <span>Thời gian: {event.eventDays ? formatEventTimeDisplay(event.eventDays) : 'Chưa xác định'}</span>
             </div>
           </div>
         </div>
@@ -654,6 +667,8 @@ const Home: React.FC = () => {
                 status={event.status}
                 creatorId={event.creator?._id}
                 organizerId={event.organizer?._id}
+                eventDays={event.eventDays}
+                eventTitle={event.title}
               />
               
               {user && event.status !== 'cancelled' && event.status !== 'completed' && (

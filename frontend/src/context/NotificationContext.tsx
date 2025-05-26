@@ -83,6 +83,7 @@ export const NotificationProvider = ({ children }: { children: React.ReactNode }
   const socketInitialized = useRef(false);
   const socketRef = useRef<Socket | null>(null);
   const refetchingRef = useRef(false);
+  const invalidationTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   const queryClient = useQueryClient();
 
@@ -111,35 +112,56 @@ export const NotificationProvider = ({ children }: { children: React.ReactNode }
 
   // Socket connection for real-time notifications
   const setupSocket = useCallback(() => {
-    if (!user?._id || socketInitialized.current) return;
+    // Double-check with atomic flag to prevent race conditions
+    if (!user?._id || socketInitialized.current || socketRef.current) return;
 
-    socketInstance = socketRef.current = io(
-      import.meta.env.VITE_API_URL || window.location.origin.replace(/:\d+$/, ':5000'),
-      {
-        query: { userId: user._id },
-        path: '/socket.io',
-        transports: ['websocket', 'polling'],
-        withCredentials: true,
-      }
-    );
+    // Set flag immediately to prevent concurrent connections
+    socketInitialized.current = true;
 
-    socketInstance.on('connect', () => {
-      console.log('Socket connected:', socketInstance?.id);
-      socketInitialized.current = true;
-    });
+    try {
+      socketInstance = socketRef.current = io(
+        import.meta.env.VITE_API_URL || window.location.origin.replace(/:\d+$/, ':5000'),
+        {
+          query: { userId: user._id },
+          path: '/socket.io',
+          transports: ['websocket', 'polling'],
+          withCredentials: true,
+        }
+      );
+
+      socketInstance.on('connect', () => {
+        console.log('Socket connected:', socketInstance?.id);
+        // Flag đã được set trước đó
+      });
+    } catch (error) {
+      console.error('Error setting up socket:', error);
+      // Reset flag nếu có lỗi
+      socketInitialized.current = false;
+      socketRef.current = null;
+    }
 
     socketInstance.on('newNotification', (data) => {
       console.log('New notification received:', data);
       console.log('Notification type:', data.type);
       
-      // Trực tiếp cập nhật state mà không sử dụng Timeout
-      // NGAY LẬP TỨC invalidate queries để refresh data
-      queryClient.invalidateQueries({ queryKey: ['notifications', user?._id] });
-      queryClient.invalidateQueries({ queryKey: ['unreadCount', user?._id] });
+      // Debounced invalidation để tránh multiple concurrent requests
+      if (invalidationTimeoutRef.current) {
+        clearTimeout(invalidationTimeoutRef.current);
+      }
       
-      // Force refetch ngay lập tức để không phải đợi React Query tự làm
-      queryClient.refetchQueries({ queryKey: ['notifications', user?._id], type: 'active' });
-      queryClient.refetchQueries({ queryKey: ['unreadCount', user?._id], type: 'active' });
+      invalidationTimeoutRef.current = setTimeout(() => {
+        // Batch invalidate queries để tránh race conditions
+        queryClient.invalidateQueries({ 
+          queryKey: ['notifications', user?._id],
+          exact: false 
+        });
+        queryClient.invalidateQueries({ 
+          queryKey: ['unreadCount', user?._id],
+          exact: false 
+        });
+        
+        invalidationTimeoutRef.current = null;
+      }, 100); // Debounce 100ms
       
       // Hiển thị toast message ngay lập tức khi có thông báo mới và đặt className đẹp hơn
       if (data.type === 'event' || data.type === 'announcement' || data.type === 'system' || 

@@ -76,14 +76,14 @@ const uploadRoutes = require('./routes/uploadRoutes');
 // Mount routes
 app.use('/api/v1/auth', authRoutes);
 app.use('/api/v1/users', userRoutes);
-app.use('/api/v1/events', eventRoutes);
+app.use('/api/v1/event', eventRoutes);
 app.use('/api/v1/departments', departmentRoutes);
 app.use('/api/v1/forms', formRoutes);
 app.use('/api/v1/checkins', checkinRoutes);
 app.use('/api/v1/certificates', certificateRoutes);
 app.use('/api/v1/notifications', notificationRoutes);
 app.use('/api/v1/upload', uploadRoutes);
-app.use('/api/v1/community', communityRoutes);
+app.use('/api/v1/communities', communityRoutes);
 
 // Error Handler
 app.use(errorHandler);

@@ -6,6 +6,7 @@ import eventService from '../services/eventService';
 import { toast } from 'react-toastify';
 import { AxiosError } from 'axios';
 import { RiUserAddLine, RiUserUnfollowLine, RiTimeLine, RiUserReceivedLine, RiCloseLine } from 'react-icons/ri';
+import CollaboratorScheduleModal from './modals/CollaboratorScheduleModal';
 
 // Interface for collaborators with status
 interface CollaboratorWithStatus {
@@ -24,6 +25,7 @@ type EventCollaborator = string | {
 
 interface CollaborateEventButtonProps {
   eventId: string;
+  eventTitle?: string;
   collaborators?: Array<string | { _id: string, user?: string, status?: string }>;
   onJoinSuccess?: () => void;
   onLeaveSuccess?: () => void;
@@ -36,10 +38,23 @@ interface CollaborateEventButtonProps {
   // Add organizer and creator ids for checking
   organizerId?: string;
   creatorId?: string;
+  // Thêm thông tin về thời gian setup sự kiện
+  setupTime?: {
+    supportDays?: Array<{
+      date: string | Date;
+      sessions: Array<{
+        type: string;
+        startTime: string;
+        endTime: string;
+        label: string;
+      }>;
+    }>;
+  };
 }
 
 const CollaborateEventButton: React.FC<CollaborateEventButtonProps> = ({
   eventId,
+  eventTitle = "Sự kiện",
   // We're not using collaborators prop anymore since we rely on context
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   collaborators,
@@ -54,6 +69,7 @@ const CollaborateEventButton: React.FC<CollaborateEventButtonProps> = ({
   // Event owner props
   organizerId,
   creatorId,
+  setupTime,
 }) => {
   const { user } = useAuth();
   const { fetchNotifications } = useNotifications();
@@ -69,6 +85,9 @@ const CollaborateEventButton: React.FC<CollaborateEventButtonProps> = ({
   const [showCancelConfirm, setShowCancelConfirm] = useState(false);
   // Track initialization to prevent flickering
   const [isInitialized, setIsInitialized] = useState(false);
+  // State to control schedule modal
+  const [showScheduleModal, setShowScheduleModal] = useState(false);
+  const [availableDays, setAvailableDays] = useState([]);
 
   // Update window width when resized
   useEffect(() => {
@@ -110,6 +129,27 @@ const CollaborateEventButton: React.FC<CollaborateEventButtonProps> = ({
       }
     } catch (error) {
       console.error('Error fetching detailed collaborator status:', error);
+    }
+  };
+
+  const updateNotifications = async () => {
+    try {
+      // Check socket status
+      const socketStatus = getSocketStatus();
+      console.log('Socket status:', socketStatus);
+      
+      // Give the backend time to create notifications
+      await new Promise(resolve => setTimeout(resolve, 500));
+      
+      // Try fetching notifications multiple times with delay between attempts
+      for (let attempt = 0; attempt < 3; attempt++) {
+        await fetchNotifications();
+        if (attempt < 2) {
+          await new Promise(resolve => setTimeout(resolve, 1000));
+        }
+      }
+    } catch (error) {
+      console.error('Failed to update notifications:', error);
     }
   };
 
@@ -185,58 +225,46 @@ const CollaborateEventButton: React.FC<CollaborateEventButtonProps> = ({
     checkCollaboratorStatus();
   }, [eventId, user, isUserCollaborator, isOrganizer, isCreator]);
 
-  const handleJoinAsCollaborator = useCallback(async () => {
+  // Helper function to extract available support days from setupTime
+  const extractAvailableDays = (setupTime: any) => {
+    if (setupTime?.supportDays && Array.isArray(setupTime.supportDays)) {
+      return setupTime.supportDays.map((day: any) => ({
+        date: day.date,
+        sessions: day.sessions || []
+      }));
+    }
+    return [];
+  };
+
+  useEffect(() => {
+    if (setupTime) {
+      setAvailableDays(extractAvailableDays(setupTime));
+    }
+  }, [setupTime]);
+
+  const handleJoinAsCollaborator = useCallback(() => {
     if (!user || !eventId) return;
     
+    // Mở modal để chọn lịch làm việc
+    setShowScheduleModal(true);
+  }, [user, eventId]);
+
+  const handleScheduleSubmitSuccess = useCallback(async () => {
     try {
-      setIsLoading(true);
-      
-      const response = await eventService.joinEventAsCollaborator(eventId);
-      
-      // Update local state
       setIsCollaborator(true);
+      setCollaboratorStatus('pending');
+      await updateNotifications();
       
-      // For users with fullAccess roles, immediately set to approved
-      if (hasFullAccess) {
-        setCollaboratorStatus('approved');
-        toast.success('Bạn đã được tự động duyệt làm cộng tác viên');
-      } else {
-        setCollaboratorStatus('pending');
-        toast.success(response.message || 'Đã gửi yêu cầu làm cộng tác viên thành công');
-      }
+      toast.success('Đăng ký làm cộng tác viên thành công! Vui lòng chờ phê duyệt.');
+      setShowScheduleModal(false);
       
-      // Update global state if needed
       if (onJoinSuccess) {
         onJoinSuccess();
       }
-      
-      // Refresh the collaborator list to get the updated status
-      await fetchCollaborators(eventId);
-      
-      // Update notifications
-      await updateNotifications();
-      
-    } catch (error) {
-      if ((error as AxiosError).response?.status === 400) {
-        // If we get an error that the user is already a collaborator, update the UI state accordingly
-        setIsCollaborator(true);
-        setCollaboratorStatus('pending'); 
-        
-        // Show error with the actual error message
-        toast.error((error as AxiosError<{message: string, error?: string}>).response?.data?.message || 
-                  (error as AxiosError<{message: string, error?: string}>).response?.data?.error || 
-                  'Bạn đã đăng ký làm cộng tác viên rồi');
-        
-        // Refresh the collaborators list to get the correct status
-        await fetchCollaborators(eventId);
-      } else {
-        toast.error('Có lỗi xảy ra khi đăng ký làm cộng tác viên');
-        console.error('Error joining as collaborator:', error);
-      }
-    } finally {
-      setIsLoading(false);
+    } catch (error: any) {
+      toast.error(error.response?.data?.message || 'Có lỗi xảy ra khi đăng ký làm cộng tác viên');
     }
-  }, [user, eventId, onJoinSuccess, fetchCollaborators, hasFullAccess]);
+  }, [updateNotifications, onJoinSuccess]);
 
   const handleLeaveAsCollaborator = useCallback(async () => {
     if (!user || !eventId) return;
@@ -277,28 +305,7 @@ const CollaborateEventButton: React.FC<CollaborateEventButtonProps> = ({
     } finally {
       setIsLoading(false);
     }
-  }, [user, eventId, collaboratorStatus, showCancelConfirm, onLeaveSuccess, fetchCollaborators]);
-
-  const updateNotifications = async () => {
-    try {
-      // Check socket status
-      const socketStatus = getSocketStatus();
-      console.log('Socket status:', socketStatus);
-      
-      // Give the backend time to create notifications
-      await new Promise(resolve => setTimeout(resolve, 500));
-      
-      // Try fetching notifications multiple times with delay between attempts
-      for (let attempt = 0; attempt < 3; attempt++) {
-        await fetchNotifications();
-        if (attempt < 2) {
-          await new Promise(resolve => setTimeout(resolve, 1000));
-        }
-      }
-    } catch (error) {
-      console.error('Failed to update notifications:', error);
-    }
-  };
+  }, [user, eventId, collaboratorStatus, showCancelConfirm, onLeaveSuccess, fetchCollaborators, updateNotifications]);
 
   // Check if event is active (not cancelled and not ended)
   const isEventActive = useCallback(() => {
@@ -390,37 +397,50 @@ const CollaborateEventButton: React.FC<CollaborateEventButtonProps> = ({
   
   // Show compact or full version based on props or screen size
   return (
-    <div className="inline-block relative group">
-      <button
-        onClick={isCollaborator ? handleLeaveAsCollaborator : handleJoinAsCollaborator}
-        disabled={isButtonDisabled}
-        title={buttonText}
-        aria-label={buttonText}
-        className={`transition-colors ${
-          showCompact 
-            ? `p-2 rounded-full flex items-center justify-center ${buttonClass}`
-            : `px-5 py-2 rounded-xl font-medium ${buttonClass}`
-        } ${isLoading ? 'opacity-70 cursor-not-allowed' : ''}`}
-      >
-        {showCompact ? (
-          isLoading ? (
-            <div className="h-5 w-5 border-2 border-t-transparent border-white rounded-full animate-spin"></div>
+    <>
+      <div className="inline-block relative group">
+        <button
+          onClick={isCollaborator ? handleLeaveAsCollaborator : handleJoinAsCollaborator}
+          disabled={isButtonDisabled}
+          title={buttonText}
+          aria-label={buttonText}
+          className={`transition-colors ${
+            showCompact 
+              ? `p-2 rounded-full flex items-center justify-center ${buttonClass}`
+              : `px-5 py-2 rounded-xl font-medium ${buttonClass}`
+          } ${isLoading ? 'opacity-70 cursor-not-allowed' : ''}`}
+        >
+          {showCompact ? (
+            isLoading ? (
+              <div className="h-5 w-5 border-2 border-t-transparent border-white rounded-full animate-spin"></div>
+            ) : (
+              buttonIcon
+            )
           ) : (
-            buttonIcon
-          )
-        ) : (
-          isLoading 
-            ? 'Đang xử lý...'
-            : buttonText
-        )}
-      </button>
+            isLoading 
+              ? 'Đang xử lý...'
+              : buttonText
+          )}
+        </button>
 
-      {showCompact && (
-        <div className="absolute left-1/2 -translate-x-1/2 bottom-full mb-2 px-2 py-1 bg-gray-800 text-white text-xs rounded opacity-0 group-hover:opacity-100 transition-opacity duration-200 whitespace-nowrap pointer-events-none z-10">
-          {buttonText}
-        </div>
+        {showCompact && (
+          <div className="absolute left-1/2 -translate-x-1/2 bottom-full mb-2 px-2 py-1 bg-gray-800 text-white text-xs rounded opacity-0 group-hover:opacity-100 transition-opacity duration-200 whitespace-nowrap pointer-events-none z-10">
+            {buttonText}
+          </div>
+        )}
+      </div>
+
+      {showScheduleModal && (
+        <CollaboratorScheduleModal
+          isOpen={showScheduleModal}
+          onClose={() => setShowScheduleModal(false)}
+          eventId={eventId}
+          eventTitle={eventTitle}
+          setupTime={setupTime}
+          onSuccess={handleScheduleSubmitSuccess}
+        />
       )}
-    </div>
+    </>
   );
 };
 

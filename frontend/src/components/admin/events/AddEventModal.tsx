@@ -178,6 +178,12 @@ const AddEventModal = ({ isOpen, onClose }: Props) => {
       formDataToSubmit.append('startDate', startDate.toISOString());
       formDataToSubmit.append('endDate', endDate.toISOString());
 
+      // Add setupTime (required by the model)
+      const setupStartTime = new Date(startDate);
+      setupStartTime.setHours(setupStartTime.getHours() - 1); // Mặc định setup bắt đầu 1 giờ trước sự kiện
+      formDataToSubmit.append('setupTime[start]', setupStartTime.toISOString());
+      formDataToSubmit.append('setupTime[end]', startDate.toISOString());
+
       // Handle capacity
       if (data.capacity && parseInt(data.capacity) > 0) {
         formDataToSubmit.append('capacity', data.capacity.toString());

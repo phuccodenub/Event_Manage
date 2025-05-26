@@ -1,4 +1,5 @@
 import axios, { AxiosRequestConfig, AxiosError } from 'axios';
+import { cache } from '../utils/cacheManager';
 
 // Định nghĩa interface cho queue item
 interface QueueItem {
@@ -71,12 +72,8 @@ apiClient.interceptors.response.use(
         !response.config.headers['X-Disable-Cache'] && 
         !response.config.url?.includes('/auth/')) {
       try {
-        const cacheKey = `api_cache_${response.config.url}`;
-        const responseToCache = {
-          data: response.data,
-          timestamp: Date.now(),
-        };
-        localStorage.setItem(cacheKey, JSON.stringify(responseToCache));
+        // Sử dụng cache manager thay vì localStorage trực tiếp
+        cache.cacheGetRequest(response.config.url || '', response.data);
       } catch (error) {
         // Bỏ qua lỗi khi lưu cache
         console.error('Failed to cache response:', error);

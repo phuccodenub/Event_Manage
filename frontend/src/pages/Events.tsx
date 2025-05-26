@@ -21,6 +21,14 @@ import DatePicker from 'react-datepicker';
 import 'react-datepicker/dist/react-datepicker.css';
 import { useLocation } from 'wouter';
 import LoadingSpinner from '../components/LoadingSpinner';
+import { 
+  getEventStartDate, 
+  getEventEndDate, 
+  getEventStatusFromEventDays, 
+  formatEventDaysDisplay, 
+  formatEventTimeDisplay,
+  formatDate
+} from '../utils/dateUtils';
 
 const EVENT_TYPES = {
   all: 'Tất cả hình thức',
@@ -42,80 +50,33 @@ const CATEGORIES = {
   cultural: 'Văn hóa'
 };
 
-const getEventStatus = (startDate: string, endDate: string): string => {
-  const now = new Date();
-  const start = new Date(startDate);
-  const end = new Date(endDate);
-
-  if (now < start) {
-    return 'upcoming';
-  } else if (now >= start && now <= end) {
-    return 'ongoing';
-  } else {
-    return 'completed';
-  }
-};
-
 const Events: React.FC = () => {
   const { user } = useAuth();
-  const { events, setEvents, updateEventParticipants } = useEvents();
-  const [filteredEvents, setFilteredEvents] = useState(events);
-  const [filtersVisible, setFiltersVisible] = useState(false);
-  const [, navigate] = useLocation();
-  const [loading, setLoading] = useState(true);
+  const { events, loading, error } = useEvents();
+  const [filteredEvents, setFilteredEvents] = useState<Event[]>([]);
   const [filters, setFilters] = useState({
     search: '',
-    status: 'all',
-    eventType: 'all',
     category: 'all',
+    eventType: 'all',
+    status: 'all',
     dateRange: {
       start: null as Date | null,
       end: null as Date | null
     }
   });
+  const [showFilters, setShowFilters] = useState(false);
+  const [, navigate] = useLocation();
 
   useEffect(() => {
-    const fetchEvents = async () => {
-      try {
-        setLoading(true);
-        const data = await eventService.getAllEvents();
-        setEvents(Array.isArray(data) ? data : []);
-        setFilteredEvents(Array.isArray(data) ? data : []);
-      } catch (error) {
-        console.error('Error fetching events:', error);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchEvents();
-  }, [setEvents]);
-
-  const handleFilterChange = (field: string, value: any) => {
-    setFilters(prev => ({
-      ...prev,
-      [field]: value
-    }));
-  };
-
-  const resetFilters = () => {
-    setFilters({
-      search: '',
-      status: 'all',
-      eventType: 'all',
-      category: 'all',
-      dateRange: {
-        start: null,
-        end: null
-      }
-    });
-    setFilteredEvents(events);
-  };
+    if (events) {
+      setFilteredEvents(events);
+    }
+  }, [events]);
 
   const applyFilters = () => {
     let filtered = [...events].map(event => ({
       ...event,
-      status: getEventStatus(event.startDate, event.endDate)
+      status: event.eventDays ? getEventStatusFromEventDays(event.eventDays) : 'upcoming'
     }));
 
     if (filters.search) {
@@ -142,9 +103,11 @@ const Events: React.FC = () => {
 
     if (filters.dateRange.start || filters.dateRange.end) {
       filtered = filtered.filter(event => {
-        const eventDate = new Date(event.startDate);
-        const matchesStart = !filters.dateRange.start || eventDate >= filters.dateRange.start;
-        const matchesEnd = !filters.dateRange.end || eventDate <= filters.dateRange.end;
+        const eventStartDate = event.eventDays ? getEventStartDate(event.eventDays) : null;
+        if (!eventStartDate) return false;
+        
+        const matchesStart = !filters.dateRange.start || eventStartDate >= filters.dateRange.start;
+        const matchesEnd = !filters.dateRange.end || eventStartDate <= filters.dateRange.end;
         return matchesStart && matchesEnd;
       });
     }
@@ -211,11 +174,11 @@ const Events: React.FC = () => {
                       placeholder="Tìm kiếm sự kiện..."
                       className="w-full pl-10 pr-4 py-2.5 bg-gray-50 border border-gray-200 rounded-lg focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 transition-all"
                       value={filters.search}
-                      onChange={(e) => handleFilterChange('search', e.target.value)}
+                      onChange={(e) => setFilters(prev => ({ ...prev, search: e.target.value }))}
                     />
                   </div>
                   <button
-                    onClick={() => setFiltersVisible(!filtersVisible)}
+                    onClick={() => setShowFilters(!showFilters)}
                     className="flex items-center gap-2 bg-orange-50 hover:bg-orange-100 text-orange-600 px-4 py-2 rounded-lg transition-all w-full sm:w-auto justify-center"
                   >
                     <IoFilterOutline />
@@ -232,14 +195,14 @@ const Events: React.FC = () => {
                 </div>
 
                 {/* Filter Panel */}
-                {filtersVisible && (
+                {showFilters && (
                   <div className="mt-6 pt-4 border-t border-gray-100 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                     {/* Event Type */}
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1">Hình thức</label>
                       <select
                         value={filters.eventType}
-                        onChange={(e) => handleFilterChange('eventType', e.target.value)}
+                        onChange={(e) => setFilters(prev => ({ ...prev, eventType: e.target.value }))}
                         className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-lg focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 transition-all"
                       >
                         {Object.entries(EVENT_TYPES).map(([value, label]) => (
@@ -253,7 +216,7 @@ const Events: React.FC = () => {
                       <label className="block text-sm font-medium text-gray-700 mb-1">Loại</label>
                       <select
                         value={filters.category}
-                        onChange={(e) => handleFilterChange('category', e.target.value)}
+                        onChange={(e) => setFilters(prev => ({ ...prev, category: e.target.value }))}
                         className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-lg focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 transition-all"
                       >
                         {Object.entries(CATEGORIES).map(([value, label]) => (
@@ -267,7 +230,7 @@ const Events: React.FC = () => {
                       <label className="block text-sm font-medium text-gray-700 mb-1">Trạng thái</label>
                       <select
                         value={filters.status}
-                        onChange={(e) => handleFilterChange('status', e.target.value)}
+                        onChange={(e) => setFilters(prev => ({ ...prev, status: e.target.value }))}
                         className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-lg focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 transition-all"
                       >
                         {Object.entries(STATUS_OPTIONS).map(([value, label]) => (
@@ -282,10 +245,7 @@ const Events: React.FC = () => {
                       <div className="flex flex-col sm:flex-row gap-2">
                         <DatePicker
                           selected={filters.dateRange.start}
-                          onChange={(date) => handleFilterChange('dateRange', {
-                            ...filters.dateRange,
-                            start: date
-                          })}
+                          onChange={(date) => setFilters(prev => ({ ...prev, dateRange: { ...prev.dateRange, start: date } }))}
                           selectsStart
                           startDate={filters.dateRange.start}
                           endDate={filters.dateRange.end}
@@ -295,10 +255,7 @@ const Events: React.FC = () => {
                         />
                         <DatePicker
                           selected={filters.dateRange.end}
-                          onChange={(date) => handleFilterChange('dateRange', {
-                            ...filters.dateRange,
-                            end: date
-                          })}
+                          onChange={(date) => setFilters(prev => ({ ...prev, dateRange: { ...prev.dateRange, end: date } }))}
                           selectsEnd
                           startDate={filters.dateRange.start}
                           endDate={filters.dateRange.end}
@@ -313,7 +270,16 @@ const Events: React.FC = () => {
                     {/* Reset Filters */}
                     <div className="sm:col-span-2 lg:col-span-4 mt-4 pt-4 border-t border-gray-100 flex justify-end">
                       <button
-                        onClick={resetFilters}
+                        onClick={() => setFilters({
+                          search: '',
+                          status: 'all',
+                          eventType: 'all',
+                          category: 'all',
+                          dateRange: {
+                            start: null,
+                            end: null
+                          }
+                        })}
                         className="flex items-center gap-2 bg-gray-100 hover:bg-gray-200 text-gray-700 px-4 py-2 rounded-lg transition-all"
                       >
                         <IoCloseOutline />
@@ -343,7 +309,7 @@ const Events: React.FC = () => {
               {filteredEvents.length > 0 ? (
                 filteredEvents.map((event) => {
                   const hasImage = event.images && event.images.length > 0 && event.images[0]?.url;
-                  const eventStatus = getEventStatus(event.startDate, event.endDate);
+                  const eventStatus = event.eventDays ? getEventStatusFromEventDays(event.eventDays) : 'upcoming';
                   const statusColor = getStatusBadgeColor(eventStatus);
                   
                   return (
@@ -398,7 +364,13 @@ const Events: React.FC = () => {
                             {event.organizer?.fullName?.charAt(0).toUpperCase() || 'U'}
                           </div>
                           <span className="text-sm text-gray-600 truncate">
-                            {event.organizer?.fullName || 'Unknown'} {event.department?.name ? `• ${event.department.name}` : ''}
+                            {event.organizer?.fullName || 'Unknown'} 
+                            {event.department?.name && ` • ${event.department.name}`}
+                            {event.community?.name && (
+                              <span className="text-blue-600 font-medium">
+                                {event.department?.name ? ' • ' : ' • '}trong {event.community.name}
+                              </span>
+                            )}
                           </span>
                         </div>
                         
@@ -411,14 +383,11 @@ const Events: React.FC = () => {
                         <div className="space-y-2 text-sm text-gray-600 flex-1">
                           <div className="flex items-center gap-2">
                             <IoCalendarOutline className="text-orange-500 w-4 h-4 flex-shrink-0" />
-                            <span>{new Date(event.startDate).toLocaleDateString('vi-VN')}</span>
+                            <span>{event.eventDays ? formatEventDaysDisplay(event.eventDays) : 'Chưa xác định'}</span>
                           </div>
                           <div className="flex items-center gap-2">
                             <IoTimeOutline className="text-orange-500 w-4 h-4 flex-shrink-0" />
-                            <span>
-                              {new Date(event.startDate).toLocaleTimeString('vi-VN', {hour: '2-digit', minute:'2-digit'})} - 
-                              {new Date(event.endDate).toLocaleTimeString('vi-VN', {hour: '2-digit', minute:'2-digit'})}
-                            </span>
+                            <span>{event.eventDays ? formatEventTimeDisplay(event.eventDays) : 'Chưa xác định'}</span>
                           </div>
                           
                           {/* Location - show only one based on event type */}
@@ -434,35 +403,33 @@ const Events: React.FC = () => {
                               </div>
                           )}
                           
-                          {event.eventType === 'online' && event.location?.online?.platform && (
-                            <div className="flex items-center gap-2">
-                              <IoDesktopOutline className="text-orange-500 w-4 h-4 flex-shrink-0" />
-                              <span className="truncate">
-                                {event.location.online.platform} Meeting
-                              </span>
-                            </div>
+                          {(event.eventType === 'online' || event.eventType === 'hybrid') && 
+                            event.location?.online?.platform && (
+                              <div className="flex items-center gap-2">
+                                <IoDesktopOutline className="text-orange-500 w-4 h-4 flex-shrink-0" />
+                                <span className="truncate">{event.location.online.platform}</span>
+                              </div>
                           )}
+                          
+                          <div className="flex items-center gap-2">
+                            <IoPeopleOutline className="text-orange-500 w-4 h-4 flex-shrink-0" />
+                            <span>{event.participants?.length || 0} người tham gia</span>
+                          </div>
                         </div>
                         
-                        {/* Footer */}
-                        <div className="mt-4 pt-3 border-t border-gray-100 flex justify-between items-center">
-                          <span className="text-sm text-gray-500 flex items-center gap-1">
-                            <IoPeopleOutline className="text-orange-500 w-4 h-4" />
-                            <span>{event.participants.length}</span>
-                          </span>
-                          
-                          {/* Join Button */}
-                          <div onClick={(e) => e.stopPropagation()}>
-                            <JoinEventButton
-                              eventId={event._id}
-                              participants={event.participants}
-                              startDate={event.startDate}
-                              endDate={event.endDate}
-                              status={eventStatus}
-                              onJoinSuccess={() => updateEventParticipants(event._id, user?._id, true)}
-                              onLeaveSuccess={() => updateEventParticipants(event._id, user?._id, false)}
-                            />
+                        {/* Right side - Department and Time */}
+                        <div className="flex flex-col items-end gap-2 text-sm">
+                          <div className="text-gray-500 text-right">
+                            <div className="font-medium">{event.department?.name || 'Chưa xác định'}</div>
+                            <div className="text-xs">
+                              {event.createdAt ? formatDate(event.createdAt) : ''}
+                            </div>
                           </div>
+                          
+                          {/* Status badge */}
+                          <span className={`px-2 py-1 rounded-full text-xs text-white ${getStatusBadgeColor(event.status || 'upcoming')}`}>
+                            {STATUS_OPTIONS[event.status as keyof typeof STATUS_OPTIONS] || 'Sắp diễn ra'}
+                          </span>
                         </div>
                       </div>
                     </div>
@@ -476,7 +443,16 @@ const Events: React.FC = () => {
                   <h3 className="text-xl font-semibold text-gray-900 mb-2">Không tìm thấy sự kiện</h3>
                   <p className="text-gray-500 mb-6">Không có sự kiện nào phù hợp với bộ lọc của bạn.</p>
                   <button
-                    onClick={resetFilters}
+                    onClick={() => setFilters({
+                      search: '',
+                      status: 'all',
+                      eventType: 'all',
+                      category: 'all',
+                      dateRange: {
+                        start: null,
+                        end: null
+                      }
+                    })}
                     className="bg-orange-500 hover:bg-orange-600 text-white px-4 py-2 rounded-lg transition-colors"
                   >
                     Xóa bộ lọc

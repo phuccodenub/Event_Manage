@@ -295,43 +295,47 @@ const PostDetails: React.FC = () => {
                 <UserIcon className="w-6 h-6 text-gray-400" />
               </div>
             )}
-            <div className="ml-3">
-              <h3 className="text-sm font-semibold text-[#000000]">
-                {post.organizer?.fullName || 'Anonymous'}
-                {post.department && (
-                  <>
-                    <span className="text-sm font-normal text-gray-600 ml-1">tại</span>
-                    <span className="text-sm font-semibold text-[#000000] ml-1">
-                      {post.department.name}
+            <div className="ml-3 flex-1">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <h3 className="font-semibold text-gray-900 text-sm">
+                    {post.organizer?.fullName || 'Unknown'}
+                  </h3>
+                  {post.department?.name && (
+                    <span className="text-xs text-gray-500">• {post.department.name}</span>
+                  )}
+                  {post.community?.name && (
+                    <span className="text-xs text-blue-600 font-medium">
+                      {post.department?.name ? ' • ' : ' • '}trong {post.community.name}
                     </span>
-                  </>
-                )}
-              </h3>
-              <div className="flex items-center gap-2">
-                <span className="text-xs text-gray-500 hover:text-orange-600 cursor-pointer">
-                  {post.createdAt ? formatTimeAgo(post.createdAt) : ''}
-                </span>
-                <div className="flex items-center gap-3">
-                  {(post.eventType === 'offline' || post.eventType === 'hybrid') && 
-                    post.location?.physical?.address && (
-                      <div className="flex items-center space-x-1">
-                        <IoLocationOutline className="text-orange-500 w-3 h-3" />
-                        <span className="text-xs text-gray-500 truncate max-w-[150px]">
-                          {post.location.physical.room 
-                            ? `${post.location.physical.address} - ${post.location.physical.room}`
-                            : post.location.physical.address}
-                        </span>
-                      </div>
                   )}
-                  {(post.eventType === 'online' || post.eventType === 'hybrid') && 
-                    post.location?.online?.platform && (
-                      <div className="flex items-center space-x-1">
-                        <IoDesktopOutline className="text-orange-500 w-3 h-3" />
-                        <span className="text-xs text-gray-500 truncate">
-                          {post.location.online.platform} Meeting
-                        </span>
-                      </div>
-                  )}
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="text-xs text-gray-500 hover:text-orange-600 cursor-pointer">
+                    {post.createdAt ? formatTimeAgo(post.createdAt) : ''}
+                  </span>
+                  <div className="flex items-center gap-3">
+                    {(post.eventType === 'offline' || post.eventType === 'hybrid') && 
+                      post.location?.physical?.address && (
+                        <div className="flex items-center space-x-1">
+                          <IoLocationOutline className="text-orange-500 w-3 h-3" />
+                          <span className="text-xs text-gray-500 truncate max-w-[150px]">
+                            {post.location.physical.room 
+                              ? `${post.location.physical.address} - ${post.location.physical.room}`
+                              : post.location.physical.address}
+                          </span>
+                        </div>
+                    )}
+                    {(post.eventType === 'online' || post.eventType === 'hybrid') && 
+                      post.location?.online?.platform && (
+                        <div className="flex items-center space-x-1">
+                          <IoDesktopOutline className="text-orange-500 w-3 h-3" />
+                          <span className="text-xs text-gray-500 truncate">
+                            {post.location.online.platform} Meeting
+                          </span>
+                        </div>
+                    )}
+                  </div>
                 </div>
               </div>
             </div>
@@ -405,10 +409,12 @@ const PostDetails: React.FC = () => {
                 isEvent(post) && (
                   <CollaborateEventButton 
                     eventId={post._id}
+                    eventTitle={post.title}
                     status={post.status}
                     collaborators={currentCollaborators}
                     startDate={typeof post.startDate === 'string' ? new Date(post.startDate) : post.startDate}
                     endDate={typeof post.endDate === 'string' ? new Date(post.endDate) : post.endDate}
+                    setupTime={post.setupTime}
                     onJoinSuccess={() => handleCollaboratorUpdate(true)}
                     onLeaveSuccess={() => handleCollaboratorUpdate(false)}
                     organizerId={post.organizer?._id}
@@ -628,8 +634,12 @@ const EventSidebar: React.FC<EventSidebarProps> = ({ event, currentParticipants,
             {user && event.status !== 'cancelled' && event.status !== 'completed' && (
               <CollaborateEventButton 
                 eventId={event._id}
+                eventTitle={event.title}
                 status={event.status}
                 collaborators={currentCollaborators}
+                startDate={typeof event.startDate === 'string' ? new Date(event.startDate) : event.startDate}
+                endDate={typeof event.endDate === 'string' ? new Date(event.endDate) : event.endDate}
+                setupTime={event.setupTime}
                 onJoinSuccess={() => handleCollaboratorUpdate(true)}
                 onLeaveSuccess={() => handleCollaboratorUpdate(false)}
                 organizerId={event.organizer?._id}

@@ -6,18 +6,78 @@ const Registration = require('../models/registrationModel'); // Import Registrat
 const mongoose = require('mongoose'); // Import mongoose for transactions
 const User = require('../models/userModel'); // Import User model
 const RegistrationForm = require('../models/registrationFormModel'); // Import RegistrationForm model
+const { withTransaction, withOptimisticLocking, atomicArrayOperation } = require('../utils/transactionHelper');
+
+// Helper function to get event end date from eventDays
+const getEventEndDate = (eventDays) => {
+  if (!eventDays || eventDays.length === 0) return null;
+  
+  const lastDay = eventDays[eventDays.length - 1];
+  if (!lastDay.sessions || lastDay.sessions.length === 0) {
+    return new Date(lastDay.date);
+  }
+  
+  const lastSession = lastDay.sessions[lastDay.sessions.length - 1];
+  const date = new Date(lastDay.date);
+  const [hours, minutes] = lastSession.endTime.split(':');
+  date.setHours(parseInt(hours), parseInt(minutes), 0, 0);
+  return date;
+};
 
 // @desc: Get all events
 // @route: GET /api/v1/events
 // @access: Public
 exports.getAllEvents = async (req, res, next) => {
   try {
-    const events = await Event.find()
-      .populate('organizer')  // Lấy tất cả thông tin của organizer
-      .populate('department')  // Lấy tất cả thông tin của department
-      .populate('participants')  // Thêm populate cho participants
-      .populate('collaborators')  // Thêm populate cho collaborators
-      .populate('speakers');  // Thêm populate cho speakers
+    let query = {};
+    
+    // If user is authenticated, check community memberships for private events
+    if (req.user) {
+      const Community = require('../models/communityModel');
+      const userCommunities = await Community.find({
+        'members.user': req.user._id
+      }).select('_id');
+      
+      const communityIds = userCommunities.map(c => c._id);
+      
+      // Query for events:
+      // 1. General events that are public or restricted
+      // 2. Community events that are public (visible to all)
+      // 3. Community events that are private (only if user is member)
+      query = {
+        $or: [
+          // General events
+          { eventScope: 'general', visibility: { $in: ['public', 'restricted'] } },
+          // Public community events
+          { eventScope: 'community', visibility: 'public' },
+          // Private community events where user is member
+          { 
+            eventScope: 'community', 
+            visibility: 'private',
+            community: { $in: communityIds }
+          }
+        ]
+      };
+    } else {
+      // For non-authenticated users, only show public events
+      query = {
+        $or: [
+          { eventScope: 'general', visibility: 'public' },
+          { eventScope: 'community', visibility: 'public' }
+        ]
+      };
+    }
+
+    const events = await Event.find(query)
+      .populate('organizer', 'fullName email avatar')
+      .populate('department', 'name')
+      .populate('participants', 'fullName avatar')
+      .populate('collaborators.user', 'fullName avatar')
+      .populate('speakers', 'fullName avatar')
+      .populate('community', 'name description avatar banner')
+      .populate('creator', 'fullName avatar email')
+      .sort({ createdAt: -1 });
+      
     res.status(200).json({
       success: true,
       data: events,
@@ -33,17 +93,40 @@ exports.getAllEvents = async (req, res, next) => {
 exports.getEventById = async (req, res, next) => {
   try {
     const event = await Event.findById(req.params.id)
-      .populate('organizer')
-      .populate('department')
-      .populate('participants')  // Make sure to populate participants
-      .lean();  // Convert to plain object
+      .populate('organizer', 'fullName email avatar')
+      .populate('department', 'name')
+      .populate('participants', 'fullName avatar')
+      .populate('collaborators.user', 'fullName avatar')
+      .populate('speakers', 'fullName avatar')
+      .populate('community', 'name description avatar banner')
+      .populate('creator', 'fullName avatar email')
+      .lean();
 
     if (!event) {
       return next(new ErrorResponse(`Event not found with id of ${req.params.id}`, 404));
     }
 
-    // Ensure participants array contains string IDs
-    event.participants = event.participants.map(p => p._id.toString());
+    // Ensure participants array contains string IDs for compatibility
+    if (event.participants && Array.isArray(event.participants)) {
+      event.participants = event.participants.map(p => 
+        typeof p === 'object' && p._id ? p._id.toString() : p.toString()
+      );
+    }
+
+    // Ensure collaborators array is properly formatted
+    if (event.collaborators && Array.isArray(event.collaborators)) {
+      event.collaborators = event.collaborators.map(collab => {
+        if (typeof collab === 'object' && collab.user) {
+          return {
+            ...collab,
+            user: typeof collab.user === 'object' && collab.user._id 
+              ? collab.user._id.toString() 
+              : collab.user.toString()
+          };
+        }
+        return collab;
+      });
+    }
 
     res.status(200).json({
       success: true,
@@ -65,8 +148,53 @@ exports.createEvent = async (req, res, next) => {
       eventData.location = JSON.parse(eventData.location);
     }
 
+    // Handle eventDays from form data
+    if (req.body.eventDays) {
+      try {
+        const eventDaysData = JSON.parse(req.body.eventDays);
+        if (eventDaysData && Array.isArray(eventDaysData)) {
+          eventData.eventDays = eventDaysData.map(day => ({
+            date: new Date(day.date),
+            sessions: day.sessions.map(session => ({
+              type: session.type,
+              startTime: session.startTime,
+              endTime: session.endTime,
+              label: session.label || (session.type === 'custom' ? session.label : undefined)
+            }))
+          }));
+        }
+      } catch (error) {
+        console.error('Error parsing eventDays:', error);
+        return next(new ErrorResponse('Invalid event days format', 400));
+      }
+    }
+
+    // Handle setupTime from form data
+    if (req.body.setupTime) {
+      try {
+        const setupTimeData = JSON.parse(req.body.setupTime);
+        if (setupTimeData.supportDays && Array.isArray(setupTimeData.supportDays)) {
+          eventData.setupTime = {
+            supportDays: setupTimeData.supportDays.map(day => ({
+              date: new Date(day.date),
+              sessions: day.sessions.map(session => ({
+                type: session.type,
+                startTime: session.startTime,
+                endTime: session.endTime,
+                label: session.label || (session.type === 'custom' ? session.label : undefined)
+              }))
+            }))
+          };
+        }
+      } catch (error) {
+        console.error('Error parsing setupTime:', error);
+        return next(new ErrorResponse('Invalid support schedule format', 400));
+      }
+    }
+
     // Handle registration form if needed
     eventData.needsRegistrationForm = req.body.needsRegistrationForm === 'true';
+    eventData.needsCollaboratorForm = req.body.needsCollaboratorForm === 'true';
     eventData.needsVolunteers = req.body.needsVolunteers === 'true';
     eventData.maxVolunteers = parseInt(req.body.maxVolunteers) || 0;
 
@@ -126,6 +254,69 @@ exports.createEvent = async (req, res, next) => {
         await event.save();
       } catch (formError) {
         console.error('Error creating registration form:', formError);
+      }
+    }
+
+    // If collaborator form is needed, create it
+    if (eventData.needsCollaboratorForm) {
+      try {
+        const collaboratorFormFields = req.body.collaboratorFormFields ? JSON.parse(req.body.collaboratorFormFields) : [];
+        const CollaboratorForm = require('../models/collaboratorFormModel');
+        const collaboratorForm = await CollaboratorForm.create({
+          event: event._id,
+          fields: collaboratorFormFields.length > 0 ? collaboratorFormFields : [
+            // Default fields for collaborator form
+            {
+              fieldId: 'fullName',
+              label: 'Họ và tên',
+              type: 'text',
+              required: true,
+              placeholder: 'Nhập họ và tên'
+            },
+            {
+              fieldId: 'studentId',
+              label: 'MSSV',
+              type: 'text',
+              required: true,
+              placeholder: 'Nhập mã số sinh viên'
+            },
+            {
+              fieldId: 'class',
+              label: 'Lớp',
+              type: 'text',
+              required: true,
+              placeholder: 'Nhập lớp'
+            },
+            {
+              fieldId: 'department',
+              label: 'Khoa',
+              type: 'text',
+              required: true,
+              placeholder: 'Nhập khoa'
+            },
+            {
+              fieldId: 'email',
+              label: 'Email',
+              type: 'email',
+              required: true,
+              placeholder: 'Nhập email'
+            },
+            {
+              fieldId: 'phone',
+              label: 'Số điện thoại',
+              type: 'tel',
+              required: false,
+              placeholder: 'Nhập số điện thoại'
+            }
+          ],
+          createdBy: req.user.id
+        });
+
+        // Update event with collaborator form reference
+        event.collaboratorForm = collaboratorForm._id;
+        await event.save();
+      } catch (formError) {
+        console.error('Error creating collaborator form:', formError);
       }
     }
 
@@ -268,11 +459,8 @@ exports.deleteEvent = async (req, res, next) => {
       return next(new ErrorResponse('Không có quyền xóa sự kiện này', 403));
     }
 
-    // Start a transaction for data consistency
-    const session = await mongoose.startSession();
-    session.startTransaction();
-
-    try {
+    // Use safe transaction wrapper
+    await withTransaction(async (session) => {
       // Remove references from all users who registered for this event
       if (event.participants && event.participants.length > 0) {
         await User.updateMany(
@@ -284,31 +472,27 @@ exports.deleteEvent = async (req, res, next) => {
 
       // Remove references from all collaborators
       if (event.collaborators && event.collaborators.length > 0) {
+        const collaboratorUserIds = event.collaborators.map(collab => 
+          typeof collab === 'string' ? collab : collab.user
+        );
         await User.updateMany(
-          { _id: { $in: event.collaborators } },
+          { _id: { $in: collaboratorUserIds } },
           { $pull: { collaboratorEvents: event._id } },
           { session }
         );
       }
 
+      // Delete related registrations first
+      await Registration.deleteMany({ event: event._id }, { session });
+
       // Delete the event
       await Event.findByIdAndDelete(event._id, { session });
-      
-      // Commit the transaction
-      await session.commitTransaction();
-      
-      res.status(200).json({
-        success: true,
-        data: {}
-      });
-    } catch (error) {
-      // If anything fails, abort the transaction
-      await session.abortTransaction();
-      throw error;
-    } finally {
-      // End the session
-      session.endSession();
-    }
+    });
+    
+    res.status(200).json({
+      success: true,
+      data: {}
+    });
   } catch (error) {
     console.error('Delete event error:', error);
     next(new ErrorResponse('Lỗi khi xóa sự kiện', 500));
@@ -324,7 +508,11 @@ exports.joinEvent = async (req, res, next) => {
     }
 
     // Kiểm tra xem sự kiện đã kết thúc chưa
-    if (new Date(event.endDate) < new Date()) {
+    const eventEndDate = event.eventDays && event.eventDays.length > 0 
+      ? getEventEndDate(event.eventDays) 
+      : event.endDate;
+    
+    if (eventEndDate && new Date(eventEndDate) < new Date()) {
       return next(new ErrorResponse('Event has already ended', 400));
     }
 
@@ -333,10 +521,14 @@ exports.joinEvent = async (req, res, next) => {
       return next(new ErrorResponse('Already joined this event', 400));
     }
 
-    const session = await mongoose.startSession();
-    session.startTransaction();
+    // Use safe transaction wrapper với optimistic locking
+    await withTransaction(async (session) => {
+      // Kiểm tra lại xem user đã tham gia chưa (double check trong transaction)
+      const currentEvent = await Event.findById(event._id).session(session);
+      if (currentEvent.participants.includes(req.user._id)) {
+        throw new ErrorResponse('Already joined this event', 400);
+      }
 
-    try {
       // Thêm form responses vào registration record
       const registrationData = {
         event: event._id,
@@ -357,31 +549,42 @@ exports.joinEvent = async (req, res, next) => {
         });
       }
 
+      // Lưu selectedSessions nếu có
+      if (req.body.selectedSessions && Array.isArray(req.body.selectedSessions)) {
+        registrationData.formData.set('selectedSessions', req.body.selectedSessions);
+      }
+
       // Tạo registration record với form data
       await Registration.create([registrationData], { session });
 
-      // Thêm user vào participants
-      event.participants.addToSet(req.user._id);
-      await event.save({ session });
+      // Sử dụng atomic operation để thêm user vào participants
+      await Event.findByIdAndUpdate(
+        event._id,
+        { $addToSet: { participants: req.user._id } },
+        { session }
+      );
 
-      // Cập nhật registeredEvents của user
-      await User.updateRegisteredEvents(req.user._id, event._id, 'join');
+      // Cập nhật registeredEvents của user atomically
+      await User.findByIdAndUpdate(
+        req.user._id,
+        { $addToSet: { registeredEvents: event._id } },
+        { session }
+      );
 
-      // 4. Gửi thông báo
-      await NotificationService.createEventJoinNotification(event, req.user);
-
-      await session.commitTransaction();
-      
-      res.status(200).json({
-        success: true,
-        data: event
+      // Gửi thông báo sau khi transaction thành công
+      setImmediate(async () => {
+        try {
+          await NotificationService.createEventJoinNotification(event, req.user);
+        } catch (notificationError) {
+          console.error('Error sending join notification:', notificationError);
+        }
       });
-    } catch (error) {
-      await session.abortTransaction();
-      throw error;
-    } finally {
-      session.endSession();
-    }
+    });
+
+    res.status(200).json({
+      success: true,
+      message: 'Successfully joined the event'
+    });
   } catch (error) {
     next(error);
   }
@@ -548,7 +751,8 @@ exports.joinEventAsCollaborator = async (req, res, next) => {
     }    
     
     // Kiểm tra xem sự kiện đã kết thúc chưa    
-    if (new Date(event.endDate) < new Date()) {      
+    const eventEnd = event.endDate;
+    if (eventEnd && new Date() > eventEnd) {      
       return next(new ErrorResponse('Event has already ended', 400));    
     }    
     
@@ -561,24 +765,91 @@ exports.joinEventAsCollaborator = async (req, res, next) => {
       return next(new ErrorResponse(`Bạn đã đăng ký làm cộng tác viên cho sự kiện này (trạng thái: ${existingCollaborator.status})`, 400));
     }
     
-    const session = await mongoose.startSession();    
-    session.startTransaction();
+    // Validate shifts before transaction
+    const { selectedShifts, formData } = req.body;
     
-    try {      
-      // Kiểm tra xem người dùng có quyền đặc biệt không
-      const isAdmin = ['admin', 'superadmin', 'department_head', 'department_admin'].includes(req.user.role);
-      const isCreator = event.creator.toString() === req.user.id;
-      const isOrganizer = event.organizer.toString() === req.user.id;
+    if (!selectedShifts || !Array.isArray(selectedShifts) || selectedShifts.length === 0) {
+      return next(new ErrorResponse('Vui lòng chọn ít nhất một ca hỗ trợ', 400));
+    }
+
+    // Validate each shift against setupTime
+    if (event.setupTime && event.setupTime.supportDays) {
+      for (const shift of selectedShifts) {
+        if (!shift.date || !shift.session) {
+          return next(new ErrorResponse('Thông tin ca hỗ trợ không hợp lệ', 400));
+        }
+
+        // Check if the shift is available in event's support days
+        const shiftDate = new Date(shift.date).toDateString();
+        const availableDay = event.setupTime.supportDays.find(
+          day => new Date(day.date).toDateString() === shiftDate
+        );
+
+        if (!availableDay) {
+          return next(new ErrorResponse(`Ngày ${shiftDate} không có sẵn cho hỗ trợ`, 400));
+        }
+
+        // Check if the session exists in that day
+        const sessionExists = availableDay.sessions.some(session => {
+          // Handle both old format (string) and new format (object)
+          if (typeof session === 'string') {
+            return session === shift.session;
+          } else if (typeof session === 'object') {
+            return session.type === shift.session || session.label === shift.session;
+          }
+          return false;
+        });
+
+        if (!sessionExists) {
+          return next(new ErrorResponse(`Ca ${shift.session} ngày ${shiftDate} không có sẵn`, 400));
+        }
+      }
+    }
+
+    // User permissions check
+    const isAdmin = ['admin', 'superadmin', 'department_head', 'department_admin'].includes(req.user.role);
+    const isCreator = event.creator.toString() === req.user.id;
+    const isOrganizer = event.organizer.toString() === req.user.id;
+    const hasFullAccess = isAdmin || isCreator || isOrganizer;
+
+    // Use safe transaction wrapper
+    await withTransaction(async (session) => {
+      // Re-fetch event để check conflicts trong transaction
+      const currentEvent = await Event.findById(event._id).session(session);
       
-      // Người tạo, tổ chức, và admin đều có quyền phê duyệt
-      const hasFullAccess = isAdmin || isCreator || isOrganizer;
-      
-      // Thêm user vào danh sách collaborators với trạng thái tương ứng
+      // Check for conflicts with existing collaborators trong transaction
+      const hasConflict = currentEvent.collaborators.some(collab => {
+        if (!collab.selectedShifts || collab.status === 'rejected') return false;
+        
+        return collab.selectedShifts.some(existingShift => 
+          selectedShifts.some(newShift => 
+            new Date(existingShift.date).toDateString() === new Date(newShift.date).toDateString() &&
+            existingShift.session === newShift.session
+          )
+        );
+      });
+
+      if (hasConflict) {
+        throw new ErrorResponse('Một số ca đã có người đăng ký', 400);
+      }
+
       const newCollaborator = {
         user: req.user._id,
-        status: hasFullAccess ? 'approved' : 'pending', // Tự động phê duyệt
-        requestedAt: new Date()
+        status: hasFullAccess ? 'approved' : 'pending',
+        requestedAt: new Date(),
+        selectedShifts: selectedShifts.map(shift => ({
+          date: new Date(shift.date),
+          session: shift.session
+        })),
+        formData: new Map()
       };
+
+      // Process form data if provided
+      if (formData && typeof formData === 'object') {
+        Object.entries(formData).forEach(([key, value]) => {
+          newCollaborator.formData.set(key, value);
+        });
+      }
       
       // Nếu là admin, thêm thông tin phê duyệt luôn
       if (hasFullAccess) {
@@ -599,27 +870,26 @@ exports.joinEventAsCollaborator = async (req, res, next) => {
         { session }      
       );
 
-      // Gửi thông báo cho người tạo sự kiện
-      await NotificationService.createCollaboratorJoinNotification(
-        event, 
-        req.user, 
-        hasFullAccess // Truyền flag auto-approved
-      );
+      // Gửi thông báo sau khi transaction thành công (non-blocking)
+      setImmediate(async () => {
+        try {
+          await NotificationService.createCollaboratorJoinNotification(
+            event, 
+            req.user, 
+            hasFullAccess // Truyền flag auto-approved
+          );
+        } catch (notificationError) {
+          console.error('Error sending collaborator join notification:', notificationError);
+        }
+      });
+    });
       
-      await session.commitTransaction();            
-      
-      res.status(200).json({        
-        success: true,        
-        message: hasFullAccess 
-          ? 'Bạn đã được tự động phê duyệt làm cộng tác viên thành công.' 
-          : 'Đã gửi yêu cầu làm cộng tác viên thành công. Vui lòng chờ phê duyệt.'     
-      });    
-    } catch (error) {      
-      await session.abortTransaction();      
-      throw error;    
-    } finally {      
-      session.endSession();    
-    }  
+    res.status(200).json({        
+      success: true,        
+      message: hasFullAccess 
+        ? 'Bạn đã được tự động phê duyệt làm cộng tác viên thành công.' 
+        : 'Đã gửi yêu cầu làm cộng tác viên thành công. Vui lòng chờ phê duyệt.'     
+    });  
   } catch (error) {    
     console.error('Error in joinEventAsCollaborator:', error);    
     next(error);  
@@ -671,10 +941,8 @@ exports.leaveEventAsCollaborator = async (req, res, next) => {
       return next(new ErrorResponse('Bạn không phải là cộng tác viên của sự kiện này', 400));    
     }
     
-    const session = await mongoose.startSession();
-    session.startTransaction();    
-    
-    try {      
+    // Use safe transaction wrapper
+    await withTransaction(async (session) => {
       // Xóa user khỏi collaborators bằng updateOne với $pull      
       await Event.updateOne(
         { _id: event._id },
@@ -705,23 +973,22 @@ exports.leaveEventAsCollaborator = async (req, res, next) => {
         req.user._id,        
         { $pull: { collaboratorEvents: event._id } },        
         { session }      
-      );      
+      );
+
+      // Gửi thông báo sau khi transaction thành công (non-blocking)
+      setImmediate(async () => {
+        try {
+          await NotificationService.createCollaboratorLeaveNotification(event, req.user);
+        } catch (notificationError) {
+          console.error('Error sending collaborator leave notification:', notificationError);
+        }
+      });
+    });
       
-      // Gửi thông báo      
-      await NotificationService.createCollaboratorLeaveNotification(event, req.user);
-      
-      await session.commitTransaction();            
-      
-      res.status(200).json({        
-        success: true,        
-        message: 'Đã hủy đăng ký làm cộng tác viên thành công'      
-      });    
-    } catch (error) {
-      await session.abortTransaction();      
-      throw error;    
-    } finally {
-      session.endSession();    
-    }  
+    res.status(200).json({        
+      success: true,        
+      message: 'Đã hủy đăng ký làm cộng tác viên thành công'      
+    });  
   } catch (error) {    
     console.error('Error in leaveEventAsCollaborator:', error);    
     next(error);  
@@ -765,17 +1032,39 @@ exports.approveCollaborator = async (req, res, next) => {
     }
     
     // Cập nhật trạng thái sử dụng updateOne thay vì cập nhật trực tiếp object
+    // Lấy thông tin collaborator từ event
+    const collaborator = event.collaborators.find(
+      c => c.user.toString() === userId
+    );
+
+    if (!collaborator.selectedShifts || collaborator.selectedShifts.length === 0) {
+      return next(new ErrorResponse('Không tìm thấy thông tin ca hỗ trợ', 400));
+    }
+
+    // Cập nhật trạng thái trong event
     await Event.updateOne(
-      { 
-        _id: id, 
-        'collaborators.user': userId 
+      {
+        _id: id,
+        'collaborators.$.status': 'approved',
+        'collaborators.$.approvedAt': new Date(),
+        'collaborators.$.approvedBy': req.user._id
       },
-      { 
-        $set: { 
+      {
+        $set: {
           'collaborators.$.status': 'approved',
           'collaborators.$.approvedAt': new Date(),
           'collaborators.$.approvedBy': req.user._id
-        } 
+        }
+      }
+    );
+
+    // Cập nhật collaboratorEvents trong User model
+    await User.findByIdAndUpdate(
+      userId,
+      {
+        $addToSet: {
+          collaboratorEvents: id
+        }
       }
     );
     
@@ -1186,5 +1475,504 @@ exports.removeCollaborator = async (req, res, next) => {
   } catch (error) {
     console.error('Error in removeCollaborator:', error);
     next(error);
+  }
+};
+
+// @desc: Create community event
+// @route: POST /api/v1/communities/:communityId/events
+// @access: Private (Community members only)
+exports.createCommunityEvent = async (req, res, next) => {
+  try {
+    const { communityId } = req.params;
+    const eventData = { ...req.body };
+    
+    // Set community-specific fields
+    eventData.creator = req.user.id;
+    eventData.community = communityId;
+    eventData.eventScope = 'community';
+    
+    // Validate community membership
+    const Community = require('../models/communityModel');
+    const community = await Community.findById(communityId);
+    
+    if (!community) {
+      return next(new ErrorResponse('Community not found', 404));
+    }
+    
+    // Check if user is a member of the community
+    const isMember = community.members.some(member => 
+      member.user.toString() === req.user._id.toString()
+    );
+    
+    if (!isMember) {
+      return next(new ErrorResponse('You must be a community member to create events', 403));
+    }
+
+    // Parse location JSON if it's a string
+    if (typeof eventData.location === 'string') {
+      eventData.location = JSON.parse(eventData.location);
+    }
+
+    // Parse tags if it's a string
+    if (typeof eventData.tags === 'string') {
+      try {
+        eventData.tags = JSON.parse(eventData.tags);
+      } catch (error) {
+        eventData.tags = [];
+      }
+    }
+
+    // Handle eventDays from form data
+    if (req.body.eventDays) {
+      try {
+        const eventDaysData = JSON.parse(req.body.eventDays);
+        if (eventDaysData && Array.isArray(eventDaysData)) {
+          eventData.eventDays = eventDaysData.map(day => ({
+            date: new Date(day.date),
+            sessions: day.sessions.map(session => ({
+              type: session.type,
+              startTime: session.startTime,
+              endTime: session.endTime,
+              label: session.label || (session.type === 'custom' ? session.label : undefined)
+            }))
+          }));
+        }
+      } catch (error) {
+        console.error('Error parsing eventDays:', error);
+        return next(new ErrorResponse('Invalid event days format', 400));
+      }
+    }
+
+    // Handle setupTime from form data
+    if (req.body.setupTime) {
+      try {
+        const setupTimeData = JSON.parse(req.body.setupTime);
+        if (setupTimeData.supportDays && Array.isArray(setupTimeData.supportDays)) {
+          eventData.setupTime = {
+            supportDays: setupTimeData.supportDays.map(day => ({
+              date: new Date(day.date),
+              sessions: day.sessions.map(session => ({
+                type: session.type,
+                startTime: session.startTime,
+                endTime: session.endTime,
+                label: session.label || (session.type === 'custom' ? session.label : undefined)
+              }))
+            }))
+          };
+        }
+      } catch (error) {
+        console.error('Error parsing setupTime:', error);
+        return next(new ErrorResponse('Invalid support schedule format', 400));
+      }
+    }
+
+    // Handle registration form if needed
+    eventData.needsRegistrationForm = req.body.needsRegistrationForm === 'true';
+    eventData.needsCollaboratorForm = req.body.needsCollaboratorForm === 'true';
+    eventData.needsVolunteers = req.body.needsVolunteers === 'true';
+    eventData.maxVolunteers = parseInt(req.body.maxVolunteers) || 0;
+
+    // Handle images array from form data
+    const images = [];
+    if (req.body['images[0][public_id]']) {
+      let index = 0;
+      while (req.body[`images[${index}][public_id]`]) {
+        images.push({
+          public_id: req.body[`images[${index}][public_id]`],
+          url: req.body[`images[${index}][url]`]
+        });
+        index++;
+      }
+      eventData.images = images;
+    }
+
+    // Handle file uploads if any
+    if (req.files && req.files.eventImages) {
+      const uploadedImages = [];
+      const files = Array.isArray(req.files.eventImages) ? req.files.eventImages : [req.files.eventImages];
+      
+      for (const file of files) {
+        try {
+          const result = await uploadToCloudinary(file.tempFilePath, 'events');
+          uploadedImages.push({
+            public_id: result.public_id,
+            url: result.secure_url
+          });
+        } catch (uploadError) {
+          console.error('Error uploading image:', uploadError);
+        }
+      }
+      
+      if (uploadedImages.length > 0) {
+        eventData.images = [...(eventData.images || []), ...uploadedImages];
+      }
+    }
+
+    // Ensure proper data types
+    eventData.capacity = parseInt(eventData.capacity) || 0;
+    eventData.isRegistrationRequired = eventData.isRegistrationRequired === 'true';
+
+    // Create event
+    const event = await Event.create(eventData);
+
+    // If registration form is needed, create it
+    if (eventData.needsRegistrationForm) {
+      try {
+        const formFields = req.body.formFields ? JSON.parse(req.body.formFields) : [];
+        const registrationForm = await RegistrationForm.create({
+          event: event._id,
+          fields: formFields.length > 0 ? formFields : [
+            {
+              fieldId: 'fullName',
+              label: 'Họ và tên',
+              type: 'text',
+              required: true,
+              placeholder: 'Nhập họ và tên'
+            },
+            {
+              fieldId: 'studentId',
+              label: 'MSSV',
+              type: 'text',
+              required: true,
+              placeholder: 'Nhập mã số sinh viên'
+            },
+            {
+              fieldId: 'email',
+              label: 'Email',
+              type: 'email',
+              required: true,
+              placeholder: 'Nhập email'
+            }
+          ],
+          createdBy: req.user.id
+        });
+
+        event.registrationForm = registrationForm._id;
+        await event.save();
+      } catch (formError) {
+        console.error('Error creating registration form:', formError);
+      }
+    }
+
+    // If collaborator form is needed, create it
+    if (eventData.needsCollaboratorForm) {
+      try {
+        const collaboratorFormFields = req.body.collaboratorFormFields ? JSON.parse(req.body.collaboratorFormFields) : [];
+        const CollaboratorForm = require('../models/collaboratorFormModel');
+        const collaboratorForm = await CollaboratorForm.create({
+          event: event._id,
+          fields: collaboratorFormFields.length > 0 ? collaboratorFormFields : [
+            {
+              fieldId: 'fullName',
+              label: 'Họ và tên',
+              type: 'text',
+              required: true,
+              placeholder: 'Nhập họ và tên'
+            },
+            {
+              fieldId: 'studentId',
+              label: 'MSSV',
+              type: 'text',
+              required: true,
+              placeholder: 'Nhập mã số sinh viên'
+            },
+            {
+              fieldId: 'class',
+              label: 'Lớp',
+              type: 'text',
+              required: true,
+              placeholder: 'Nhập lớp'
+            },
+            {
+              fieldId: 'department',
+              label: 'Khoa',
+              type: 'text',
+              required: true,
+              placeholder: 'Nhập khoa'
+            },
+            {
+              fieldId: 'email',
+              label: 'Email',
+              type: 'email',
+              required: true,
+              placeholder: 'Nhập email'
+            },
+            {
+              fieldId: 'phone',
+              label: 'Số điện thoại',
+              type: 'tel',
+              required: false,
+              placeholder: 'Nhập số điện thoại'
+            }
+          ],
+          createdBy: req.user.id
+        });
+
+        event.collaboratorForm = collaboratorForm._id;
+        await event.save();
+      } catch (formError) {
+        console.error('Error creating collaborator form:', formError);
+      }
+    }
+
+    // Populate event with creator and community information
+    await event.populate('creator', 'fullName email avatar');
+    await event.populate('community', 'name description avatar');
+    
+    // Send notification to community members based on visibility
+    let recipients = [];
+    let notificationMessage = '';
+    
+    if (eventData.visibility === 'public') {
+      // Public community events notify all users and show community name
+      recipients = ['all'];
+      notificationMessage = `Sự kiện mới "${eventData.title}" đã được tạo trong cộng đồng "${community.name}"`;
+    } else if (eventData.visibility === 'private') {
+      // Private events only notify community members
+      recipients = community.members
+        .filter(member => member.user.toString() !== req.user._id.toString())
+        .map(member => member.user.toString());
+      notificationMessage = `Sự kiện riêng tư "${eventData.title}" đã được tạo trong cộng đồng "${community.name}"`;
+    }
+
+    if (recipients.length > 0) {
+      try {
+        const NotificationService = require('../utils/notificationService');
+        await NotificationService.createMassNotification({
+          recipients,
+          type: 'new_community_event',
+          title: 'Sự kiện mới trong cộng đồng',
+          message: notificationMessage,
+          relatedModel: 'Event',
+          relatedId: event._id,
+          link: `/events/${event._id}`,
+          metadata: {
+            communityId: community._id,
+            communityName: community.name,
+            eventVisibility: eventData.visibility
+          }
+        });
+      } catch (notificationError) {
+        console.error('Error sending notifications:', notificationError);
+      }
+    }
+    
+    res.status(201).json({
+      success: true,
+      data: event,
+      message: `Sự kiện "${event.title}" đã được tạo thành công trong cộng đồng "${community.name}"`
+    });
+  } catch (error) {
+    console.error('Community event creation error:', error);
+    next(new ErrorResponse(error.message, 500));
+  }
+};
+
+// @desc: Get event collaborator form
+exports.getEventCollaboratorForm = async (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    // Validate MongoDB ObjectId
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid event ID format'
+      });
+    }
+
+    const event = await Event.findById(id)
+      .populate('collaboratorForm')
+      .select('collaboratorForm needsCollaboratorForm setupTime');
+
+    if (!event) {
+      return res.status(404).json({
+        success: false,
+        message: 'Event not found'
+      });
+    }
+
+    // If event needs collaborator form but doesn't have one, create default form
+    if (event.needsCollaboratorForm && !event.collaboratorForm) {
+      try {
+        const CollaboratorForm = require('../models/collaboratorFormModel');
+        const defaultForm = await CollaboratorForm.create({
+          event: event._id,
+          fields: [
+            {
+              fieldId: 'fullName',
+              label: 'Họ và tên',
+              type: 'text',
+              required: true,
+              placeholder: 'Nhập họ và tên'
+            },
+            {
+              fieldId: 'studentId',
+              label: 'MSSV',
+              type: 'text',
+              required: true,
+              placeholder: 'Nhập mã số sinh viên'
+            },
+            {
+              fieldId: 'class',
+              label: 'Lớp',
+              type: 'text',
+              required: true,
+              placeholder: 'Nhập lớp'
+            },
+            {
+              fieldId: 'department',
+              label: 'Khoa',
+              type: 'text',
+              required: true,
+              placeholder: 'Nhập khoa'
+            },
+            {
+              fieldId: 'email',
+              label: 'Email',
+              type: 'email',
+              required: true,
+              placeholder: 'Nhập email'
+            },
+            {
+              fieldId: 'phone',
+              label: 'Số điện thoại',
+              type: 'tel',
+              required: false,
+              placeholder: 'Nhập số điện thoại'
+            }
+          ],
+          createdBy: event.creator
+        });
+
+        // Update event with form reference
+        await Event.findByIdAndUpdate(id, { collaboratorForm: defaultForm._id });
+
+        return res.status(200).json({
+          success: true,
+          data: {
+            fields: defaultForm.fields,
+            setupTime: event.setupTime || null
+          }
+        });
+      } catch (formError) {
+        console.error('Error creating default collaborator form:', formError);
+      }
+    }
+
+    // Return the populated collaborator form if it exists
+    if (event.needsCollaboratorForm && event.collaboratorForm) {
+      return res.status(200).json({
+        success: true,
+        data: {
+          fields: event.collaboratorForm.fields || [],
+          setupTime: event.setupTime || null
+        }
+      });
+    }
+
+    // Return empty fields if no form exists or not needed
+    return res.status(200).json({
+      success: true,
+      data: { 
+        fields: [],
+        setupTime: event.setupTime || null
+      }
+    });
+
+  } catch (error) {
+    console.error('Error getting collaborator form:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Internal server error'
+    });
+  }
+};
+
+// @desc: Update event collaborator form
+exports.updateEventCollaboratorForm = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const { fields } = req.body;
+
+    const event = await Event.findById(id);
+    if (!event) {
+      return next(new ErrorResponse('Event not found', 404));
+    }
+
+    const CollaboratorForm = require('../models/collaboratorFormModel');
+    let form;
+    if (event.collaboratorForm) {
+      // Update existing form
+      form = await CollaboratorForm.findByIdAndUpdate(
+        event.collaboratorForm,
+        { fields },
+        { new: true }
+      );
+    } else {
+      // Create new form
+      form = await CollaboratorForm.create({
+        event: event._id,
+        fields,
+        createdBy: req.user.id
+      });
+      event.collaboratorForm = form._id;
+      await event.save();
+    }
+
+    res.status(200).json({
+      success: true,
+      data: form
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// @desc: Get collaborator form submissions
+exports.getCollaboratorFormSubmissions = async (req, res) => {
+  try {
+    const event = await Event.findById(req.params.id);
+    if (!event) {
+      return res.status(404).json({
+        success: false,
+        message: 'Event not found'
+      });
+    }
+
+    // Kiểm tra quyền (chỉ organizer, creator và admin mới xem được)
+    if (event.organizer.toString() !== req.user._id.toString() 
+        && event.creator.toString() !== req.user._id.toString()
+        && req.user.role !== 'admin') {
+      return res.status(403).json({
+        success: false,
+        message: 'Not authorized to view submissions'
+      });
+    }
+
+    // Populate collaborators with user info and form data
+    await event.populate('collaborators.user', 'fullName email avatar studentId');
+
+    // Format data to include form responses
+    const formattedSubmissions = event.collaborators.map(collab => ({
+      _id: collab._id,
+      user: collab.user,
+      status: collab.status,
+      selectedShifts: collab.selectedShifts,
+      requestedAt: collab.requestedAt,
+      approvedAt: collab.approvedAt,
+      formData: collab.formData || new Map()
+    }));
+
+    res.status(200).json({
+      success: true,
+      data: formattedSubmissions
+    });
+  } catch (error) {
+    console.error('Error getting collaborator form submissions:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error getting submissions'
+    });
   }
 };

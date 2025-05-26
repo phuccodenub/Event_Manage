@@ -11,6 +11,8 @@ import { useAuth } from '@/context/AuthContext';
 import { useEvents } from '@/context/EventContext';
 import { motion } from 'framer-motion';
 import type { FormField } from '@/types';
+import EventDaysSelector from '@/components/EventDaysSelector';
+import SupportScheduleSelector from '@/components/SupportScheduleSelector';
 
 interface Props {
   isOpen: boolean;
@@ -21,6 +23,23 @@ interface Department {
   _id: string;
   name: string;
   code: string;
+}
+
+interface Session {
+  type: 'morning' | 'afternoon' | 'evening' | 'custom';
+  startTime: string;
+  endTime: string;
+  label: string;
+}
+
+interface EventDay {
+  date: Date;
+  sessions: Session[];
+}
+
+interface SupportDay {
+  date: Date;
+  sessions: Session[];
 }
 
 const EVENT_TYPES = {
@@ -65,6 +84,8 @@ const CreateEventModal = ({ isOpen, onClose }: Props) => {
   const [departments, setDepartments] = useState<Department[]>([]);
   const [currentStep, setCurrentStep] = useState(1);
   const [customFields, setCustomFields] = useState<FormField[]>([]);
+  const [eventDays, setEventDays] = useState<EventDay[]>([]);
+  const [supportSchedule, setSupportSchedule] = useState<SupportDay[]>([]);
   const { register, handleSubmit, watch, formState: { errors }, reset } = useForm();
   const eventType = watch('eventType', 'offline');
 
@@ -79,6 +100,14 @@ const CreateEventModal = ({ isOpen, onClose }: Props) => {
     };
     fetchDepartments();
   }, []);
+
+  const handleEventDaysChange = (newEventDays: EventDay[]) => {
+    setEventDays(newEventDays);
+  };
+
+  const handleSupportScheduleChange = (newSupportSchedule: SupportDay[]) => {
+    setSupportSchedule(newSupportSchedule);
+  };
 
   const handleImageUpload = (files: FileList | null) => {
     if (files) {
@@ -155,12 +184,16 @@ const CreateEventModal = ({ isOpen, onClose }: Props) => {
     try {
       setLoading(true);
       
-      // Validate dates
-      const startDate = new Date(data.startDate);
-      const endDate = new Date(data.endDate);
-      
-      if (endDate <= startDate) {
-        toast.error('Thời gian kết thúc phải sau thời gian bắt đầu');
+      // Validate event days
+      if (eventDays.length === 0) {
+        toast.error('Vui lòng thêm ít nhất một ngày sự kiện');
+        return;
+      }
+
+      // Validate that each event day has at least one session
+      const hasInvalidDays = eventDays.some(day => day.sessions.length === 0);
+      if (hasInvalidDays) {
+        toast.error('Mỗi ngày sự kiện phải có ít nhất một buổi');
         return;
       }
 
@@ -174,13 +207,35 @@ const CreateEventModal = ({ isOpen, onClose }: Props) => {
       formDataToSubmit.append('eventType', data.eventType);
       formDataToSubmit.append('organizer', user?._id || '');
       
-      // Format dates to ISO string
-      formDataToSubmit.append('startDate', startDate.toISOString());
-      formDataToSubmit.append('endDate', endDate.toISOString());
+      // Event days
+      formDataToSubmit.append('eventDays', JSON.stringify(eventDays.map(day => ({
+        date: day.date.toISOString(),
+        sessions: day.sessions
+      }))));
+
+      // Add support schedule if needed
+      if (data.needsCollaboratorForm && supportSchedule.length > 0) {
+        formDataToSubmit.append('setupTime', JSON.stringify({ 
+          supportDays: supportSchedule.map(day => ({
+            date: day.date.toISOString(),
+            sessions: day.sessions
+          }))
+        }));
+      }
 
       // Handle capacity
       if (data.capacity && parseInt(data.capacity) > 0) {
         formDataToSubmit.append('capacity', data.capacity.toString());
+      }
+
+      // Handle max collaborators
+      if (data.maxCollaborators && parseInt(data.maxCollaborators) > 0) {
+        formDataToSubmit.append('maxVolunteers', data.maxCollaborators.toString());
+      }
+
+      // Handle registration deadline
+      if (data.registrationDeadline) {
+        formDataToSubmit.append('registrationDeadline', data.registrationDeadline);
       }
 
       // Handle location based on event type
@@ -226,8 +281,12 @@ const CreateEventModal = ({ isOpen, onClose }: Props) => {
       }
 
       // Add registration form data
-      formDataToSubmit.append('needsRegistrationForm', 'true');
+      formDataToSubmit.append('needsRegistrationForm', data.needsRegistrationForm ? 'true' : 'false');
       formDataToSubmit.append('formFields', JSON.stringify(customFields));
+
+      // Add collaborator form data
+      formDataToSubmit.append('needsCollaboratorForm', data.needsCollaboratorForm ? 'true' : 'false');
+      formDataToSubmit.append('needsVolunteers', data.needsCollaboratorForm ? 'true' : 'false');
 
       // Create event
       const newEvent = await eventService.createEvent(formDataToSubmit);
@@ -251,6 +310,9 @@ const CreateEventModal = ({ isOpen, onClose }: Props) => {
       reset();
       setSelectedImages([]);
       setPreviews([]);
+      setEventDays([]);
+      setSupportSchedule([]);
+      setCurrentStep(1);
       onClose();
       toast.success('Tạo sự kiện thành công');
     } catch (error: any) {
@@ -263,9 +325,17 @@ const CreateEventModal = ({ isOpen, onClose }: Props) => {
 
   const goToNextStep = () => {
     if (currentStep === 1) {
-      if (!watch('title') || !watch('description') || !watch('category') || !watch('department') || 
-          !watch('startDate') || !watch('endDate')) {
+      if (!watch('title') || !watch('description') || !watch('category') || !watch('department')) {
         toast.error('Vui lòng điền đầy đủ thông tin bắt buộc');
+        return;
+      }
+      if (eventDays.length === 0) {
+        toast.error('Vui lòng thêm ít nhất một ngày sự kiện');
+        return;
+      }
+      const hasInvalidDays = eventDays.some(day => day.sessions.length === 0);
+      if (hasInvalidDays) {
+        toast.error('Mỗi ngày sự kiện phải có ít nhất một buổi');
         return;
       }
       setCurrentStep(2);
@@ -362,40 +432,26 @@ const CreateEventModal = ({ isOpen, onClose }: Props) => {
         </div>
       </div>
 
-      <div className="grid grid-cols-2 gap-4">
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
-            Thời gian bắt đầu <span className="text-red-500">*</span>
-          </label>
-          <div className="relative">
-            <ClockIcon className="h-5 w-5 text-gray-400 absolute left-3 top-1/2 -translate-y-1/4" />
-            <input
-              {...register('startDate', { required: 'Vui lòng chọn thời gian bắt đầu' })}
-              type="datetime-local"
-              className="w-full pl-10 rounded-lg border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500"
-            />
-          </div>
-          {errors.startDate && (
-            <p className="mt-1 text-sm text-red-500">{errors.startDate.message as string}</p>
-          )}
-        </div>
+      {/* Event Days Selector */}
+      <EventDaysSelector
+        eventDays={eventDays}
+        onChange={handleEventDaysChange}
+      />
 
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
-            Thời gian kết thúc <span className="text-red-500">*</span>
-          </label>
-          <div className="relative">
-            <ClockIcon className="h-5 w-5 text-gray-400 absolute left-3 top-1/2 -translate-y-1/4" />
-            <input
-              {...register('endDate', { required: 'Vui lòng chọn thời gian kết thúc' })}
-              type="datetime-local"
-              className="w-full pl-10 rounded-lg border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500"
-            />
-          </div>
-          {errors.endDate && (
-            <p className="mt-1 text-sm text-red-500">{errors.endDate.message as string}</p>
-          )}
-        </div>
+      {/* Support Schedule Section */}
+      <div className="bg-blue-50 p-4 rounded-lg border border-blue-200">
+        <h3 className="font-medium text-gray-900 mb-3 flex items-center">
+          <ClockIcon className="h-5 w-5 text-blue-600 mr-2" />
+          Lịch hỗ trợ cho cộng tác viên
+        </h3>
+        <p className="text-sm text-blue-700 mb-4">
+          Chọn các ngày và ca hỗ trợ mà cộng tác viên có thể đăng ký làm việc.
+        </p>
+        
+        <SupportScheduleSelector 
+          supportDays={supportSchedule}
+          onChange={handleSupportScheduleChange}
+        />
       </div>
 
       <div className="pt-6 border-t flex justify-end gap-3">
@@ -490,19 +546,51 @@ const CreateEventModal = ({ isOpen, onClose }: Props) => {
         </div>
       )}
 
+      <div className="grid grid-cols-2 gap-4">
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">
+            Số lượng người tham gia tối đa
+          </label>
+          <input
+            {...register('capacity')}
+            type="number"
+            min="1"
+            className="w-full rounded-lg border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500"
+            placeholder="Để trống = không giới hạn"
+          />
+          <p className="mt-1 text-xs text-gray-500">
+            Để trống nếu không muốn giới hạn số người tham gia
+          </p>
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">
+            Số lượng tình nguyện viên tối đa
+          </label>
+          <input
+            {...register('maxCollaborators')}
+            type="number"
+            min="1"
+            className="w-full rounded-lg border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500"
+            placeholder="Để trống = không giới hạn"
+          />
+          <p className="mt-1 text-xs text-gray-500">
+            Số lượng tình nguyện viên tối đa cho sự kiện
+          </p>
+        </div>
+      </div>
+
       <div>
         <label className="block text-sm font-medium text-gray-700 mb-1">
-          Số lượng người tham gia tối đa
+          Hạn chót đăng ký
         </label>
         <input
-          {...register('capacity')}
-          type="number"
-          min="1"
+          {...register('registrationDeadline')}
+          type="datetime-local"
           className="w-full rounded-lg border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500"
-          placeholder="Để trống = không giới hạn"
         />
         <p className="mt-1 text-xs text-gray-500">
-          Để trống nếu không muốn giới hạn số người tham gia
+          Để trống nếu không có hạn chót đăng ký
         </p>
       </div>
 
@@ -598,6 +686,29 @@ const CreateEventModal = ({ isOpen, onClose }: Props) => {
 
   const renderStepThree = () => (
     <div className="space-y-6">
+      {/* Form Options */}
+      <div className="bg-gray-50 p-4 rounded-lg space-y-3">
+        <h3 className="font-medium text-gray-900">Tùy chọn form</h3>
+        <div className="space-y-2">
+          <label className="flex items-center gap-2">
+            <input
+              {...register('needsRegistrationForm')}
+              type="checkbox"
+              className="text-orange-600 rounded border-gray-300 focus:ring-orange-500"
+            />
+            <span className="text-sm">Tạo form đăng ký tùy chỉnh</span>
+          </label>
+          <label className="flex items-center gap-2">
+            <input
+              {...register('needsCollaboratorForm')}
+              type="checkbox"
+              className="text-orange-600 rounded border-gray-300 focus:ring-orange-500"
+            />
+            <span className="text-sm">Cần cộng tác viên hỗ trợ</span>
+          </label>
+        </div>
+      </div>
+
       <div className="flex gap-2 mb-4">
         {Object.entries(FIELD_TYPES).map(([type, label]) => (
           <button

@@ -34,7 +34,7 @@ function isErrorWithResponse(error: unknown): error is ErrorWithResponse {
 
 const eventService = {
   getAllEvents: async () => {
-    const response = await apiClient.get('/events');
+    const response = await apiClient.get('/event');
     const events = response.data?.data || [];
     
     // Format participants to ensure consistent ID format
@@ -48,7 +48,7 @@ const eventService = {
 
   getEventById: async (eventId: string) => {
     try {
-      const response = await apiClient.get(`/events/${eventId}`);
+      const response = await apiClient.get(`/event/${eventId}`);
       return response.data;
     } catch (error) {
       console.error('Error fetching event:', error);
@@ -58,15 +58,13 @@ const eventService = {
 
   createEvent: async (eventData: FormData) => {
     try {
-      // Log data before sending
-      console.log('Creating event with data:', {
-        title: eventData.get('title'),
-        description: eventData.get('description'),
-        capacity: eventData.get('capacity'),
-        images: eventData.get('images'),
-      });
+      // Log all FormData entries for debugging
+      console.log('Creating event with data:');
+      for (const [key, value] of eventData.entries()) {
+        console.log(`${key}:`, value);
+      }
 
-      const response = await apiClient.post('/events', eventData, {
+      const response = await apiClient.post('/event', eventData, {
         headers: {
           'Content-Type': 'multipart/form-data',
         },
@@ -79,12 +77,17 @@ const eventService = {
       return response.data.data;
     } catch (error: unknown) {
       console.error('Event creation error:', error);
+      if (error && typeof error === 'object' && 'response' in error) {
+        const axiosError = error as any;
+        console.error('Response data:', axiosError.response?.data);
+        console.error('Response status:', axiosError.response?.status);
+      }
       throw error;
     }
   },
 
   updateEvent: async (eventId: string, eventData: FormData) => {
-    const response = await apiClient.put(`/events/${eventId}`, eventData, {
+    const response = await apiClient.put(`/event/${eventId}`, eventData, {
       headers: {
         'Content-Type': 'multipart/form-data',
       },
@@ -93,12 +96,12 @@ const eventService = {
   },
 
   deleteEvent: async (eventId: string) => {
-    await apiClient.delete(`/events/${eventId}`);
+    await apiClient.delete(`/event/${eventId}`);
   },
 
   getEventForm: async (eventId: string) => {
     try {
-      const response = await apiClient.get(`/events/${eventId}/registration-form`);
+      const response = await apiClient.get(`/event/${eventId}/registration-form`);
       return response.data;
     } catch (error) {
       console.error('Error fetching registration form:', error);
@@ -107,13 +110,13 @@ const eventService = {
   },
 
   joinEvent: async (eventId: string, formData?: FormResponseData) => {
-    const response = await apiClient.post(`/events/${eventId}/join`, formData);
+    const response = await apiClient.post(`/event/${eventId}/join`, formData);
     return response.data;
   },
 
   leaveEvent: async (eventId: string) => {
     try {
-      const response = await apiClient.post(`/events/${eventId}/leave`);
+      const response = await apiClient.post(`/event/${eventId}/leave`);
       return response.data;
     } catch (error) {
       console.error('Error leaving event:', error);
@@ -123,7 +126,7 @@ const eventService = {
 
   getEventParticipants: async (eventId: string) => {
     try {
-      const response = await apiClient.get(`/events/${eventId}/participants`);
+      const response = await apiClient.get(`/event/${eventId}/participants`);
       return response.data;
     } catch (error) {
       // Do not log 403 errors - these are expected when permissions are not sufficient
@@ -136,7 +139,7 @@ const eventService = {
 
   getEvents: async (params?: EventQueryParams): Promise<EventResponse> => {
     try {
-      const response = await apiClient.get<EventResponse>('/events', { params });
+      const response = await apiClient.get<EventResponse>('/event', { params });
       return response.data;
     } catch (error) {
       console.error('Error fetching events:', error);
@@ -146,7 +149,7 @@ const eventService = {
 
   getEventSubmissions: async (eventId: string) => {
     try {
-      const response = await apiClient.get(`/events/${eventId}/submissions`);
+      const response = await apiClient.get(`/event/${eventId}/submissions`);
       return response.data;
     } catch (error) {
       console.error('Error fetching submissions:', error);
@@ -156,7 +159,7 @@ const eventService = {
 
   getFormSubmissions: async (eventId: string) => {
     try {
-      const response = await apiClient.get(`/events/${eventId}/submissions`);
+      const response = await apiClient.get(`/event/${eventId}/submissions`);
       return response.data;
     } catch (error) {
       console.error('Error fetching submissions:', error);
@@ -165,12 +168,15 @@ const eventService = {
   },
 
   // Collaborator methods
-  joinEventAsCollaborator: async (eventId: string) => {
+  joinEventAsCollaborator: async (eventId: string, data?: { 
+    selectedShifts: { date: string, session: string }[], 
+    formData?: Record<string, any> 
+  }) => {
     try {
-      const response = await apiClient.post(`/events/${eventId}/join-collaborator`);
+      const response = await apiClient.post(`/event/${eventId}/join-collaborator`, data);
       return response.data;
     } catch (error) {
-      console.error('Error joining as collaborator:', error);
+      console.error('Error joining event as collaborator:', error);
       throw error;
     }
   },
@@ -179,8 +185,8 @@ const eventService = {
     try {
       // If userId is provided, it's an admin removing a collaborator
       const endpoint = userId 
-        ? `/events/${eventId}/remove-collaborator/${userId}`
-        : `/events/${eventId}/leave-collaborator`;
+        ? `/event/${eventId}/remove-collaborator/${userId}`
+        : `/event/${eventId}/leave-collaborator`;
         
       const response = await apiClient.post(endpoint);
       return response.data;
@@ -192,7 +198,7 @@ const eventService = {
 
   getEventCollaborators: async (eventId: string) => {
     try {
-      const response = await apiClient.get(`/events/${eventId}/collaborators`);
+      const response = await apiClient.get(`/event/${eventId}/collaborators`);
       return response.data;
     } catch (error) {
       // Do not log 403 errors - these are expected when permissions are not sufficient
@@ -203,10 +209,41 @@ const eventService = {
     }
   },
 
+  // Collaborator form methods
+  getEventCollaboratorForm: async (eventId: string) => {
+    try {
+      const response = await apiClient.get(`/event/${eventId}/collaborator-form`);
+      return response.data;
+    } catch (error) {
+      console.error('Error fetching collaborator form:', error);
+      throw error;
+    }
+  },
+
+  updateEventCollaboratorForm: async (eventId: string, fields: any[]) => {
+    try {
+      const response = await apiClient.put(`/event/${eventId}/collaborator-form`, { fields });
+      return response.data;
+    } catch (error) {
+      console.error('Error updating collaborator form:', error);
+      throw error;
+    }
+  },
+
+  getCollaboratorFormSubmissions: async (eventId: string) => {
+    try {
+      const response = await apiClient.get(`/event/${eventId}/collaborator-submissions`);
+      return response.data;
+    } catch (error) {
+      console.error('Error fetching collaborator submissions:', error);
+      throw error;
+    }
+  },
+
   // Collaborator approval methods
   approveCollaborator: async (eventId: string, userId: string) => {
     try {
-      const response = await apiClient.put(`/events/${eventId}/approve-collaborator/${userId}`);
+      const response = await apiClient.put(`/event/${eventId}/approve-collaborator/${userId}`);
       return response.data;
     } catch (error) {
       console.error('Error approving collaborator:', error);
@@ -216,7 +253,7 @@ const eventService = {
 
   rejectCollaborator: async (eventId: string, userId: string, reason?: string) => {
     try {
-      const response = await apiClient.put(`/events/${eventId}/reject-collaborator/${userId}`, 
+      const response = await apiClient.put(`/event/${eventId}/reject-collaborator/${userId}`, 
         reason ? { reason } : {});
       return response.data;
     } catch (error) {
@@ -224,6 +261,20 @@ const eventService = {
       throw error;
     }
   },
+};
+
+export const createCommunityEvent = async (communityId: string, eventData: FormData): Promise<any> => {
+  try {
+    const response = await apiClient.post(`/communities/${communityId}/events`, eventData, {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
+    });
+    return response.data;
+  } catch (error) {
+    console.error('Error creating community event:', error);
+    throw error;
+  }
 };
 
 export default eventService;

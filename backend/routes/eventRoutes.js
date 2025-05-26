@@ -17,7 +17,10 @@ const {
   rejectCollaborator,
   removeCollaborator,
   getEventRegistrationForm,
-  getFormSubmissions
+  getFormSubmissions,
+  getEventCollaboratorForm,
+  updateEventCollaboratorForm,
+  getCollaboratorFormSubmissions
 } = require('../controllers/eventController');
 const Event = require('../models/eventModel'); // Assuming Event model is imported
 
@@ -45,11 +48,14 @@ router.post('/:id/join-collaborator', protect, joinEventAsCollaborator);
 router.post('/:id/leave-collaborator', protect, leaveEventAsCollaborator);
 router.post('/:id/remove-collaborator/:userId', protect, removeCollaborator);
 
-// Add this new route
+// Registration form routes
 router.get('/:id/registration-form', getEventRegistrationForm);
-
-// Add submissions route
 router.get('/:id/submissions', protect, getFormSubmissions);
+
+// Collaborator form routes
+router.get('/:id/collaborator-form', getEventCollaboratorForm);
+router.put('/:id/collaborator-form', protect, updateEventCollaboratorForm);
+router.get('/:id/collaborator-submissions', protect, getCollaboratorFormSubmissions);
 
 router.route('/')
   .get(getAllEvents)

@@ -59,13 +59,71 @@ const eventSchema = new mongoose.Schema({
     offline: Number,
     online: Number
   },
+  eventDays: [{
+    date: {
+      type: Date,
+      required: true
+    },
+    sessions: [{
+      type: {
+        type: String,
+        enum: ['morning', 'afternoon', 'evening', 'custom'],
+        required: true
+      },
+      startTime: {
+        type: String, // Format: "HH:mm"
+        required: true
+      },
+      endTime: {
+        type: String, // Format: "HH:mm"
+        required: true
+      },
+      label: {
+        type: String, // Tên buổi tự custom
+        default: function() {
+          switch(this.type) {
+            case 'morning': return 'Buổi Sáng';
+            case 'afternoon': return 'Buổi Chiều';
+            case 'evening': return 'Buổi Tối';
+            default: return 'Buổi tự chọn';
+          }
+        }
+      }
+    }]
+  }],
   startDate: {
     type: Date,
-    required: true
+    get: function() {
+      if (this.eventDays && this.eventDays.length > 0) {
+        const firstDay = this.eventDays[0];
+        if (firstDay.sessions && firstDay.sessions.length > 0) {
+          const firstSession = firstDay.sessions[0];
+          const date = new Date(firstDay.date);
+          const [hours, minutes] = firstSession.startTime.split(':');
+          date.setHours(parseInt(hours), parseInt(minutes), 0, 0);
+          return date;
+        }
+        return firstDay.date;
+      }
+      return null;
+    }
   },
   endDate: {
     type: Date,
-    required: true
+    get: function() {
+      if (this.eventDays && this.eventDays.length > 0) {
+        const lastDay = this.eventDays[this.eventDays.length - 1];
+        if (lastDay.sessions && lastDay.sessions.length > 0) {
+          const lastSession = lastDay.sessions[lastDay.sessions.length - 1];
+          const date = new Date(lastDay.date);
+          const [hours, minutes] = lastSession.endTime.split(':');
+          date.setHours(parseInt(hours), parseInt(minutes), 0, 0);
+          return date;
+        }
+        return lastDay.date;
+      }
+      return null;
+    }
   },
   organizer: {
     type: mongoose.Schema.Types.ObjectId,
@@ -83,6 +141,40 @@ const eventSchema = new mongoose.Schema({
       ref: 'User',
     }
   ],
+  setupTime: {
+    supportDays: [{
+      date: {
+        type: Date,
+        required: true
+      },
+      sessions: [{
+        type: {
+          type: String,
+          enum: ['morning', 'afternoon', 'evening', 'custom'],
+          required: true
+        },
+        startTime: {
+          type: String, // Format: "HH:mm"
+          required: true
+        },
+        endTime: {
+          type: String, // Format: "HH:mm"
+          required: true
+        },
+        label: {
+          type: String,
+          default: function() {
+            switch(this.type) {
+              case 'morning': return 'Buổi Sáng';
+              case 'afternoon': return 'Buổi Chiều';
+              case 'evening': return 'Buổi Tối';
+              default: return 'Buổi tự chọn';
+            }
+          }
+        }
+      }]
+    }]
+  },
   collaborators: [
     {
       user: {
@@ -94,6 +186,21 @@ const eventSchema = new mongoose.Schema({
         type: String,
         enum: ['pending', 'approved', 'rejected'],
         default: 'pending'
+      },
+      selectedShifts: [{
+        date: {
+          type: Date,
+          required: true
+        },
+        session: {
+          type: String,
+          required: true
+        }
+      }],
+      formData: {
+        type: Map,
+        of: mongoose.Schema.Types.Mixed,
+        default: new Map()
       },
       requestedAt: {
         type: Date,
@@ -145,6 +252,9 @@ const eventSchema = new mongoose.Schema({
     type: String,
     enum: ['public', 'private', 'restricted'],
     default: 'public'
+    // public: visible to everyone (for general events) or to all users (for community events)
+    // private: only visible to community members (for community events)  
+    // restricted: admin-only or special access
   },
   category: {
     type: String,
@@ -176,6 +286,14 @@ const eventSchema = new mongoose.Schema({
     type: mongoose.Schema.Types.ObjectId,
     ref: 'RegistrationForm'
   },
+  needsCollaboratorForm: {
+    type: Boolean,
+    default: false
+  },
+  collaboratorForm: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'CollaboratorForm'
+  },
   needsVolunteers: {
     type: Boolean,
     default: false
@@ -183,8 +301,23 @@ const eventSchema = new mongoose.Schema({
   maxVolunteers: {
     type: Number,
     default: 0
+  },
+  // Community event fields
+  community: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Community',
+    default: null // null means it's a general event, not community-specific
+  },
+  eventScope: {
+    type: String,
+    enum: ['general', 'community'],
+    default: 'general'
   }
-}, { timestamps: true });
+}, { 
+  timestamps: true,
+  toJSON: { virtuals: true },
+  toObject: { virtuals: true }
+});
 
 // Validate location based on eventType
 eventSchema.pre('save', function(next) {
@@ -210,18 +343,24 @@ eventSchema.pre('save', function(next) {
   next();
 });
 
-// Automatically update status based on dates
+// Automatically update status based on eventDays
 eventSchema.pre('save', async function(next) {
-  const now = new Date();
-  const eventStart = new Date(this.startDate);
-  const eventEnd = new Date(this.endDate);
+  if (!this.eventDays || this.eventDays.length === 0) {
+    return next();
+  }
 
-  if (now < eventStart) {
-    this.status = 'upcoming';
-  } else if (now >= eventStart && now <= eventEnd) {
-    this.status = 'ongoing';
-  } else {
-    this.status = 'completed';
+  const now = new Date();
+  const eventStart = this.startDate;
+  const eventEnd = this.endDate;
+
+  if (eventStart && eventEnd) {
+    if (now < eventStart) {
+      this.status = 'upcoming';
+    } else if (now >= eventStart && now <= eventEnd) {
+      this.status = 'ongoing';
+    } else {
+      this.status = 'completed';
+    }
   }
   next();
 });
@@ -231,37 +370,45 @@ eventSchema.statics.updateEventStatus = async function() {
   const now = new Date();
   
   // Find events that just changed to ongoing
-  await this.updateMany(
-    {
-      startDate: { $lte: now },
-      endDate: { $gt: now },
-      status: { $ne: 'ongoing' }
-    },
-    { $set: { status: 'ongoing' } }
-  );
+  const ongoingEvents = await this.find({
+    eventDays: { $exists: true, $ne: [] },
+    status: { $ne: 'ongoing' }
+  });
+
+  for (const event of ongoingEvents) {
+    const eventStart = event.startDate;
+    const eventEnd = event.endDate;
+    
+    if (eventStart && eventEnd && now >= eventStart && now <= eventEnd) {
+      event.status = 'ongoing';
+      await event.save();
+    }
+  }
 
   // Find events that just completed
   const justCompletedEvents = await this.find({
-    endDate: { $lte: now },
+    eventDays: { $exists: true, $ne: [] },
     status: { $ne: 'completed' }
   });
-  
-  // Update the status to completed
-  await this.updateMany(
-    {
-      endDate: { $lte: now },
-      status: { $ne: 'completed' }
-    },
-    { $set: { status: 'completed' } }
-  );
+
+  const completedEvents = [];
+  for (const event of justCompletedEvents) {
+    const eventEnd = event.endDate;
+    
+    if (eventEnd && now > eventEnd) {
+      event.status = 'completed';
+      await event.save();
+      completedEvents.push(event);
+    }
+  }
   
   // If we found events that just completed, send feedback requests for them
-  if (justCompletedEvents.length > 0) {
+  if (completedEvents.length > 0) {
     try {
       const feedbackController = require('../controllers/feedbackController');
       
       // Send feedback requests for each completed event
-      for (const event of justCompletedEvents) {
+      for (const event of completedEvents) {
         try {
           console.log(`Automatically sending feedback requests for event: ${event.title} (${event._id})`);
           await feedbackController.sendFeedbackNotificationsAuto(event._id);
@@ -274,13 +421,20 @@ eventSchema.statics.updateEventStatus = async function() {
     }
   }
 
-  await this.updateMany(
-    {
-      startDate: { $gt: now },
-      status: { $ne: 'upcoming' }
-    },
-    { $set: { status: 'upcoming' } }
-  );
+  // Update upcoming events
+  const upcomingEvents = await this.find({
+    eventDays: { $exists: true, $ne: [] },
+    status: { $ne: 'upcoming' }
+  });
+
+  for (const event of upcomingEvents) {
+    const eventStart = event.startDate;
+    
+    if (eventStart && now < eventStart) {
+      event.status = 'upcoming';
+      await event.save();
+    }
+  }
 };
 
 module.exports = mongoose.model('Event', eventSchema);

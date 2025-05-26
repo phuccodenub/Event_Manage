@@ -100,17 +100,17 @@ const CommunityCard: React.FC<CommunityCardProps> = ({ community, isAdminOrTeach
           ) : (
             <div className="w-full h-full bg-gradient-to-r from-orange-500 to-orange-600 flex items-center justify-center">
               <span className="text-white text-opacity-80 text-xl font-bold">HUTECH</span>
-            </div>
+          </div>
           )}
         </div>
-
+        
         {/* Content Section with Avatar */}
         <div className="p-4 mt-2">
           <div className="flex">
             {/* Avatar (Square) */}
             <div className="mr-3 flex-shrink-0">
               <div className="w-16 h-16 rounded-md border-2 border-white shadow-sm overflow-hidden bg-white">
-                <img
+            <img
                   src={community.avatar?.url || '/default-community.png'}
                   alt={community.name}
                   className="w-full h-full object-cover"
@@ -175,9 +175,9 @@ const CommunityCard: React.FC<CommunityCardProps> = ({ community, isAdminOrTeach
             </div>
             <span className="ml-auto text-orange-500 text-sm font-medium group-hover:translate-x-1 transition-transform duration-300">Xem chi tiết →</span>
           </div>
+          </div>
         </div>
-      </div>
-    </Link>
+      </Link>
   );
 };
 
