@@ -11,7 +11,7 @@ const {
   deleteCommunity
 } = require('../controllers/communityController');
 
-const { createCommunityEvent } = require('../controllers/eventController');
+const { createCommunityEvent, getCommunityEvents } = require('../controllers/eventController');
 
 const router = express.Router();
 
@@ -30,6 +30,7 @@ router.delete('/:id', protect, deleteCommunity);
 router.post('/:id/join', protect, requestToJoin);
 
 // Community events
+router.get('/:communityId/events', getCommunityEvents);
 router.post('/:communityId/events', protect, createCommunityEvent);
 
 module.exports = router;

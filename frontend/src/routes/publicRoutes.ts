@@ -33,6 +33,7 @@ const PublicRoutes = () => {
     React.createElement(Route, { path: "/login", component: Login }),
     React.createElement(Route, { path: "/events", component: Events }),
     React.createElement(Route, { path: "/community", component: CommunityList }),
+    React.createElement(Route, { path: "/community/:id/edit", component: CommunityList }),
     React.createElement(Route, { path: "/community/:id", component: CommunityDetail }),
     React.createElement(Route, { path: "/notifications", component: AllNotifications }),
     React.createElement(Route, { path: "/profile/:id", component: Profile }),

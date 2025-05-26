@@ -196,6 +196,11 @@ const CreateCommunityEventModal: React.FC<CreateCommunityEventModalProps> = ({
       submitData.append('needsVolunteers', formData.needsCollaboratorForm.toString());
       submitData.append('maxCollaborators', formData.maxCollaborators);
       
+      // Add organizer (current user)
+      if (user?._id) {
+        submitData.append('organizer', user._id);
+      }
+      
       // Location - handle different event types
       const location: any = {};
       if (formData.eventType === 'offline' || formData.eventType === 'hybrid') {

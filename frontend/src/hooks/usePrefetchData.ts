@@ -42,15 +42,7 @@ export const usePrefetchData = () => {
           queryFn: () => notificationService.getNotifications(),
         });
 
-        // Prefetch community data nếu đang sử dụng mock data
-        await queryClient.prefetchQuery({
-          queryKey: ['communityGroups'],
-          queryFn: async () => {
-            // Mô phỏng API call
-            await new Promise(resolve => setTimeout(resolve, 100));
-            return [];
-          },
-        });
+
         
         console.log('All data prefetched successfully');
       } catch (error) {

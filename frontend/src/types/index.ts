@@ -41,8 +41,17 @@ export interface Event {
   _id: string;
   title: string;
   description: string;
-  startDate: Date | string;
-  endDate: Date | string;
+  startDate?: Date | string; // Legacy field for backward compatibility
+  endDate?: Date | string; // Legacy field for backward compatibility
+  eventDays?: Array<{
+    date: Date | string;
+    sessions: Array<{
+      type: string;
+      startTime: string;
+      endTime: string;
+      label: string;
+    }>;
+  }>;
   createdAt?: Date | string;
   eventType: 'offline' | 'online' | 'hybrid';
   location: {
@@ -74,8 +83,22 @@ export interface Event {
     _id: string;
     name: string;
   };
+  community?: {
+    _id: string;
+    name: string;
+    description?: string;
+    avatar?: {
+      url: string;
+      public_id?: string;
+    };
+    banner?: {
+      url: string;
+      public_id?: string;
+    };
+  };
   participants: string[];
   collaborators: Array<string | {
+    _id?: string;
     user: string | {
       _id: string;
       fullName?: string;
@@ -93,6 +116,11 @@ export interface Event {
       fullName: string;
     };
     rejectionReason?: string;
+    selectedShifts?: Array<{
+      date: string;
+      session: string;
+    }>;
+    formData?: Map<string, any>;
   }>;
   creator: {
     _id: string;
@@ -104,6 +132,12 @@ export interface Event {
   };
   status: 'upcoming' | 'ongoing' | 'completed' | 'cancelled' | 'sắp diễn ra' | 'đang diễn ra' | 'đã kết thúc' | 'đã hủy';
   needsRegistrationForm: boolean;
+  needsCollaboratorForm?: boolean;
+  needsVolunteers?: boolean;
+  maxVolunteers?: number;
+  capacity?: number;
+  eventScope?: 'general' | 'community';
+  visibility?: 'public' | 'private' | 'restricted';
   registrationForm?: {
     fields: FormField[];
   };

@@ -34,16 +34,22 @@ function isErrorWithResponse(error: unknown): error is ErrorWithResponse {
 
 const eventService = {
   getAllEvents: async () => {
-    const response = await apiClient.get('/event');
-    const events = response.data?.data || [];
-    
-    // Format participants to ensure consistent ID format
-    return events.map((event: Event) => ({
-      ...event,
-      participants: (event.participants || []).map((p: string | { _id: string }) => 
-        typeof p === 'string' ? p : p._id.toString()
-      )
-    }));
+    try {
+      const response = await apiClient.get('/event');
+      const events = response.data?.data || [];
+      
+      // Format participants to ensure consistent ID format
+      return events.map((event: Event) => ({
+        ...event,
+        participants: (event.participants || []).map((p: string | { _id: string }) => 
+          typeof p === 'string' ? p : p._id.toString()
+        )
+      }));
+    } catch (error) {
+      console.error('Error fetching events:', error);
+      // Return empty array if server is not available
+      return [];
+    }
   },
 
   getEventById: async (eventId: string) => {

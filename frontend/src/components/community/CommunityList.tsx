@@ -5,7 +5,7 @@ import type { Community } from '../../services/communityService';
 import CommunityCard from './CommunityCard';
 import LoadingSpinner from '../LoadingSpinner';
 import ErrorAlert from '../ErrorAlert';
-import { Link } from 'react-router-dom';
+import { Link } from 'wouter';
 import Header from '../Header';
 import { Dialog, Transition } from '@headlessui/react';
 import { Fragment } from 'react';
@@ -315,9 +315,12 @@ const CommunityList: React.FC = () => {
                   <CommunityCard 
                     key={community._id} 
                     community={community} 
-                    isAdminOrTeacher={isAdminOrTeacher}
-                    onDelete={loadCommunities}
-                    onEdit={() => handleEditCommunity(community)}
+                    onUpdate={loadCommunities}
+                    onDelete={(id) => {
+                      setCommunities(prev => prev.filter(c => c._id !== id));
+                    }}
+                    onJoinRequest={loadCommunities}
+                    onEdit={handleEditCommunity}
                   />
                 ))}
               </div>

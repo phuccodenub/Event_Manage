@@ -40,6 +40,11 @@ const communitySchema = new mongoose.Schema({
     required: [true, 'Vui lòng nhập tên cộng đồng'],
     maxLength: [100, 'Tên cộng đồng không được vượt quá 100 ký tự'],
   },
+  slug: {
+    type: String,
+    unique: true,
+    index: true
+  },
   description: {
     type: String,
     required: [true, 'Vui lòng nhập mô tả cộng đồng'],
@@ -67,6 +72,11 @@ const communitySchema = new mongoose.Schema({
   leader: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'User',
+    required: false
+  },
+  createdBy: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User',
     required: true
   },
   deputies: [{
@@ -85,6 +95,40 @@ const communitySchema = new mongoose.Schema({
   }
 }, { 
   timestamps: true 
+});
+
+// Tạo slug từ name trước khi save
+communitySchema.pre('save', async function(next) {
+  if (this.isNew || this.isModified('name')) {
+    // Tạo slug từ name
+    let baseSlug = this.name
+      .toLowerCase()
+      .replace(/[^a-z0-9 -]/g, '') // Remove special characters
+      .replace(/\s+/g, '-')        // Replace spaces with -
+      .replace(/-+/g, '-')         // Replace multiple - with single -
+      .trim('-');                  // Remove leading/trailing -
+
+    // Đảm bảo slug unique
+    let slug = baseSlug;
+    let counter = 1;
+    
+    while (true) {
+      const existingCommunity = await mongoose.model('Community').findOne({ 
+        slug: slug,
+        _id: { $ne: this._id } // Exclude current document
+      });
+      
+      if (!existingCommunity) {
+        break;
+      }
+      
+      slug = `${baseSlug}-${counter}`;
+      counter++;
+    }
+    
+    this.slug = slug;
+  }
+  next();
 });
 
 // Tìm kiếm community theo tên

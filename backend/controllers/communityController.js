@@ -8,7 +8,7 @@ const { deleteFromCloudinary } = require('../utils/cloudinary');
 const getAllCommunities = catchAsyncErrors(async (req, res, next) => {
   const communities = await Community.find()
     .populate('leader', 'fullName avatar')
-    .select('name description avatar banner members');
+    .select('name description avatar banner members events isActive');
 
   res.status(200).json({
     success: true,
@@ -73,6 +73,7 @@ const createCommunity = catchAsyncErrors(async (req, res, next) => {
   const communityData = {
     ...req.body,
     leader: req.user._id,
+    createdBy: req.user._id,
     members: [{ user: req.user._id }] // Tự động thêm người tạo vào members
   };
 

@@ -1976,3 +1976,74 @@ exports.getCollaboratorFormSubmissions = async (req, res) => {
     });
   }
 };
+
+// @desc: Get community events
+// @route: GET /api/v1/communities/:communityId/events
+// @access: Public
+exports.getCommunityEvents = async (req, res, next) => {
+  try {
+    const { communityId } = req.params;
+    
+    // Validate community ID
+    if (!mongoose.Types.ObjectId.isValid(communityId)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid community ID'
+      });
+    }
+
+    // Check if community exists
+    const Community = require('../models/communityModel');
+    const community = await Community.findById(communityId);
+    
+    if (!community) {
+      return res.status(404).json({
+        success: false,
+        message: 'Community not found'
+      });
+    }
+
+    let query = {
+      community: communityId,
+      eventScope: 'community'
+    };
+
+    // If user is authenticated, check membership for private events
+    if (req.user) {
+      const isMember = community.members.some(member => 
+        member.user.toString() === req.user._id.toString()
+      );
+      
+      if (isMember) {
+        // Member can see both public and private events
+        query.visibility = { $in: ['public', 'private'] };
+      } else {
+        // Non-member can only see public events
+        query.visibility = 'public';
+      }
+    } else {
+      // Non-authenticated users can only see public events
+      query.visibility = 'public';
+    }
+
+    const events = await Event.find(query)
+      .populate('organizer', 'fullName email avatar')
+      .populate('department', 'name')
+      .populate('participants', 'fullName avatar')
+      .populate('collaborators.user', 'fullName avatar')
+      .populate('speakers', 'fullName avatar')
+      .populate('community', 'name description avatar banner')
+      .populate('creator', 'fullName avatar email')
+      .sort({ createdAt: -1 });
+
+    res.status(200).json({
+      success: true,
+      data: events,
+      count: events.length,
+      communityName: community.name
+    });
+  } catch (error) {
+    console.error('Error fetching community events:', error);
+    next(new ErrorResponse('Error fetching community events', 500));
+  }
+};

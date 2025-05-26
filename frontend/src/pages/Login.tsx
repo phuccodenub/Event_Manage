@@ -7,6 +7,7 @@ import { Mail, Lock, Calendar, Clock, MapPin } from 'lucide-react';
 import { GoogleLogin } from '@react-oauth/google';
 import { jwtDecode } from "jwt-decode";
 import FacebookLogin from '@greatsumini/react-facebook-login';
+import { getEventStartDate } from '../utils/dateUtils';
 
 const Login = () => {
   const [credentials, setCredentials] = useState({ username: '', password: '' });
@@ -25,11 +26,27 @@ const Login = () => {
   }, [setEvents]);
 
   const upcomingEvents = events
-    .filter(event => new Date(event.startDate) > new Date())
-    .sort((a, b) => new Date(a.startDate).getTime() - new Date(b.startDate).getTime())
+    .filter(event => {
+      if (event.eventDays && event.eventDays.length > 0) {
+        const startDate = getEventStartDate(event.eventDays);
+        return startDate && startDate > new Date();
+      }
+      if (event.startDate) {
+        return new Date(event.startDate) > new Date();
+      }
+      return false;
+    })
+    .sort((a, b) => {
+      const startDateA = a.eventDays ? getEventStartDate(a.eventDays) : new Date(a.startDate!);
+      const startDateB = b.eventDays ? getEventStartDate(b.eventDays) : new Date(b.startDate!);
+      if (!startDateA || !startDateB) return 0;
+      return startDateA.getTime() - startDateB.getTime();
+    })
     .slice(0, 3)
     .map(event => {
-      const date = new Date(event.startDate);
+      const startDate = event.eventDays ? getEventStartDate(event.eventDays) : new Date(event.startDate!);
+      const date = startDate || new Date();
+      
       return {
         ...event,
         formattedDate: {

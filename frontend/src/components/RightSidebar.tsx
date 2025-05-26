@@ -8,6 +8,7 @@ import Footer from './Footer';
 import JoinEventButton from './JoinEventButton';
 import CollaborateEventButton from './CollaborateEventButton';
 import { Event } from '../types';
+import { getEventStartDate, getEventEndDate, formatEventTimeDisplay } from '../utils/dateUtils';
 
 // Define cache keys for RightSidebar
 const RIGHT_SIDEBAR_CACHE = {
@@ -100,21 +101,42 @@ const RightSidebar: React.FC = () => {
   }, [setEvents]);
 
   const upcomingEvents = events
-    .filter(event => new Date(event.startDate) > new Date())
+    .filter(event => {
+      // Check if event has eventDays structure
+      if (event.eventDays && event.eventDays.length > 0) {
+        const startDate = getEventStartDate(event.eventDays);
+        return startDate && startDate > new Date();
+      }
+      // Fallback to old structure
+      if (event.startDate) {
+        return new Date(event.startDate) > new Date();
+      }
+      return false;
+    })
     .slice(0, 2)
-    .map(event => ({
-      ...event,
-      date: `${new Date(event.startDate).toLocaleString('vi-VN', {
-        day: '2-digit',
-        month: '2-digit',
-        year: 'numeric',
-        hour: '2-digit',
-        minute: '2-digit',
-      })} - ${new Date(event.endDate).toLocaleString('vi-VN', {
-        hour: '2-digit',
-        minute: '2-digit',
-      })}`,
-    }));
+    .map(event => {
+      let dateDisplay = 'Chưa xác định';
+      
+      if (event.eventDays && event.eventDays.length > 0) {
+        dateDisplay = formatEventTimeDisplay(event.eventDays);
+      } else if (event.startDate && event.endDate) {
+        dateDisplay = `${new Date(event.startDate).toLocaleString('vi-VN', {
+          day: '2-digit',
+          month: '2-digit',
+          year: 'numeric',
+          hour: '2-digit',
+          minute: '2-digit',
+        })} - ${new Date(event.endDate).toLocaleString('vi-VN', {
+          hour: '2-digit',
+          minute: '2-digit',
+        })}`;
+      }
+      
+      return {
+        ...event,
+        date: dateDisplay,
+      };
+    });
 
   return (
     <div className="w-full lg:w-80 flex-shrink-0">
@@ -155,8 +177,8 @@ const RightSidebar: React.FC = () => {
                   <JoinEventButton 
                     eventId={event._id}
                     participants={event.participants || []}
-                    startDate={event.startDate}
-                    endDate={event.endDate}
+                    startDate={event.eventDays ? getEventStartDate(event.eventDays) : new Date(event.startDate)}
+                    endDate={event.eventDays ? getEventEndDate(event.eventDays) : new Date(event.endDate)}
                     status={event.status}
                     isCompact={true}
                     creatorId={event.creator?._id}

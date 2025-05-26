@@ -8,6 +8,8 @@ import LoadingSpinner from '../LoadingSpinner';
 import ErrorAlert from '../ErrorAlert';
 import Header from '../Header';
 import CreateCommunityEventModal from '../CreateCommunityEventModal';
+import JoinEventButton from '../JoinEventButton';
+import CollaborateEventButton from '../CollaborateEventButton';
 import { Dialog, Transition } from '@headlessui/react';
 import { Fragment } from 'react';
 import { 
@@ -26,6 +28,8 @@ import {
   IoLocationOutline
 } from 'react-icons/io5';
 import uploadService from '../../services/uploadService';
+import { Event } from '../../types';
+import { getEventStartDate, getEventEndDate, formatEventTimeDisplay } from '../../utils/dateUtils';
 
 interface FormData {
   name: string;
@@ -76,23 +80,32 @@ const CommunityDetail: React.FC = () => {
   const [showDiscussionForm, setShowDiscussionForm] = useState(false);
   const [newMessage, setNewMessage] = useState('');
   const [discussions, setDiscussions] = useState<any[]>([]);
-  const [events, setEvents] = useState<any[]>([]);
+  const [events, setEvents] = useState<Event[]>([]);
+  const [eventsLoading, setEventsLoading] = useState(false);
 
   const isAdminOrTeacher = user && ['admin', 'teacher'].includes(user.role);
 
   useEffect(() => {
-    if (id) {
-      if (!isValidMongoId(id)) {
-        setError('ID cộng đồng không hợp lệ');
-        setIsLoading(false);
-        return;
-      }
+    if (id && isValidMongoId(id)) {
       loadCommunityDetails();
+      loadCommunityEvents();
+    } else if (id && !isValidMongoId(id)) {
+      setError('ID cộng đồng không hợp lệ');
+      setIsLoading(false);
     }
   }, [id]);
 
+  // Load discussions from backend if available
+  useEffect(() => {
+    if (community) {
+      // For now, start with empty discussions
+      // In the future, this can be replaced with actual API call
+      setDiscussions([]);
+    }
+  }, [community]);
+
   const loadCommunityDetails = async () => {
-    if (!id || !isValidMongoId(id)) return;
+    if (!id) return;
     
     try {
       setIsLoading(true);
@@ -104,6 +117,22 @@ const CommunityDetail: React.FC = () => {
       setError(error.message || 'Không thể tải thông tin cộng đồng. Vui lòng thử lại sau.');
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const loadCommunityEvents = async () => {
+    if (!id) return;
+    
+    try {
+      setEventsLoading(true);
+      const eventsData = await communityService.getCommunityEvents(id);
+      setEvents(eventsData);
+    } catch (error: any) {
+      console.error('Lỗi khi tải sự kiện cộng đồng:', error);
+      // Set empty array if error occurs
+      setEvents([]);
+    } finally {
+      setEventsLoading(false);
     }
   };
 
@@ -129,7 +158,7 @@ const CommunityDetail: React.FC = () => {
       setFormData({
         name: community.name,
         description: community.description,
-        isActive: community.isActive,
+        isActive: community.isActive ?? true,
         avatar: {
           url: community.avatar?.url || '',
           public_id: community.avatar?.public_id || undefined,
@@ -256,64 +285,6 @@ const CommunityDetail: React.FC = () => {
     }
   };
 
-  // Mock data for events
-  useEffect(() => {
-    if (community) {
-      // Thay thế bằng API thực tế khi triển khai
-      setEvents([
-        {
-          id: '1',
-          title: 'Workshop Lập Trình Web',
-          description: 'Học cách xây dựng website từ cơ bản đến nâng cao với các công nghệ hiện đại',
-          date: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // 7 days from now
-          location: 'Phòng Lab A1, HUTECH',
-          image: 'https://placehold.co/600x400/orange/white?text=Workshop'
-        },
-        {
-          id: '2',
-          title: 'Hackathon HUTECH 2023',
-          description: 'Cuộc thi lập trình 48 giờ để tạo ra ứng dụng giải quyết các vấn đề xã hội',
-          date: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000), // 14 days from now
-          location: 'Hội trường A, HUTECH',
-          image: 'https://placehold.co/600x400/blue/white?text=Hackathon'
-        }
-      ]);
-    }
-  }, [community]);
-
-  // Mock data for discussions
-  useEffect(() => {
-    if (community) {
-      // Thay thế bằng API thực tế khi triển khai
-      setDiscussions([
-        {
-          id: '1',
-          author: {
-            name: community.leader.fullName,
-            avatar: community.leader.avatar?.url || '/default-avatar.png',
-            role: 'Leader'
-          },
-          content: 'Chào mừng mọi người đến với cộng đồng ' + community.name + '! Hãy giới thiệu về bản thân và chia sẻ về lý do bạn tham gia cộng đồng này nhé.',
-          timestamp: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000), // 3 days ago
-          likes: 5,
-          comments: 2
-        },
-        {
-          id: '2',
-          author: {
-            name: community.members[0]?.user.fullName || 'Thành viên',
-            avatar: community.members[0]?.user.avatar?.url || '/default-avatar.png',
-            role: 'Member'
-          },
-          content: 'Mình rất vui được tham gia cộng đồng này. Mình đang tìm kiếm cơ hội để học hỏi và trao đổi kinh nghiệm với mọi người.',
-          timestamp: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000), // 2 days ago
-          likes: 3,
-          comments: 1
-        }
-      ]);
-    }
-  }, [community]);
-
   const handleCreateEvent = () => {
     setShowCreateEventModal(true);
   };
@@ -345,8 +316,9 @@ const CommunityDetail: React.FC = () => {
   };
 
   const handleEventCreated = () => {
-    // Reload community details to get updated events
-    loadCommunityDetails();
+    setShowCreateEventModal(false);
+    // Reload events list to show new event
+    loadCommunityEvents();
   };
 
   if (isLoading) {
@@ -398,12 +370,30 @@ const CommunityDetail: React.FC = () => {
     );
   }
 
-  const isMember = community.members.some(member => member.user._id === user?._id);
-  const hasPendingRequest = community.pendingRequests?.some(
-    request => request.user._id === user?._id && request.status === 'pending'
-  );
-  const isLeader = community.leader._id === user?._id;
-  const isDeputy = community.deputies?.some(deputy => deputy._id === user?._id);
+  const userId = user?.id || user?._id;
+  
+  // Xử lý leader
+  const leader = community.leader || (community.createdBy ? {
+    _id: community.createdBy,
+    fullName: 'Quản trị viên',
+    avatar: { url: '/default-avatar.png' }
+  } : null);
+  
+  // Xử lý members với cấu trúc data thực
+  const members = community.members || [];
+  const isMember = Boolean(user && members.some(member => {
+    if (typeof member.user === 'string') {
+      return member.user === userId;
+    }
+    return member.user && member.user._id === userId;
+  }));
+  
+  const hasPendingRequest = Boolean(community.pendingRequests?.some(
+    request => request.user && request.user._id === userId && request.status === 'pending'
+  ));
+  
+  const isLeader = leader && leader._id === userId;
+  const isDeputy = community.deputies?.some(deputy => deputy._id === userId) || false;
   const canManage = isLeader || isDeputy || isAdminOrTeacher;
 
   // Render Tab Navigation
@@ -450,7 +440,7 @@ const CommunityDetail: React.FC = () => {
       <div className="flex justify-between items-center mb-6">
         <h2 className="text-xl font-semibold text-gray-800 flex items-center">
           <IoCalendarOutline className="mr-2 text-orange-500" />
-          Sự kiện
+          Sự kiện ({events.length})
         </h2>
         {canManage && (
           <button
@@ -463,38 +453,128 @@ const CommunityDetail: React.FC = () => {
         )}
       </div>
 
-      {events.length > 0 ? (
-        <div className="space-y-4">
-          {events.map(event => (
-            <div key={event.id} className="flex flex-col md:flex-row border border-gray-200 rounded-lg overflow-hidden">
-              <div className="md:w-1/3 h-48 md:h-auto">
-                <img
-                  src={event.image}
-                  alt={event.title}
-                  className="w-full h-full object-cover"
-                />
-              </div>
-              <div className="p-4 md:p-6 flex-1">
-                <h3 className="text-lg font-semibold text-gray-800 mb-2">{event.title}</h3>
-                <p className="text-gray-600 mb-4">{event.description}</p>
-                <div className="flex flex-wrap gap-3">
-                  <div className="flex items-center text-gray-500">
-                    <IoTimeOutline className="mr-1" />
-                    <span>{event.date.toLocaleDateString()}</span>
+      {eventsLoading ? (
+        <div className="flex justify-center py-8">
+          <LoadingSpinner />
+        </div>
+      ) : events.length > 0 ? (
+        <div className="space-y-6">
+          {events.map(event => {
+            const eventStartDate = event.eventDays ? getEventStartDate(event.eventDays) : (event.startDate ? new Date(event.startDate) : null);
+            const eventEndDate = event.eventDays ? getEventEndDate(event.eventDays) : (event.endDate ? new Date(event.endDate) : null);
+            const timeDisplay = event.eventDays ? formatEventTimeDisplay(event.eventDays) : 
+              (eventStartDate ? eventStartDate.toLocaleDateString('vi-VN') : 'Chưa xác định');
+
+            return (
+              <div key={event._id} className="border border-gray-200 rounded-lg overflow-hidden hover:shadow-lg transition-shadow">
+                <div className="flex flex-col lg:flex-row">
+                  {/* Event Image */}
+                  <div className="lg:w-1/3 h-48 lg:h-auto">
+                    <img
+                      src={event.images && event.images.length > 0 ? event.images[0].url : 'https://placehold.co/400x300/orange/white?text=' + encodeURIComponent(event.title)}
+                      alt={event.title}
+                      className="w-full h-full object-cover"
+                    />
                   </div>
-                  <div className="flex items-center text-gray-500">
-                    <IoLocationOutline className="mr-1" />
-                    <span>{event.location}</span>
+                  
+                  {/* Event Content */}
+                  <div className="p-4 lg:p-6 flex-1 flex flex-col">
+                    {/* Event Header */}
+                    <div className="flex items-center gap-2 mb-2">
+                      <div className="w-6 h-6 rounded-full bg-orange-100 flex items-center justify-center text-xs text-orange-600 font-bold">
+                        {event.organizer?.fullName?.charAt(0).toUpperCase() || 'U'}
+                      </div>
+                      <span className="text-sm text-gray-600">
+                        {event.organizer?.fullName || 'Unknown'} 
+                        {event.department?.name && ` • ${event.department.name}`}
+                      </span>
+                    </div>
+
+                    {/* Event Title */}
+                    <h3 
+                      className="text-lg font-semibold text-gray-800 mb-2 cursor-pointer hover:text-orange-600 transition-colors"
+                      onClick={() => navigate(`/events/${event._id}`)}
+                    >
+                      {event.title}
+                    </h3>
+                    
+                    {/* Event Description */}
+                    <p className="text-gray-600 mb-4 line-clamp-2">{event.description}</p>
+                    
+                    {/* Event Details */}
+                    <div className="flex flex-wrap gap-3 mb-4">
+                      <div className="flex items-center text-gray-500">
+                        <IoTimeOutline className="mr-1" />
+                        <span className="text-sm">{timeDisplay}</span>
+                      </div>
+                      {event.location?.physical?.address && (
+                        <div className="flex items-center text-gray-500">
+                          <IoLocationOutline className="mr-1" />
+                          <span className="text-sm">
+                            {event.location.physical.room 
+                              ? `${event.location.physical.address} - ${event.location.physical.room}`
+                              : event.location.physical.address}
+                          </span>
+                        </div>
+                      )}
+                      {event.capacity && (
+                        <div className="flex items-center text-gray-500">
+                          <IoPeopleOutline className="mr-1" />
+                          <span className="text-sm">{event.participants?.length || 0}/{event.capacity} người</span>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Action Buttons */}
+                    <div className="flex flex-wrap gap-2 mt-auto">
+                      <button 
+                        onClick={() => navigate(`/events/${event._id}`)}
+                        className="px-4 py-2 bg-orange-50 text-orange-600 hover:bg-orange-100 rounded-lg transition-colors text-sm"
+                      >
+                        Xem chi tiết
+                      </button>
+                      
+                      {user && (
+                        <>
+                                                     <JoinEventButton 
+                             eventId={event._id}
+                             participants={event.participants || []}
+                             startDate={eventStartDate || undefined}
+                             endDate={eventEndDate || undefined}
+                             status={event.status}
+                             isCompact={true}
+                             creatorId={event.creator?._id}
+                             organizerId={event.organizer?._id}
+                           />
+                          
+                                                     {event.needsCollaboratorForm && event.status !== 'cancelled' && event.status !== 'completed' && (
+                             <CollaborateEventButton 
+                               eventId={event._id}
+                               status={event.status}
+                               collaborators={event.collaborators?.map(collab => 
+                                 typeof collab === 'string' 
+                                   ? collab 
+                                   : { 
+                                       _id: collab._id || '',
+                                       user: typeof collab.user === 'string' 
+                                         ? collab.user 
+                                         : collab.user._id,
+                                       status: collab.status
+                                     }
+                               ) || []}
+                               isCompact={true}
+                               organizerId={event.organizer?._id}
+                               creatorId={event.creator?._id}
+                             />
+                           )}
+                        </>
+                      )}
+                    </div>
                   </div>
                 </div>
-                <div className="mt-4">
-                  <button className="px-4 py-2 bg-orange-50 text-orange-600 hover:bg-orange-100 rounded-lg transition-colors">
-                    Xem chi tiết
-                  </button>
-                </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       ) : (
         <div className="text-center py-10 bg-gray-50 rounded-lg">
@@ -666,13 +746,13 @@ const CommunityDetail: React.FC = () => {
                   <p className="text-gray-600 mt-1">
                     <span className="flex items-center">
                       <IoPersonOutline className="mr-1" />
-                      Leader: {community.leader.fullName}
+                      Leader: {leader?.fullName || 'Chưa có'}
                     </span>
                   </p>
                   <p className="text-gray-600 mt-1">
                     <span className="flex items-center">
                       <IoPeopleOutline className="mr-1" />
-                      {community.members.length} thành viên
+                      {members.length} thành viên
                     </span>
                   </p>
                 </div>
@@ -726,38 +806,48 @@ const CommunityDetail: React.FC = () => {
               <>
                 {/* Members Section */}
                 <div className="bg-white p-6 rounded-xl shadow mb-6">
-                  <h2 className="text-xl font-semibold text-gray-800 mb-4 flex items-center">
-                    <IoPeopleOutline className="mr-2 text-orange-500" />
-                    Thành viên ({community.members.length})
-                  </h2>
+                                  <h2 className="text-xl font-semibold text-gray-800 mb-4 flex items-center">
+                  <IoPeopleOutline className="mr-2 text-orange-500" />
+                  Thành viên ({members.length})
+                </h2>
                   
                   <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
-                    {community.members.map(member => (
-                      <div key={member._id} className="flex flex-col items-center text-center">
-                        <div className="w-16 h-16 rounded-lg overflow-hidden mb-2 border border-gray-200">
-                    <img
-                            src={member.user.avatar?.url || '/default-avatar.png'}
-                            alt={member.user.fullName}
-                            className="w-full h-full object-cover"
-                            onError={(e) => {
-                              const target = e.target as HTMLImageElement;
-                              target.onerror = null;
-                              target.src = '/default-avatar.png';
-                            }}
-                          />
+                    {members.map(member => {
+                      const memberUser = typeof member.user === 'string' ? {
+                        _id: member.user,
+                        fullName: 'Thành viên',
+                        avatar: { url: '/default-avatar.png' }
+                      } : member.user;
+                      
+                      if (!memberUser) return null;
+                      
+                      return (
+                        <div key={member._id || memberUser._id} className="flex flex-col items-center text-center">
+                          <div className="w-16 h-16 rounded-lg overflow-hidden mb-2 border border-gray-200">
+                            <img
+                              src={memberUser.avatar?.url || '/default-avatar.png'}
+                              alt={memberUser.fullName}
+                              className="w-full h-full object-cover"
+                              onError={(e) => {
+                                const target = e.target as HTMLImageElement;
+                                target.onerror = null;
+                                target.src = '/default-avatar.png';
+                              }}
+                            />
+                          </div>
+                          <span className="text-sm text-gray-800 font-medium line-clamp-1">
+                            {memberUser.fullName}
+                          </span>
+                          {leader && leader._id === memberUser._id && (
+                            <span className="text-xs text-orange-600 mt-1 bg-orange-50 px-2 py-0.5 rounded-full">Leader</span>
+                          )}
+                          {community.deputies?.some(deputy => deputy._id === memberUser._id) && (
+                            <span className="text-xs text-blue-600 mt-1 bg-blue-50 px-2 py-0.5 rounded-full">Deputy</span>
+                          )}
                         </div>
-                        <span className="text-sm text-gray-800 font-medium line-clamp-1">
-                          {member.user.fullName}
-                        </span>
-                        {community.leader._id === member.user._id && (
-                          <span className="text-xs text-orange-600 mt-1 bg-orange-50 px-2 py-0.5 rounded-full">Leader</span>
-                        )}
-                        {community.deputies?.some(deputy => deputy._id === member.user._id) && (
-                          <span className="text-xs text-blue-600 mt-1 bg-blue-50 px-2 py-0.5 rounded-full">Deputy</span>
-                        )}
+                      );
+                    })}
                   </div>
-                ))}
-              </div>
             </div>
               </>
           )}
@@ -770,7 +860,7 @@ const CommunityDetail: React.FC = () => {
           {/* Right column: Pending Requests and Quick Actions */}
           <div className="lg:col-span-1">
           {/* Pending Requests - Only visible to leader and deputies */}
-            {canManage && community.pendingRequests?.filter(r => r.status === 'pending').length > 0 && (
+            {canManage && community.pendingRequests && community.pendingRequests.filter(r => r.status === 'pending').length > 0 && (
               <div className="bg-white p-6 rounded-xl shadow mb-6">
                 <h2 className="text-xl font-semibold text-gray-800 mb-4">
                   Yêu cầu tham gia ({community.pendingRequests.filter(r => r.status === 'pending').length})
@@ -785,7 +875,7 @@ const CommunityDetail: React.FC = () => {
                   </div>
                 )}
                 <div className="space-y-3">
-                {community.pendingRequests
+                {(community.pendingRequests || [])
                   .filter(request => request.status === 'pending')
                   .map(request => (
                     <div
