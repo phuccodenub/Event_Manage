@@ -60,7 +60,7 @@ const communityService = {
   // Lấy danh sách tất cả communities
   getAllCommunities: async (): Promise<Community[]> => {
     try {
-      const response = await apiClient.get('/community');
+      const response = await apiClient.get('/communities');
     return response.data.communities;
     } catch (error: any) {
       console.error('Lỗi khi lấy danh sách cộng đồng:', error);
@@ -74,7 +74,7 @@ const communityService = {
   // Lấy chi tiết một community
   getCommunityDetails: async (id: string): Promise<Community> => {
     try {
-      const response = await apiClient.get(`/community/${id}`);
+      const response = await apiClient.get(`/communities/${id}`);
     return response.data.community;
     } catch (error: any) {
       console.error(`Lỗi khi lấy chi tiết cộng đồng ${id}:`, error);
@@ -100,7 +100,7 @@ const communityService = {
     };
   }): Promise<Community> => {
     try {
-    const response = await apiClient.post('/community/new', data);
+    const response = await apiClient.post('/communities/new', data);
     return response.data.community;
     } catch (error: any) {
       console.error('Lỗi khi tạo cộng đồng mới:', error);
@@ -114,7 +114,7 @@ const communityService = {
   // Gửi yêu cầu tham gia community
   requestToJoin: async (communityId: string): Promise<{ message: string }> => {
     try {
-      const response = await apiClient.post(`/community/${communityId}/join`);
+      const response = await apiClient.post(`/communities/${communityId}/join`);
     return response.data;
     } catch (error: any) {
       console.error(`Lỗi khi gửi yêu cầu tham gia cộng đồng ${communityId}:`, error);
@@ -131,7 +131,7 @@ const communityService = {
     status: 'approved' | 'rejected'
   ): Promise<{ message: string }> => {
     try {
-      const response = await apiClient.put(`/community/requests/${requestId}`, {
+      const response = await apiClient.put(`/communities/requests/${requestId}`, {
       status,
     });
     return response.data;
@@ -162,7 +162,7 @@ const communityService = {
     }
   ): Promise<Community> => {
     try {
-      const response = await apiClient.put(`/community/${id}`, data);
+      const response = await apiClient.put(`/communities/${id}`, data);
     return response.data.community;
     } catch (error: any) {
       console.error(`Lỗi khi cập nhật cộng đồng ${id}:`, error);
@@ -176,7 +176,7 @@ const communityService = {
   // Xóa community
   deleteCommunity: async (id: string): Promise<{ message: string }> => {
     try {
-      const response = await apiClient.delete(`/community/${id}`);
+      const response = await apiClient.delete(`/communities/${id}`);
     return response.data;
     } catch (error: any) {
       console.error(`Lỗi khi xóa cộng đồng ${id}:`, error);
@@ -190,7 +190,7 @@ const communityService = {
   // Tìm kiếm community
   searchCommunities: async (keyword: string): Promise<Community[]> => {
     try {
-      const response = await apiClient.get(`/community/search?keyword=${keyword}`);
+      const response = await apiClient.get(`/communities/search?keyword=${keyword}`);
     return response.data.communities;
     } catch (error: any) {
       console.error('Lỗi khi tìm kiếm cộng đồng:', error);

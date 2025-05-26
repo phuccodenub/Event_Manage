@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { X, Upload, Calendar, MapPin, Clock, Users, FileText, Settings } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
-import { createCommunityEvent } from '../services/eventService';
+import eventService from '../services/eventService';
 import notificationService from '../services/notificationService';
 import departmentService from '../services/departmentService';
 import EventDaysSelector from './EventDaysSelector';
@@ -194,7 +194,7 @@ const CreateCommunityEventModal: React.FC<CreateCommunityEventModalProps> = ({
       submitData.append('needsRegistrationForm', formData.needsRegistrationForm.toString());
       submitData.append('needsCollaboratorForm', formData.needsCollaboratorForm.toString());
       submitData.append('needsVolunteers', formData.needsCollaboratorForm.toString());
-      submitData.append('maxVolunteers', formData.maxCollaborators);
+      submitData.append('maxCollaborators', formData.maxCollaborators);
       
       // Location - handle different event types
       const location: any = {};
@@ -258,17 +258,16 @@ const CreateCommunityEventModal: React.FC<CreateCommunityEventModalProps> = ({
       });
 
       // Create community event
-      const result = await createCommunityEvent(communityId, submitData);
+      const result = await eventService.createCommunityEvent(communityId, submitData);
       
       console.log('Community event creation result:', result);
       
-      if (result.success) {
-        // Send notification based on visibility - remove this as backend handles it
+      if (result && result.success) {
         alert('Tạo sự kiện thành công!');
         onEventCreated();
         onClose();
       } else {
-        throw new Error(result.message || 'Không thể tạo sự kiện');
+        throw new Error(result?.message || 'Không thể tạo sự kiện');
       }
     } catch (error: any) {
       console.error('Error creating community event:', error);
@@ -277,7 +276,22 @@ const CreateCommunityEventModal: React.FC<CreateCommunityEventModalProps> = ({
         response: error.response?.data,
         status: error.response?.status
       });
-      alert(error.response?.data?.message || error.message || 'Có lỗi xảy ra khi tạo sự kiện');
+      
+      let errorMessage = 'Có lỗi xảy ra khi tạo sự kiện';
+      
+      if (error.response?.status === 500) {
+        errorMessage = 'Lỗi máy chủ nội bộ. Vui lòng thử lại sau.';
+      } else if (error.response?.status === 404) {
+        errorMessage = 'Không tìm thấy cộng đồng.';
+      } else if (error.response?.status === 403) {
+        errorMessage = 'Bạn không có quyền tạo sự kiện trong cộng đồng này.';
+      } else if (error.response?.data?.message) {
+        errorMessage = error.response.data.message;
+      } else if (error.message) {
+        errorMessage = error.message;
+      }
+      
+      alert(errorMessage);
     } finally {
       setLoading(false);
     }

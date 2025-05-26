@@ -214,8 +214,18 @@ const eventService = {
     try {
       const response = await apiClient.get(`/event/${eventId}/collaborator-form`);
       return response.data;
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error fetching collaborator form:', error);
+      if (error.response?.status === 404) {
+        // Return empty form for events that don't have collaborator forms
+        return {
+          success: true,
+          data: {
+            fields: [],
+            setupTime: null
+          }
+        };
+      }
       throw error;
     }
   },
@@ -261,20 +271,55 @@ const eventService = {
       throw error;
     }
   },
-};
 
-export const createCommunityEvent = async (communityId: string, eventData: FormData): Promise<any> => {
-  try {
-    const response = await apiClient.post(`/communities/${communityId}/events`, eventData, {
-      headers: {
-        'Content-Type': 'multipart/form-data',
-      },
-    });
-    return response.data;
-  } catch (error) {
-    console.error('Error creating community event:', error);
-    throw error;
-  }
+  // Create community event
+  createCommunityEvent: async (communityId: string, formData: FormData) => {
+    try {
+      const response = await apiClient.post(`/communities/${communityId}/events`, formData, {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+        },
+      });
+      return response.data;
+    } catch (error: any) {
+      console.error('Error creating community event:', error);
+      
+      // Handle network errors or server unavailable
+      if (!error.response) {
+        return {
+          success: false,
+          message: 'Không thể kết nối đến máy chủ. Vui lòng kiểm tra kết nối mạng và thử lại sau.'
+        };
+      }
+      
+      // Handle specific HTTP errors
+      if (error.response.status === 500) {
+        return {
+          success: false,
+          message: 'Lỗi máy chủ nội bộ. Vui lòng thử lại sau.'
+        };
+      }
+      
+      if (error.response.status === 404) {
+        return {
+          success: false,
+          message: 'Không tìm thấy cộng đồng.'
+        };
+      }
+      
+      if (error.response.status === 403) {
+        return {
+          success: false,
+          message: 'Bạn không có quyền tạo sự kiện trong cộng đồng này.'
+        };
+      }
+      
+      return {
+        success: false,
+        message: error.response?.data?.message || 'Có lỗi xảy ra khi tạo sự kiện'
+      };
+    }
+  },
 };
 
 export default eventService;

@@ -17,32 +17,37 @@ const collaboratorFormSchema = new mongoose.Schema({
     },
     type: {
       type: String,
-      enum: ['text', 'email', 'tel', 'number', 'textarea', 'select', 'radio', 'checkbox', 'date'],
-      required: true
+      required: true,
+      enum: ['text', 'email', 'number', 'tel', 'date', 'select', 'checkbox', 'radio', 'textarea']
     },
     required: {
       type: Boolean,
       default: false
     },
     placeholder: String,
-    options: [String], // For select, radio, checkbox
-    validation: {
-      min: Number,
-      max: Number,
-      pattern: String,
-      message: String
-    }
+    options: [String], // For select, checkbox, radio
+    defaultValue: mongoose.Schema.Types.Mixed
   }],
   createdBy: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'User',
     required: true
   },
-  isActive: {
-    type: Boolean,
-    default: true
+  createdAt: {
+    type: Date,
+    default: Date.now
+  },
+  updatedAt: {
+    type: Date,
+    default: Date.now
   }
-}, { timestamps: true });
+});
+
+// Update the updatedAt field on save
+collaboratorFormSchema.pre('save', function(next) {
+  this.updatedAt = Date.now();
+  next();
+});
 
 // Index for better performance
 collaboratorFormSchema.index({ event: 1 });

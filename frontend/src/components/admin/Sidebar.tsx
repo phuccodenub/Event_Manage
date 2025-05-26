@@ -2,13 +2,14 @@ import { Link, useLocation } from 'wouter';
 import { 
   HomeIcon, UsersIcon, CalendarIcon, 
   BellIcon, CogIcon, ChartBarIcon,
-  AcademicCapIcon 
+  AcademicCapIcon, UserGroupIcon 
 } from '@heroicons/react/outline';
 
 const menuItems = [
   { name: 'Dashboard', icon: ChartBarIcon, path: '/admin/dashboard' },
   { name: 'Events', icon: CalendarIcon, path: '/admin/events' },
   { name: 'Users', icon: UsersIcon, path: '/admin/users' },
+  { name: 'Communities', icon: UserGroupIcon, path: '/admin/communities' },
   { name: 'Announcements', icon: BellIcon, path: '/admin/announcements' },
   { name: 'Faculties', icon: AcademicCapIcon, path: '/admin/faculties' },
   { name: 'Settings', icon: CogIcon, path: '/admin/settings' },

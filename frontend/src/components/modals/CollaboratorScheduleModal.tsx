@@ -94,12 +94,13 @@ const CollaboratorScheduleModal: React.FC<Props> = ({
     try {
       const response = await eventService.getEventCollaboratorForm(eventId);
       
-      if (response.success) {
-        setFormFields(response.data.fields || []);
+      if (response && response.success) {
+        const fields = response.data?.fields || [];
+        setFormFields(fields);
         
         // Initialize form data with default values
         const initialFormData: Record<string, any> = {};
-        response.data.fields.forEach((field: FormField) => {
+        fields.forEach((field: FormField) => {
           if (field.type === 'checkbox') {
             initialFormData[field.fieldId] = [];
           } else {
@@ -109,17 +110,66 @@ const CollaboratorScheduleModal: React.FC<Props> = ({
         setFormData(initialFormData);
 
         // If no setupTime from props, try to get from API response
-        if (!setupTime?.supportDays && response.data.setupTime?.supportDays) {
+        if (!setupTime?.supportDays && response.data?.setupTime?.supportDays) {
           console.log('Setting available days from API response:', response.data.setupTime.supportDays);
           setAvailableDays(response.data.setupTime.supportDays.map((day: any) => ({
             date: typeof day.date === 'string' ? day.date : day.date,
             sessions: day.sessions
           })));
         }
+      } else {
+        console.warn('Invalid response from getEventCollaboratorForm:', response);
+        toast.error('Dữ liệu form không hợp lệ');
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error fetching collaborator form:', error);
-      toast.error('Không thể tải form đăng ký CTV');
+      if (error.response?.status === 404) {
+        toast.error('Không tìm thấy form đăng ký CTV cho sự kiện này');
+      } else if (error.response?.status === 500) {
+        toast.error('Lỗi server khi tải form đăng ký CTV');
+      } else {
+        toast.error('Không thể tải form đăng ký CTV');
+      }
+      
+      // Fallback: Sử dụng form mặc định khi không thể kết nối server
+      setFormFields([
+        {
+          fieldId: 'fullName',
+          label: 'Họ và tên',
+          type: 'text',
+          required: true,
+          placeholder: 'Nhập họ và tên'
+        },
+        {
+          fieldId: 'studentId',
+          label: 'Mã số sinh viên',
+          type: 'text',
+          required: true,
+          placeholder: 'Nhập mã số sinh viên'
+        },
+        {
+          fieldId: 'phone',
+          label: 'Số điện thoại',
+          type: 'tel',
+          required: true,
+          placeholder: 'Nhập số điện thoại'
+        },
+        {
+          fieldId: 'email',
+          label: 'Email',
+          type: 'email',
+          required: true,
+          placeholder: 'Nhập email'
+        }
+      ]);
+      
+      // Initialize form data with fallback fields
+      setFormData({
+        fullName: '',
+        studentId: '',
+        phone: '',
+        email: ''
+      });
     }
   };
 
@@ -342,7 +392,6 @@ const CollaboratorScheduleModal: React.FC<Props> = ({
               initial={{ opacity: 0, y: 50 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -50 }}
-              transition={{ type: "spring", duration: 0.5 }}
               className="w-full max-w-2xl transform rounded-xl bg-white p-6 shadow-xl"
             >
               <div className="flex items-center justify-between mb-6">

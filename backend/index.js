@@ -72,6 +72,7 @@ const certificateRoutes = require('./routes/certificateRoutes');
 const communityRoutes = require('./routes/communityRoutes');
 const notificationRoutes = require('./routes/notificationRoutes');
 const uploadRoutes = require('./routes/uploadRoutes');
+const announcementRoutes = require('./routes/announcementRoutes');
 
 // Mount routes
 app.use('/api/v1/auth', authRoutes);
@@ -84,6 +85,7 @@ app.use('/api/v1/certificates', certificateRoutes);
 app.use('/api/v1/notifications', notificationRoutes);
 app.use('/api/v1/upload', uploadRoutes);
 app.use('/api/v1/communities', communityRoutes);
+app.use('/api/v1/announcements', announcementRoutes);
 
 // Error Handler
 app.use(errorHandler);
