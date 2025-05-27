@@ -572,13 +572,17 @@ exports.joinEvent = async (req, res, next) => {
       );
 
       // Gửi thông báo sau khi transaction thành công
-      setImmediate(async () => {
-        try {
+      try {
+        const NotificationService = require('../utils/notificationService');
+        if (NotificationService && typeof NotificationService.createEventJoinNotification === 'function') {
           await NotificationService.createEventJoinNotification(event, req.user);
-        } catch (notificationError) {
-          console.error('Error sending join notification:', notificationError);
+        } else {
+          console.warn('NotificationService not properly initialized');
         }
-      });
+      } catch (notificationError) {
+        console.error('Error sending join notification:', notificationError);
+        // Không throw lỗi ở đây để không ảnh hưởng đến response
+      }
     });
 
     res.status(200).json({
@@ -1032,7 +1036,7 @@ exports.approveCollaborator = async (req, res, next) => {
     }
 
     // Cập nhật trạng thái trong event
-    const updateResult = await Event.updateOne(
+    const updateResult = await Event.findOneAndUpdate(
       { 
         _id: id,
         'collaborators.user': userId 
@@ -1043,10 +1047,11 @@ exports.approveCollaborator = async (req, res, next) => {
           'collaborators.$.approvedAt': new Date(),
           'collaborators.$.approvedBy': req.user._id
         }
-      }
+      },
+      { new: true }
     );
 
-    if (updateResult.modifiedCount === 0) {
+    if (!updateResult) {
       return next(new ErrorResponse('Không thể cập nhật trạng thái cộng tác viên', 500));
     }
 
@@ -1064,16 +1069,26 @@ exports.approveCollaborator = async (req, res, next) => {
     const approvedUser = await User.findById(userId);
     
     // Gửi thông báo cho người được phê duyệt
-    await NotificationService.createNotification({
-      recipient: userId,
-      sender: req.user._id,
-      type: 'collaborator_request_approved',
-      title: 'Yêu cầu làm CTV đã được chấp nhận',
-      message: `Yêu cầu làm cộng tác viên của bạn cho sự kiện "${event.title}" đã được chấp nhận`,
-      relatedModel: 'Event',
-      relatedId: event._id,
-      link: `/events/${event._id}`
-    });
+    try {
+      const NotificationService = require('../utils/notificationService');
+      if (NotificationService && typeof NotificationService.createNotification === 'function') {
+        await NotificationService.createNotification({
+          recipient: userId,
+          sender: req.user._id,
+          type: 'collaborator_request_approved',
+          title: 'Yêu cầu làm CTV đã được chấp nhận',
+          message: `Yêu cầu làm cộng tác viên của bạn cho sự kiện "${event.title}" đã được chấp nhận`,
+          relatedModel: 'Event',
+          relatedId: event._id,
+          link: `/events/${event._id}`
+        });
+      } else {
+        console.warn('NotificationService not properly initialized');
+      }
+    } catch (notificationError) {
+      console.error('Error sending approval notification:', notificationError);
+      // Không throw lỗi ở đây để không ảnh hưởng đến response
+    }
     
     res.status(200).json({
       success: true,

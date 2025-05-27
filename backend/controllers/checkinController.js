@@ -35,7 +35,10 @@ exports.checkinUser = async (req, res, next) => {
 
     // Validate check-in type
     if (!['participant', 'collaborator'].includes(checkinType)) {
-      return next(new ErrorResponse('Invalid check-in type. Must be either "participant" or "collaborator"', 400));
+      return res.status(400).json({ 
+        success: false, 
+        error: 'Invalid check-in type. Must be either "participant" or "collaborator"' 
+      });
     }
 
     const event = await Event.findById(eventId).populate('department');
@@ -58,151 +61,174 @@ exports.checkinUser = async (req, res, next) => {
     // Tìm user nếu có
     const userToCheckin = await User.findOne({ userId: studentId });
     
-    // Mảng lưu trữ các check-in đã thực hiện
-    const completedCheckins = [];
-    
-    // Kiểm tra xem người dùng có tồn tại và có cả hai vai trò không
-    const isParticipant = userToCheckin && event.participants.some(p => p.toString() === userToCheckin._id.toString());
-    const isCollaborator = userToCheckin && event.collaborators.some(
-      c => c.user && c.user.toString() === userToCheckin._id.toString() && c.status === 'approved'
-    );
-    
-    // Loại check-in hiện tại
-    const typesToCheckin = [checkinType];
-    
-    // Nếu người dùng có cả hai vai trò và vẫn chưa check-in ở vai trò còn lại,
-    // thêm cả vai trò còn lại vào danh sách check-in
-    if (userToCheckin && isParticipant && isCollaborator) {
-      const otherType = checkinType === 'participant' ? 'collaborator' : 'participant';
-      const existingOtherCheckin = await Checkin.findOne({
-        event: eventId,
-        studentId: studentId,
-        type: otherType
+    // Kiểm tra xem đã checkin chưa với loại này
+    const existingCheckin = await Checkin.findOne({
+      event: eventId,
+      studentId: studentId,
+      type: checkinType
+    });
+
+    if (existingCheckin) {
+      return res.status(400).json({
+        success: false,
+        error: `Sinh viên đã được điểm danh với vai trò ${checkinType === 'participant' ? 'người tham gia' : 'cộng tác viên'}`
       });
-      
-      if (!existingOtherCheckin) {
-        typesToCheckin.push(otherType);
+    }
+
+    // Kiểm tra quyền tham gia sự kiện
+    let wasRegistered = false;
+    let errorMessage = '';
+
+    if (checkinType === 'participant') {
+      // Kiểm tra xem người dùng có trong danh sách participants không
+      if (userToCheckin) {
+        wasRegistered = event.participants.some(p => p.toString() === userToCheckin._id.toString());
+        if (!wasRegistered) {
+          errorMessage = 'Sinh viên không tồn tại trong danh sách người tham gia sự kiện';
+        }
+      } else {
+        errorMessage = 'Không tìm thấy thông tin sinh viên';
+      }
+    } else if (checkinType === 'collaborator') {
+      // Kiểm tra xem người dùng có trong danh sách collaborators và đã được approved không
+      if (userToCheckin) {
+        const isApprovedCollaborator = event.collaborators.some(
+          c => c.user && c.user.toString() === userToCheckin._id.toString() && c.status === 'approved'
+        );
+        wasRegistered = isApprovedCollaborator;
+        if (!wasRegistered) {
+          errorMessage = 'Sinh viên không tồn tại trong danh sách cộng tác viên hoặc chưa được phê duyệt';
+        }
+      } else {
+        errorMessage = 'Không tìm thấy thông tin sinh viên';
       }
     }
-    
-    // Thực hiện check-in cho từng loại
-    for (const type of typesToCheckin) {
-      // Kiểm tra xem đã checkin chưa với loại này
-      const existingCheckin = await Checkin.findOne({
-        event: eventId,
-        studentId: studentId,
-        type: type
-      });
 
-      if (existingCheckin) {
-        if (type === checkinType) {
-          return next(new ErrorResponse(`Student ID already checked in as ${type}`, 400));
-        }
-        continue; // Bỏ qua loại đã check-in
-      }
-      
-      // Tạo check-in record
-      const checkin = await Checkin.create({
-        event: eventId,
-        studentId,
-        checkinMethod,
-        checkedBy: req.user._id,
-        user: userToCheckin ? userToCheckin._id : null,
-        wasRegistered: false,
-        type: type
+    if (!wasRegistered) {
+      return res.status(400).json({
+        success: false,
+        error: errorMessage
       });
-      
-      // Nếu tìm thấy user, cập nhật thêm thông tin
-      if (userToCheckin) {
-        if (type === 'participant') {
-          // Kiểm tra và cập nhật registration cho participant
-          const registration = await Registration.findOne({
+    }
+    
+    // Tạo check-in record
+    const checkin = await Checkin.create({
+      event: eventId,
+      studentId,
+      checkinMethod,
+      checkedBy: req.user._id,
+      user: userToCheckin ? userToCheckin._id : null,
+      wasRegistered,
+      type: checkinType
+    });
+    
+    // Nếu tìm thấy user, cập nhật thêm thông tin
+    if (userToCheckin) {
+      if (checkinType === 'participant') {
+        // Kiểm tra và cập nhật registration cho participant
+        const registration = await Registration.findOne({
+          event: eventId,
+          user: userToCheckin._id
+        });
+
+        if (!registration) {
+          await Registration.create({
             event: eventId,
-            user: userToCheckin._id
+            user: userToCheckin._id,
+            status: 'attended'
           });
 
-          if (!registration) {
-            await Registration.create({
-              event: eventId,
-              user: userToCheckin._id,
-              status: 'attended'
-            });
-
-            // Thêm vào danh sách participants
-            await Event.findByIdAndUpdate(eventId, {
-              $addToSet: { participants: userToCheckin._id }
-            });
-          } else {
-            await Registration.findByIdAndUpdate(registration._id, {
-              status: 'attended'
-            });
-          }
-        } else if (type === 'collaborator') {
-          // Đảm bảo người dùng có trong danh sách collaborators với trạng thái approved
-          // Tìm xem người dùng đã có trong danh sách chưa
-          const existingCollaborator = event.collaborators.find(
-            c => c.user && c.user.toString() === userToCheckin._id.toString()
+          // Thêm vào danh sách participants
+          await Event.findByIdAndUpdate(
+            eventId,
+            { $addToSet: { participants: userToCheckin._id } },
+            { new: true }
           );
-          
-          if (existingCollaborator) {
-            // Nếu đã có, cập nhật trạng thái thành approved nếu chưa
-            if (existingCollaborator.status !== 'approved') {
-              await Event.updateOne(
-                { 
-                  _id: eventId, 
-                  'collaborators.user': userToCheckin._id 
-                },
-                { 
-                  $set: { 
-                    'collaborators.$.status': 'approved',
-                    'collaborators.$.approvedAt': new Date(),
-                    'collaborators.$.approvedBy': req.user._id
-                  } 
-                }
-              );
-            }
-          } else {
-            // Nếu chưa có, thêm mới với trạng thái approved
-            await Event.findByIdAndUpdate(eventId, {
-              $push: { 
-                collaborators: {
-                  user: userToCheckin._id,
-                  status: 'approved',
-                  requestedAt: new Date(),
-                  approvedAt: new Date(),
-                  approvedBy: req.user._id
+        } else {
+          await Registration.findByIdAndUpdate(registration._id, {
+            status: 'attended'
+          });
+        }
+      } else if (checkinType === 'collaborator') {
+        // Đảm bảo người dùng có trong danh sách collaborators với trạng thái approved
+        // Tìm xem người dùng đã có trong danh sách chưa
+        const existingCollaborator = event.collaborators.find(
+          c => c.user && c.user.toString() === userToCheckin._id.toString()
+        );
+        
+        if (existingCollaborator) {
+          // Nếu đã có, cập nhật trạng thái thành approved nếu chưa
+          if (existingCollaborator.status !== 'approved') {
+            await Event.updateOne(
+              { 
+                _id: eventId, 
+                'collaborators.user': userToCheckin._id 
+              },
+              { 
+                $set: { 
+                  'collaborators.$.status': 'approved',
+                  'collaborators.$.approvedAt': new Date(),
+                  'collaborators.$.approvedBy': req.user._id
                 } 
               }
-            });
+            );
           }
+        } else {
+          // Nếu chưa có, thêm mới với trạng thái approved
+          const newCollaborator = {
+            user: userToCheckin._id,
+            status: 'approved',
+            requestedAt: new Date(),
+            approvedAt: new Date(),
+            approvedBy: req.user._id,
+            selectedShifts: [],
+            formData: new Map()
+          };
+          
+          await Event.findByIdAndUpdate(
+            eventId,
+            { $push: { collaborators: newCollaborator } },
+            { new: true }
+          );
+        }
 
-          // Đảm bảo event được thêm vào collaboratorEvents của user
-          await User.findByIdAndUpdate(userToCheckin._id, {
-            $addToSet: { collaboratorEvents: eventId }
-          });
+        // Đảm bảo event được thêm vào collaboratorEvents của user
+        // Kiểm tra xem event đã có trong collaboratorEvents chưa
+        const user = await User.findById(userToCheckin._id);
+        const eventExists = user.collaboratorEvents.some(
+          e => e._id && e._id.toString() === eventId
+        );
+
+        if (!eventExists) {
+          await User.findByIdAndUpdate(
+            userToCheckin._id,
+            { 
+              $push: { 
+                collaboratorEvents: { _id: eventId }
+              }
+            },
+            { new: true }
+          );
         }
       }
-      
-      // Populate thông tin user và người check-in
-      await checkin.populate('user', 'fullName userId email avatar');
-      await checkin.populate('checkedBy', 'fullName');
-      
-      completedCheckins.push(checkin);
     }
     
-    if (completedCheckins.length === 0) {
-      return next(new ErrorResponse('Không có check-in nào được thực hiện', 400));
-    }
+    // Populate thông tin user và người check-in
+    await checkin.populate('user', 'fullName userId email avatar');
+    await checkin.populate('checkedBy', 'fullName');
 
     res.status(200).json({
       success: true,
-      data: completedCheckins[0], // Trả về check-in đầu tiên để tương thích với mã hiện tại
-      message: completedCheckins.length > 1 ? 
-        'Đã tự động check-in cho cả vai trò người tham gia và cộng tác viên' : undefined
+      data: checkin,
+      message: `Đã điểm danh thành công với vai trò ${checkinType === 'participant' ? 'người tham gia' : 'cộng tác viên'}`
     });
 
   } catch (error) {
-    next(error);
+    console.error('Error in checkinUser:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Lỗi server khi xử lý điểm danh'
+    });
   }
 };
 
