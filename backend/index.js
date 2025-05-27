@@ -77,7 +77,7 @@ const announcementRoutes = require('./routes/announcementRoutes');
 // Mount routes
 app.use('/api/v1/auth', authRoutes);
 app.use('/api/v1/users', userRoutes);
-app.use('/api/v1/event', eventRoutes);
+app.use('/api/v1/events', eventRoutes);
 app.use('/api/v1/departments', departmentRoutes);
 app.use('/api/v1/forms', formRoutes);
 app.use('/api/v1/checkins', checkinRoutes);

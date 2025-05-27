@@ -53,7 +53,7 @@ router.get('/:id/registration-form', getEventRegistrationForm);
 router.get('/:id/submissions', protect, getFormSubmissions);
 
 // Collaborator form routes
-router.get('/:id/collaborator-form', getEventCollaboratorForm);
+router.get('/:id/collaborator-form', protect, getEventCollaboratorForm);
 router.put('/:id/collaborator-form', protect, updateEventCollaboratorForm);
 router.get('/:id/collaborator-submissions', protect, getCollaboratorFormSubmissions);
 

@@ -92,6 +92,7 @@ const CollaboratorScheduleModal: React.FC<Props> = ({
 
   const fetchCollaboratorForm = async () => {
     try {
+      setLoading(true);
       const response = await eventService.getEventCollaboratorForm(eventId);
       
       if (response && response.success) {
@@ -123,12 +124,16 @@ const CollaboratorScheduleModal: React.FC<Props> = ({
       }
     } catch (error: any) {
       console.error('Error fetching collaborator form:', error);
+      
+      // Handle specific error cases
       if (error.response?.status === 404) {
         toast.error('Không tìm thấy form đăng ký CTV cho sự kiện này');
       } else if (error.response?.status === 500) {
         toast.error('Lỗi server khi tải form đăng ký CTV');
+      } else if (error.response?.status === 403) {
+        toast.error('Bạn không có quyền truy cập form đăng ký CTV');
       } else {
-        toast.error('Không thể tải form đăng ký CTV');
+        toast.error(error.message || 'Không thể tải form đăng ký CTV');
       }
       
       // Fallback: Sử dụng form mặc định khi không thể kết nối server
@@ -170,6 +175,8 @@ const CollaboratorScheduleModal: React.FC<Props> = ({
         phone: '',
         email: ''
       });
+    } finally {
+      setLoading(false);
     }
   };
 

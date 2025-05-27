@@ -7,6 +7,7 @@ const mongoose = require('mongoose'); // Import mongoose for transactions
 const User = require('../models/userModel'); // Import User model
 const RegistrationForm = require('../models/registrationFormModel'); // Import RegistrationForm model
 const { withTransaction, withOptimisticLocking, atomicArrayOperation } = require('../utils/transactionHelper');
+const CollaboratorForm = require('../models/collaboratorFormModel');
 
 // Helper function to get event end date from eventDays
 const getEventEndDate = (eventDays) => {
@@ -261,7 +262,6 @@ exports.createEvent = async (req, res, next) => {
     if (eventData.needsCollaboratorForm) {
       try {
         const collaboratorFormFields = req.body.collaboratorFormFields ? JSON.parse(req.body.collaboratorFormFields) : [];
-        const CollaboratorForm = require('../models/collaboratorFormModel');
         const collaboratorForm = await CollaboratorForm.create({
           event: event._id,
           fields: collaboratorFormFields.length > 0 ? collaboratorFormFields : [
@@ -1030,26 +1030,14 @@ exports.approveCollaborator = async (req, res, next) => {
     if (event.collaborators[collaboratorIndex].status === 'approved') {
       return next(new ErrorResponse('Yêu cầu này đã được phê duyệt trước đó', 400));
     }
-    
-    // Cập nhật trạng thái sử dụng updateOne thay vì cập nhật trực tiếp object
-    // Lấy thông tin collaborator từ event
-    const collaborator = event.collaborators.find(
-      c => c.user.toString() === userId
-    );
-
-    if (!collaborator.selectedShifts || collaborator.selectedShifts.length === 0) {
-      return next(new ErrorResponse('Không tìm thấy thông tin ca hỗ trợ', 400));
-    }
 
     // Cập nhật trạng thái trong event
-    await Event.updateOne(
-      {
+    const updateResult = await Event.updateOne(
+      { 
         _id: id,
-        'collaborators.$.status': 'approved',
-        'collaborators.$.approvedAt': new Date(),
-        'collaborators.$.approvedBy': req.user._id
+        'collaborators.user': userId 
       },
-      {
+      { 
         $set: {
           'collaborators.$.status': 'approved',
           'collaborators.$.approvedAt': new Date(),
@@ -1057,6 +1045,10 @@ exports.approveCollaborator = async (req, res, next) => {
         }
       }
     );
+
+    if (updateResult.modifiedCount === 0) {
+      return next(new ErrorResponse('Không thể cập nhật trạng thái cộng tác viên', 500));
+    }
 
     // Cập nhật collaboratorEvents trong User model
     await User.findByIdAndUpdate(
@@ -1658,7 +1650,6 @@ exports.createCommunityEvent = async (req, res, next) => {
     if (eventData.needsCollaboratorForm) {
       try {
         const collaboratorFormFields = req.body.collaboratorFormFields ? JSON.parse(req.body.collaboratorFormFields) : [];
-        const CollaboratorForm = require('../models/collaboratorFormModel');
         const collaboratorForm = await CollaboratorForm.create({
           event: event._id,
           fields: collaboratorFormFields.length > 0 ? collaboratorFormFields : [
@@ -1772,7 +1763,7 @@ exports.createCommunityEvent = async (req, res, next) => {
 exports.getEventCollaboratorForm = async (req, res) => {
   try {
     const { id } = req.params;
-    
+
     // Validate MongoDB ObjectId
     if (!mongoose.Types.ObjectId.isValid(id)) {
       return res.status(400).json({
@@ -1782,8 +1773,11 @@ exports.getEventCollaboratorForm = async (req, res) => {
     }
 
     const event = await Event.findById(id)
-      .populate('collaboratorForm')
-      .select('collaboratorForm needsCollaboratorForm setupTime');
+      .populate({
+        path: 'collaboratorForm',
+        select: 'fields createdBy createdAt updatedAt'
+      })
+      .select('collaboratorForm needsCollaboratorForm setupTime creator organizer');
 
     if (!event) {
       return res.status(404).json({
@@ -1792,12 +1786,21 @@ exports.getEventCollaboratorForm = async (req, res) => {
       });
     }
 
+    // Check if user has permission to view the form
+    let hasFullAccess = false;
+    if (req.user) {
+      const isAdmin = req.user.role === 'admin';
+      const isCreator = event.creator && event.creator.toString() === req.user.id;
+      const isOrganizer = event.organizer && event.organizer.toString() === req.user.id;
+      hasFullAccess = isAdmin || isCreator || isOrganizer;
+    }
+
     // If event needs collaborator form but doesn't have one, create default form
     if (event.needsCollaboratorForm && !event.collaboratorForm) {
       try {
-        const CollaboratorForm = require('../models/collaboratorFormModel');
         const defaultForm = await CollaboratorForm.create({
           event: event._id,
+          createdBy: event.creator || (req.user ? req.user.id : null),
           fields: [
             {
               fieldId: 'fullName',
@@ -1841,8 +1844,7 @@ exports.getEventCollaboratorForm = async (req, res) => {
               required: false,
               placeholder: 'Nhập số điện thoại'
             }
-          ],
-          createdBy: event.creator
+          ]
         });
 
         // Update event with form reference
@@ -1857,6 +1859,10 @@ exports.getEventCollaboratorForm = async (req, res) => {
         });
       } catch (formError) {
         console.error('Error creating default collaborator form:', formError);
+        return res.status(500).json({
+          success: false,
+          message: 'Error creating default collaborator form'
+        });
       }
     }
 
@@ -1874,7 +1880,7 @@ exports.getEventCollaboratorForm = async (req, res) => {
     // Return empty fields if no form exists or not needed
     return res.status(200).json({
       success: true,
-      data: { 
+      data: {
         fields: [],
         setupTime: event.setupTime || null
       }
