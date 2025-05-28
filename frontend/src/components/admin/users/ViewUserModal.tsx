@@ -2,6 +2,7 @@ import { Fragment } from 'react';
 import { Dialog, Transition } from '@headlessui/react';
 import { XIcon, UserIcon } from '@heroicons/react/outline';
 import type { User } from '@/types';
+import { getSafeAvatarUrl } from '../../../utils/avatarUtils';
 
 interface ViewUserModalProps {
   isOpen: boolean;
@@ -57,10 +58,9 @@ const ViewUserModal = ({ isOpen, onClose, user }: ViewUserModalProps) => {
                 </div>
 
                 <div className="space-y-6">
-                  {/* Avatar and Basic Info */}
-                  <div className="flex items-center gap-4">
-                    {user.avatar?.url ? (
-                      <img src={user.avatar.url} alt="" className="w-20 h-20 rounded-full object-cover" />
+                  {/* Avatar and Basic Info */}                  <div className="flex items-center gap-4">
+                    {getSafeAvatarUrl(user.avatar) !== '/default-avatar.png' ? (
+                      <img src={getSafeAvatarUrl(user.avatar)} alt="" className="w-20 h-20 rounded-full object-cover" />
                     ) : (
                       <div className="w-20 h-20 rounded-full bg-gray-100 flex items-center justify-center">
                         <UserIcon className="w-10 h-10 text-gray-400" />
@@ -108,13 +108,12 @@ const ViewUserModal = ({ isOpen, onClose, user }: ViewUserModalProps) => {
                     </div>
 
                     <div>
-                      <label className="text-sm text-gray-500">Ngày sinh</label>
-                      <p className="font-medium">{user.birthday ? formatDate(user.birthday) : 'Chưa cập nhật'}</p>
+                      <label className="text-sm text-gray-500">Ngày sinh</label>                      <p className="font-medium">{user.birthday ? formatDate(user.birthday.toString()) : 'Chưa cập nhật'}</p>
                     </div>
 
                     <div>
                       <label className="text-sm text-gray-500">Ngày tạo tài khoản</label>
-                      <p className="font-medium">{formatDate(user.createdAt)}</p>
+                      <p className="font-medium">{user.createdAt ? formatDate(user.createdAt.toString()) : 'N/A'}</p>
                     </div>
                   </div>
                 </div>

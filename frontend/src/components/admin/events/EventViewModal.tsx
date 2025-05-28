@@ -112,8 +112,7 @@ const EventViewModal = ({ event, isOpen, onClose }: EventViewModalProps) => {
 
                         <div className="flex items-center gap-2 text-gray-600">
                           <CalendarIcon className="w-5 h-5" />
-                          <span>
-                            {new Date(event.startDate).toLocaleString('vi-VN', {
+                          <span>                            {event.startDate && new Date(event.startDate).toLocaleString('vi-VN', {
                               weekday: 'long',
                               year: 'numeric',
                               month: 'long',

@@ -146,9 +146,8 @@ const AnnouncementEditModal = ({ isOpen, onClose, announcement, onSubmit }: Prop
                     type="text"
                     {...register('title', { required: 'Vui lòng nhập tiêu đề' })}
                     className="mt-1 block w-full rounded-lg border border-gray-300 px-3 py-2"
-                  />
-                  {errors.title && (
-                    <p className="mt-1 text-sm text-red-600">{errors.title.message}</p>
+                  />                  {errors.title && (
+                    <p className="mt-1 text-sm text-red-600">{errors.title.message as string}</p>
                   )}
                 </div>
 
@@ -160,9 +159,8 @@ const AnnouncementEditModal = ({ isOpen, onClose, announcement, onSubmit }: Prop
                     {...register('content', { required: 'Vui lòng nhập nội dung' })}
                     rows={4}
                     className="mt-1 block w-full rounded-lg border border-gray-300 px-3 py-2"
-                  />
-                  {errors.content && (
-                    <p className="mt-1 text-sm text-red-600">{errors.content.message}</p>
+                  />                  {errors.content && (
+                    <p className="mt-1 text-sm text-red-600">{errors.content.message as string}</p>
                   )}
                 </div>
 

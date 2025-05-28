@@ -9,6 +9,7 @@ import ErrorAlert from '../ErrorAlert';
 import Header from '../Header';
 import CreateCommunityEventModal from '../CreateCommunityEventModal';
 import JoinEventButton from '../JoinEventButton';
+import { getSafeAvatarUrl } from '../../utils/avatarUtils';
 import CollaborateEventButton from '../CollaborateEventButton';
 import { Dialog, Transition } from '@headlessui/react';
 import { Fragment } from 'react';
@@ -301,7 +302,7 @@ const CommunityDetail: React.FC = () => {
       id: Date.now().toString(),
       author: {
         name: user?.fullName || 'Bạn',
-        avatar: user?.avatar?.url || '/default-avatar.png',
+        avatar: user?.avatar ? getSafeAvatarUrl(user.avatar) : '/default-avatar.png',
         role: isLeader ? 'Leader' : isDeputy ? 'Deputy' : 'Member'
       },
       content: newMessage,
@@ -565,6 +566,7 @@ const CommunityDetail: React.FC = () => {
                                isCompact={true}
                                organizerId={event.organizer?._id}
                                creatorId={event.creator?._id}
+                               eventExists={true} // Always true in community events list since these are loaded events
                              />
                            )}
                         </>
@@ -612,7 +614,7 @@ const CommunityDetail: React.FC = () => {
           <div className="flex space-x-3 items-center">
             <div className="w-10 h-10 rounded-lg overflow-hidden border border-gray-200">
               <img
-                src={user?.avatar?.url || '/default-avatar.png'}
+                src={user?.avatar ? getSafeAvatarUrl(user.avatar) : '/default-avatar.png'}
                 alt={user?.fullName || 'Avatar'}
                 className="w-full h-full object-cover"
                 onError={(e) => {

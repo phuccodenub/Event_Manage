@@ -32,8 +32,10 @@ const EVENT_CATEGORIES = {
 };
 
 // Thêm helper function để format thời gian
-const formatDateTimeForInput = (dateString: string) => {
-  const date = new Date(dateString);
+const formatDateTimeForInput = (dateValue: string | Date) => {
+  if (!dateValue) return '';
+  const date = new Date(dateValue);
+  if (isNaN(date.getTime())) return '';
   // Giữ nguyên múi giờ khi format
   return date.toISOString().slice(0, 16);
 };
@@ -57,8 +59,7 @@ const EditEventModal = ({ isOpen, onClose, onSubmit, event }: Props) => {
     if (event) {
       // Basic information
       setValue('title', event.title);
-      setValue('description', event.description);
-      setValue('category', event.category);
+      setValue('description', event.description);      setValue('category', event.category || '');
       setValue('department', event.department?._id);
       setValue('eventType', event.eventType);
       setValue('capacity', event.capacity);
@@ -66,8 +67,8 @@ const EditEventModal = ({ isOpen, onClose, onSubmit, event }: Props) => {
       setValue('status', event.status);
 
       // Format thời gian đúng chuẩn khi load form
-      setValue('startDate', formatDateTimeForInput(event.startDate));
-      setValue('endDate', formatDateTimeForInput(event.endDate));
+      setValue('startDate', event.startDate ? formatDateTimeForInput(event.startDate) : '');
+      setValue('endDate', event.endDate ? formatDateTimeForInput(event.endDate) : '');
 
       // Handle location based on type
       try {
@@ -193,8 +194,7 @@ const EditEventModal = ({ isOpen, onClose, onSubmit, event }: Props) => {
         capacity: data.capacity ? parseInt(data.capacity) : undefined,
         // Keep original arrays
         organizer: event.organizer._id,
-        creator: event.creator,
-        participants: event.participants || [],
+        creator: event.creator,        participants: event.participants || [],
         collaborators: event.collaborators || [],
         speakers: event.speakers || [],
         tags: event.tags || [],
@@ -204,7 +204,7 @@ const EditEventModal = ({ isOpen, onClose, onSubmit, event }: Props) => {
       };
 
       // Handle images first
-      let uploadedImages = [];
+      let uploadedImages: any[] = [];
       if (selectedImages.length > 0) {
         try {
           uploadedImages = await uploadService.uploadEventImages(selectedImages);
@@ -267,11 +267,9 @@ const EditEventModal = ({ isOpen, onClose, onSubmit, event }: Props) => {
         <div className="fixed inset-0 overflow-y-auto">
           <div className="flex min-h-full items-center justify-center p-4">
             <Dialog.Panel 
-              as={motion.div}
-              initial={{ opacity: 0, y: 50 }}
+              as={motion.div}              initial={{ opacity: 0, y: 50 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -50 }}
-              transition={{ type: "spring", duration: 0.5 }}
               className="w-full max-w-7xl transform rounded-xl bg-white p-6 shadow-xl"
             >
               <div className="flex items-center justify-between mb-6">

@@ -33,14 +33,12 @@ const EditUserModal = ({ isOpen, onClose, onSubmit, user }: EditUserModalProps) 
       // Format birthday to YYYY-MM-DD for input type="date"
       const formattedBirthday = user.birthday ? 
         new Date(user.birthday).toISOString().split('T')[0] : 
-        '';
-
-      setFormData({
-        username: user.username,
-        userId: user.userId,
+        '';      setFormData({
+        username: user.username || '',
+        userId: user.userId || '',
         fullName: user.fullName,
         email: user.email,
-        phone: user.phone,
+        phone: user.phone || '',
         birthday: formattedBirthday,
         gender: user.gender,
         role: user.role,

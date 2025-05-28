@@ -12,10 +12,9 @@ interface DeleteUserModalProps {
 
 const DeleteUserModal = ({ isOpen, onClose, onConfirm, user }: DeleteUserModalProps) => {
   if (!user) return null;
-
   const handleDelete = async () => {
     try {
-      await onConfirm(user._id);
+      await onConfirm(user._id || user.id || '');
       onClose();
     } catch (error) {
       console.error('Error deleting user:', error);

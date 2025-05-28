@@ -72,9 +72,8 @@ const Dashboard = () => {
         monthIndex: monthDate.getMonth(),
         yearIndex: monthDate.getFullYear()
       };
-    });
-
-    events.forEach(event => {
+    });    events.forEach(event => {
+      if (!event.startDate) return;
       const eventDate = new Date(event.startDate);
       if (eventDate >= startDate && eventDate <= endDate) {
         const monthEntry = monthlyStats.find(m => 
@@ -108,20 +107,19 @@ const Dashboard = () => {
         )
         .slice(0, 5)
         .map(event => ({
-          name: event.title,
-          registered: event.participants?.length || 0,
+          name: event.title,          registered: event.participants?.length || 0,
           capacity: event.capacity || 100,
-          startDate: new Date(event.startDate).toLocaleString('vi-VN', {
+          startDate: event.startDate ? new Date(event.startDate).toLocaleString('vi-VN', {
             day: '2-digit',
             month: '2-digit',
             year: 'numeric',
             hour: '2-digit',
             minute: '2-digit'
-          }),
-          endDate: new Date(event.endDate).toLocaleString('vi-VN', {
+          }) : 'N/A',
+          endDate: event.endDate ? new Date(event.endDate).toLocaleString('vi-VN', {
             hour: '2-digit',
             minute: '2-digit'
-          }),
+          }) : 'N/A',
           location: event.location?.physical 
             ? `${event.location.physical.address}${event.location.physical.room ? ` - ${event.location.physical.room}` : ''}`
             : 'Online',
@@ -136,13 +134,12 @@ const Dashboard = () => {
     const startDate = new Date(dateFilter.start);
     const endDate = new Date(dateFilter.end);
     const monthDiff = (endDate.getFullYear() - startDate.getFullYear()) * 12 
-      + endDate.getMonth() - startDate.getMonth() + 1;
-
-    return Array.from({ length: monthDiff }, (_, index) => {
+      + endDate.getMonth() - startDate.getMonth() + 1;    return Array.from({ length: monthDiff }, (_, index) => {
       const monthDate = new Date(startDate.getFullYear(), startDate.getMonth() + index, 1);
       return {
         name: `Tháng ${monthDate.getMonth() + 1}/${monthDate.getFullYear()}`,
         value: users.filter(user => {
+          if (!user.createdAt) return false;
           const userDate = new Date(user.createdAt);
           return userDate.getMonth() === monthDate.getMonth() 
             && userDate.getFullYear() === monthDate.getFullYear();
@@ -179,7 +176,7 @@ const Dashboard = () => {
           },
           events: {
             total: events.length,
-            upcoming: events.filter(e => new Date(e.startDate) > new Date()).length,
+            upcoming: events.filter((e: any) => e.startDate && new Date(e.startDate) > new Date()).length,
             byMonth: processedEventsData.monthlyEvents,
             participation: processedEventsData.participation
           },

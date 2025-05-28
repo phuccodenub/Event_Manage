@@ -1,20 +1,51 @@
 export interface Avatar {
-  public_id: string;
+  public_id?: string;
   url: string;
 }
 
+// Standardized collaborator interface with flexible avatar support
+export interface CollaboratorWithStatus {
+  _id?: string;
+  user: {
+    _id: string;
+    fullName: string;
+    email?: string;
+    avatar?: Avatar | string;
+    role?: string;
+  } | string;
+  status: 'pending' | 'approved' | 'rejected';
+  requestedAt: string;
+  approvedAt?: string;
+  approvedBy?: {
+    _id: string;
+    fullName: string;
+  };
+  rejectionReason?: string;
+  selectedShifts?: Array<{
+    date: string;
+    session: string;
+  }>;
+  formData?: Map<string, any>;
+  workingSchedule?: {
+    start: string | Date;
+    end: string | Date;
+  };
+}
+
 export interface User {
-  id: string;
+  _id?: string;
+  id?: string;
   fullName: string;
   email: string;
-  username: string;
-  userId: string;
+  username?: string;
+  userId?: string;
   role: string;
   class?: string;
   department: string | null;
   gender: string;
-  phone: string;
+  phone?: string;
   birthday?: Date;
+  createdAt?: Date | string;
   socialMedia?: {
     facebook?: string;
     linkedin?: string;
@@ -23,7 +54,7 @@ export interface User {
   };
   collaboratorEvents: string[];
   registeredEvents: string[];
-  avatar?: Avatar;
+  avatar?: Avatar | string;
   uniqueEventCount?: number;
   showProfileToOthers?: boolean;
 }
@@ -70,6 +101,12 @@ export interface Event {
     public_id: string;
     url: string;
   }>;
+  category?: string;
+  speakers?: string[];
+  tags?: string[];
+  likes?: string[];
+  comments?: string[];
+  shares?: string[];
   organizer: {
     _id: string;
     fullName: string;
@@ -97,31 +134,7 @@ export interface Event {
     };
   };
   participants: string[];
-  collaborators: Array<string | {
-    _id?: string;
-    user: string | {
-      _id: string;
-      fullName?: string;
-      email?: string;
-      avatar?: {
-        url: string;
-        public_id?: string;
-      };
-    };
-    status: 'pending' | 'approved' | 'rejected';
-    requestedAt: string;
-    approvedAt?: string;
-    approvedBy?: {
-      _id: string;
-      fullName: string;
-    };
-    rejectionReason?: string;
-    selectedShifts?: Array<{
-      date: string;
-      session: string;
-    }>;
-    formData?: Map<string, any>;
-  }>;
+  collaborators: Array<string | CollaboratorWithStatus>;
   creator: {
     _id: string;
     fullName: string;

@@ -5,6 +5,7 @@ import {
   MailIcon, PhoneIcon, CalendarIcon, UserGroupIcon, UserCircleIcon
 } from '@heroicons/react/outline';
 import userService from '@/services/userService';
+import { getSafeAvatarUrl } from '@/utils/avatarUtils';
 import AddUserModal from '@/components/admin/users/AddUserModal';
 import EditUserModal from '@/components/admin/users/EditUserModal';
 import ViewUserModal from '@/components/admin/users/ViewUserModal';
@@ -19,13 +20,13 @@ interface FilterState {
   gender: string;
 }
 
-const ROLE_COLORS = {
+const ROLE_COLORS: Record<string, string> = {
   admin: 'bg-purple-100 text-purple-800',
   teacher: 'bg-blue-100 text-blue-800',
   student: 'bg-green-100 text-green-800'
 };
 
-const GENDER_ICONS = {
+const GENDER_ICONS: Record<string, string> = {
   nam: '👨',
   nữ: '👩',
   khác: '👤'
@@ -304,9 +305,8 @@ const UserManagement = () => {
                     onClick={() => { setSelectedUser(user); setIsViewModalOpen(true); }}
                   >
                     <td className={`px-3 sm:px-6 py-3 sm:py-4 ${BASE_COLUMN_WIDTHS.info}`}>
-                      <div className="flex items-center gap-3">
-                        {user.avatar?.url ? (
-                          <img src={user.avatar.url} alt="" className="w-10 h-10 rounded-full object-cover flex-shrink-0" />
+                      <div className="flex items-center gap-3">                        {getSafeAvatarUrl(user.avatar) ? (
+                          <img src={getSafeAvatarUrl(user.avatar)} alt="" className="w-10 h-10 rounded-full object-cover flex-shrink-0" />
                         ) : (
                           <div className="w-10 h-10 rounded-full bg-gray-100 flex items-center justify-center flex-shrink-0">
                             <UserIcon className="w-6 h-6 text-gray-400" />

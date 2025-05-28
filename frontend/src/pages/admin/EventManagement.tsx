@@ -20,10 +20,9 @@ interface FilterState {
   search: string;
   status: string;
   type: string;
-  department: string;
-  dateRange: {
-    start: Date | null;
-    end: Date | null;
+  department: string;  dateRange: {
+    start: Date | undefined;
+    end: Date | undefined;
   };
 }
 
@@ -80,11 +79,9 @@ const sortEvents = (events: Event[]) => {
 
     if (statusA !== statusB) {
       return statusPriority[statusB] - statusPriority[statusA];
-    }
-
-    // Nếu cùng trạng thái thì sắp xếp theo thời gian tạo mới nhất
-    const dateA = new Date(a.createdAt);
-    const dateB = new Date(b.createdAt);
+    }    // Nếu cùng trạng thái thì sắp xếp theo thời gian tạo mới nhất
+    const dateA = a.createdAt ? new Date(a.createdAt) : new Date(0);
+    const dateB = b.createdAt ? new Date(b.createdAt) : new Date(0);
     return dateB.getTime() - dateA.getTime();
   });
 };
@@ -96,10 +93,9 @@ const EventManagement = () => {
     search: '',
     status: 'all',
     type: 'all',
-    department: 'all',
-    dateRange: {
-      start: null,
-      end: null
+    department: 'all',    dateRange: {
+      start: undefined,
+      end: undefined
     }
   });
   const [selectedEvent, setSelectedEvent] = useState<Event | null>(null);
@@ -124,9 +120,8 @@ const EventManagement = () => {
 
     const matchesStatus = filters.status === 'all' || event.status === filters.status;
     const matchesType = filters.type === 'all' || event.eventType === filters.type;
-    const matchesDepartment = filters.department === 'all' || event.department?._id === filters.department;
-    const matchesDate = (!filters.dateRange.start || new Date(event.startDate) >= filters.dateRange.start) &&
-                       (!filters.dateRange.end || new Date(event.startDate) <= filters.dateRange.end);
+    const matchesDepartment = filters.department === 'all' || event.department?._id === filters.department;    const matchesDate = (!filters.dateRange.start || (event.startDate && new Date(event.startDate) >= filters.dateRange.start)) &&
+                       (!filters.dateRange.end || (event.startDate && new Date(event.startDate) <= filters.dateRange.end));
 
     return matchesSearch && matchesStatus && matchesType && matchesDepartment && matchesDate;
   });
@@ -335,12 +330,11 @@ const EventManagement = () => {
                   <td className={`px-6 py-4 ${COLUMN_WIDTHS.time}`}>
                     <div className="space-y-1">
                       <div className="flex items-center gap-1 text-gray-600">
-                        <ClockIcon className="h-4 w-4 text-orange-500" />
-                        {formatDateTime(event.startDate)}
+                        <ClockIcon className="h-4 w-4 text-orange-500" />                        {event.startDate ? formatDateTime(event.startDate) : 'N/A'}
                       </div>
                       <div className="flex items-center gap-1 text-gray-600">
                         <ArrowRightIcon className="h-4 w-4 text-orange-500" />
-                        {formatDateTime(event.endDate)}
+                        {event.endDate ? formatDateTime(event.endDate) : 'N/A'}
                       </div>
                     </div>
                   </td>
@@ -358,7 +352,7 @@ const EventManagement = () => {
                     <div className="flex items-center gap-2">
                       <AcademicCapIcon className="h-4 w-4 text-orange-500" />
                       <div className="truncate">
-                        {event.department?.code || 'N/A'}
+                        {event.department?.name || 'N/A'}
                       </div>
                     </div>
                   </td>

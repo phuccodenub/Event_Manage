@@ -35,7 +35,7 @@ export const DepartmentProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       const data = await departmentService.getAllDepartments();
       setDepartments(data);
       if (selectedDepartment) {
-        const updated = data.find(d => d._id === selectedDepartment._id);
+        const updated = data.find((d: any) => d._id === selectedDepartment._id);
         if (updated) setSelectedDepartment(updated);
       }
     } catch (error) {

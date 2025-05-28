@@ -51,12 +51,11 @@ const CheckinModal: React.FC<Props> = ({ isOpen, onClose, eventId, onCheckinSucc
       // Dừng quét khi đã quét được
       if (qrScanner.current) {
         qrScanner.current.pause();
-      }
-
-      const result = await checkinService.checkinUser({
+      }      const result = await checkinService.checkinUser({
         eventId,
         studentId: scannedData,
-        method: 'qr'
+        method: 'qr',
+        type: 'participant'
       });
 
       onCheckinSuccess(result.data);
@@ -80,11 +79,11 @@ const CheckinModal: React.FC<Props> = ({ isOpen, onClose, eventId, onCheckinSucc
     if (!studentId.trim()) return;
 
     try {
-      setLoading(true);
-      const result = await checkinService.checkinUser({
+      setLoading(true);      const result = await checkinService.checkinUser({
         eventId,
         studentId: studentId.trim(),
-        method: 'manual'
+        method: 'manual',
+        type: 'participant'
       });
 
       onCheckinSuccess(result.data);

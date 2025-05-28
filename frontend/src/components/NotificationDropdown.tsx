@@ -160,24 +160,22 @@ const NotificationDropdown: React.FC<NotificationDropdownProps> = ({ isOpen, onC
                     <div className="flex-1 min-w-0 relative">
                       <h4 className="font-semibold text-gray-900 group-hover:text-orange-600 transition-colors">
                         {notification.title}
-                      </h4>
-                      <p className="mt-1 text-sm text-gray-600 line-clamp-2">
+                      </h4>                      <p className="mt-1 text-sm text-gray-600 line-clamp-2">
                         {notification.message}
                       </p>
-
-                      {notification.eventDetails && (
+                      {notification.eventDetails && typeof notification.eventDetails === 'object' && (
                         <div className="mt-2 flex items-center gap-4 text-xs">
                           <div className="flex items-center gap-1.5 text-gray-500">
                             <IoCalendarOutline className="text-orange-500" />
                             <span className="group-hover:text-orange-600 transition-colors">
-                              {notification.eventDetails.date}
+                              {(notification.eventDetails as any).date || 'N/A'}
                             </span>
                           </div>
                           <div className="h-1 w-1 rounded-full bg-gray-300" />
                           <div className="flex items-center gap-1.5 text-gray-500">
                             <IoLocationOutline className="text-orange-500" />
                             <span className="group-hover:text-orange-600 transition-colors">
-                              {notification.eventDetails.location}
+                              {(notification.eventDetails as any).location || 'N/A'}
                             </span>
                           </div>
                         </div>

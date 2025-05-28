@@ -1,12 +1,12 @@
 import React, { createContext, useContext, useState, useCallback } from 'react';
-import { Event } from '../types';
+import { Event, CollaboratorWithStatus } from '../types';
 import eventService from '../services/eventService';
 import userService from '../services/userService'; // Thêm import userService
 
 interface Participant {
   _id: string;
   fullName: string;
-  avatar?: {
+  avatar?: string | {
     url: string;
   };
   registrationStatus: string;
@@ -39,7 +39,7 @@ interface EventContextType {
   departmentEvents: Event[];
   fetchDepartmentEvents: (departmentId: string) => Promise<void>;
   fetchEventById: (eventId: string) => Promise<Event | null>;
-  currentCollaboratorList: User[];
+  currentCollaboratorList: CollaboratorWithStatus[];
   fetchCollaborators: (eventId: string) => Promise<void>;
   activeCollaboratorEvents: string[];
   isUserCollaborator: (eventId: string) => boolean;
@@ -69,7 +69,7 @@ export const EventProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const [events, setEvents] = useState<Event[]>([]);
   const [currentEvent, setCurrentEvent] = useState<Event | null>(null);
   const [currentParticipantList, setCurrentParticipantList] = useState<Participant[]>([]);
-  const [currentCollaboratorList, setCurrentCollaboratorList] = useState<User[]>([]);
+  const [currentCollaboratorList, setCurrentCollaboratorList] = useState<CollaboratorWithStatus[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [departmentEvents, setDepartmentEvents] = useState<Event[]>([]);
@@ -91,7 +91,6 @@ export const EventProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       }
     }
   }, []);
-
   const fetchCollaborators = useCallback(async (eventId: string) => {
     try {
       const response = await eventService.getEventCollaborators(eventId);
@@ -99,9 +98,14 @@ export const EventProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       
       // Find current user in collaborators
       const currentUser = JSON.parse(localStorage.getItem('user') || '{}');
-      const isCollaborator = response.data.some((user: User) => 
-        user._id?.toString() === currentUser._id?.toString()
-      );
+      const isCollaborator = response.data.some((collab: CollaboratorWithStatus) => {
+        if (typeof collab.user === 'string') {
+          return collab.user === currentUser._id;
+        } else if (collab.user) {
+          return collab.user._id === currentUser._id;
+        }
+        return false;
+      });
       
       // Update activeCollaboratorEvents state
       setActiveCollaboratorEvents(prev => {
@@ -173,12 +177,12 @@ export const EventProvider: React.FC<{ children: React.ReactNode }> = ({ childre
           if (event._id === eventId) {
             // Create a new array for collaborators if it doesn't exist
             const collaborators = event.collaborators || [];
-            
-            if (isJoining) {
+              if (isJoining) {
               // Si está uniendo, agregar como colaborador pendiente
-              const newCollaborator = {
+              const newCollaborator: CollaboratorWithStatus = {
+                _id: `temp-${Date.now()}`,
                 user: userId,
-                status: 'pending',
+                status: 'pending' as const,
                 requestedAt: new Date().toISOString()
               };
               
@@ -206,19 +210,17 @@ export const EventProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       );
 
       // Lấy thông tin user từ service
-      const userData = await userService.getUserById(userId);
-
-      // Cập nhật danh sách người cộng tác
+      const userData = await userService.getUserById(userId);      // Cập nhật danh sách người cộng tác
       if (isJoining) {
         setCurrentCollaboratorList(prev => {
-          const newCollaborator = {
+          const newCollaborator: CollaboratorWithStatus = {
             user: {
               _id: userId,
               fullName: userData.fullName,
               avatar: userData.avatar,
               role: userData.role
             },
-            status: 'pending',
+            status: 'pending' as const,
             requestedAt: new Date().toISOString()
           };
           
@@ -227,11 +229,10 @@ export const EventProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       } else {
         setCurrentCollaboratorList(prev => 
           prev.filter(c => {
-            if (typeof c === 'string') {
-              return c !== userId;
-            } else if (typeof c === 'object' && c.user) {
-              const collabUserId = typeof c.user === 'string' ? c.user : c.user._id;
-              return collabUserId !== userId;
+            if (typeof c.user === 'string') {
+              return c.user !== userId;
+            } else if (typeof c.user === 'object' && c.user) {
+              return c.user._id !== userId;
             }
             return true;
           })
@@ -262,14 +263,23 @@ export const EventProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       
       // Update activeCollaboratorEvents based on fetched events
       const currentUser = JSON.parse(localStorage.getItem('user') || '{}');
-      if (currentUser && currentUser._id) {
-        const collaboratingEvents = data.filter((event: Event) => 
+      if (currentUser && currentUser._id) {        const collaboratingEvents = data.filter((event: Event) => 
           event.collaborators && event.collaborators.some(
-            (collaborator: string | { _id: string }) => {
-              const collaboratorId = typeof collaborator === 'string' 
-                ? collaborator 
-                : collaborator?._id;
-              return collaboratorId?.toString() === currentUser._id?.toString();
+            (collaborator: string | { _id?: string; user: string | { _id: string }; status: string }) => {
+              if (typeof collaborator === 'string') {
+                return collaborator === currentUser._id;
+              } else if (collaborator && typeof collaborator === 'object') {
+                // Handle both direct _id and user object structure
+                if (collaborator._id) {
+                  return collaborator._id.toString() === currentUser._id?.toString();
+                } else if (collaborator.user) {
+                  const userId = typeof collaborator.user === 'string' 
+                    ? collaborator.user 
+                    : collaborator.user._id;
+                  return userId?.toString() === currentUser._id?.toString();
+                }
+              }
+              return false;
             }
           )
         ).map((event: Event) => event._id);
@@ -323,10 +333,16 @@ export const EventProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       setLoading(false);
     }
   }, []);
-
   const fetchEventById = useCallback(async (eventId: string) => {
     try {
       const response = await eventService.getEventById(eventId);
+      
+      // Handle error responses
+      if (response.success === false) {
+        console.error('Event fetch error:', response.error);
+        return null;
+      }
+      
       if (response.success) {
         return response.data;
       }

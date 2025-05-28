@@ -4,6 +4,7 @@ import { CgProfile } from 'react-icons/cg';
 import { IoSettingsOutline, IoLogOutOutline, IoRibbonOutline } from 'react-icons/io5';
 import { MdAdminPanelSettings } from 'react-icons/md';
 import { User } from '../../types';
+import { getSafeAvatarUrl } from '../../utils/avatarUtils';
 
 interface ProfileModalProps {
   isOpen: boolean;
@@ -31,11 +32,10 @@ const ProfileModal: React.FC<ProfileModalProps> = ({
     <div className="absolute right-0 top-full mt-2.5 w-72 bg-white rounded-lg shadow-lg border border-gray-100 py-1 z-50">
       {/* Profile Section */}
       <div className="px-4 py-3 border-b border-gray-100">
-        <div className="flex items-center space-x-3">
-          <div className="w-12 h-12 rounded-full overflow-hidden">
-            {userData.avatar?.url ? (
+        <div className="flex items-center space-x-3">          <div className="w-12 h-12 rounded-full overflow-hidden">
+            {getSafeAvatarUrl(userData.avatar) !== '/default-avatar.png' ? (
               <img 
-                src={userData.avatar.url}
+                src={getSafeAvatarUrl(userData.avatar)}
                 alt={userData.fullName}
                 className="w-full h-full object-cover"
               />
@@ -120,22 +120,23 @@ const ProfileModal: React.FC<ProfileModalProps> = ({
 // Helper MenuItem component
 const MenuItem = ({ 
   to, 
-  icon: Icon, 
+  icon: IconComponent, 
   title, 
   subtitle 
 }: { 
   to: string; 
-  icon: React.ComponentType; 
+  icon: React.ComponentType<any>; 
   title: string; 
   subtitle: string; 
-}) => (
-  <Link to={to} className="w-full px-4 py-2 flex items-center space-x-3 hover:bg-gray-50 transition-colors">
-    <Icon className="text-gray-600 text-xl" />
-    <div className="flex flex-col items-start">
-      <span className="text-sm text-gray-700">{title}</span>
-      <span className="text-xs text-gray-500">{subtitle}</span>
-    </div>
-  </Link>
-);
+}) => {
+  return (
+    <Link to={to} className="w-full px-4 py-2 flex items-center space-x-3 hover:bg-gray-50 transition-colors">
+      <IconComponent className="text-gray-600 text-xl" />
+      <div className="flex flex-col items-start">
+        <span className="text-sm text-gray-700">{title}</span>
+        <span className="text-xs text-gray-500">{subtitle}</span>      </div>
+    </Link>
+  );
+};
 
 export default ProfileModal;

@@ -1,21 +1,17 @@
-import React, { useState, useCallback, useEffect } from 'react';
+import React, { useState, useCallback, useEffect, useRef } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useNotifications, getSocketStatus } from '../context/NotificationContext';
 import { useEvents } from '../context/EventContext';
+import { CollaboratorWithStatus } from '../types';
 import eventService from '../services/eventService';
 import { toast } from 'react-toastify';
 import { AxiosError } from 'axios';
 import { RiUserAddLine, RiUserUnfollowLine, RiTimeLine, RiUserReceivedLine, RiCloseLine } from 'react-icons/ri';
 import CollaboratorScheduleModal from './modals/CollaboratorScheduleModal';
 
-// Interface for collaborators with status
-interface CollaboratorWithStatus {
-  user: {
-    _id: string;
-    fullName?: string;
-  } | string;
-  status?: string;
-}
+// Cache for event existence checks to prevent repeated 404 calls
+const eventExistenceCache = new Map<string, boolean>();
+const API_CALL_DEBOUNCE_TIME = 200; // ms
 
 // Define a type for event collaborators to avoid 'any'
 type EventCollaborator = string | {
@@ -38,6 +34,8 @@ interface CollaborateEventButtonProps {
   // Add organizer and creator ids for checking
   organizerId?: string;
   creatorId?: string;
+  // Add prop to indicate if event exists to prevent unnecessary API calls
+  eventExists?: boolean;
   // Thêm thông tin về thời gian setup sự kiện
   setupTime?: {
     supportDays?: Array<{
@@ -69,9 +67,10 @@ const CollaborateEventButton: React.FC<CollaborateEventButtonProps> = ({
   // Event owner props
   organizerId,
   creatorId,
+  // Event existence check
+  eventExists = true, // Default to true for backward compatibility
   setupTime,
-}) => {
-  const { user } = useAuth();
+}) => {  const { user } = useAuth();
   const { fetchNotifications } = useNotifications();
   const { isUserCollaborator, fetchCollaborators } = useEvents();
   const [isLoading, setIsLoading] = useState(false);
@@ -88,6 +87,16 @@ const CollaborateEventButton: React.FC<CollaborateEventButtonProps> = ({
   // State to control schedule modal
   const [showScheduleModal, setShowScheduleModal] = useState(false);
   const [availableDays, setAvailableDays] = useState([]);
+  
+  // Ref to track if component is mounted to prevent state updates after unmount
+  const isMountedRef = useRef(true);
+  
+  // Cleanup ref on unmount
+  useEffect(() => {
+    return () => {
+      isMountedRef.current = false;
+    };
+  }, []);
 
   // Update window width when resized
   useEffect(() => {
@@ -105,11 +114,15 @@ const CollaborateEventButton: React.FC<CollaborateEventButtonProps> = ({
   const showCompact = isCompact !== undefined 
     ? isCompact 
     : windowWidth < 640; // sm breakpoint in Tailwind
-
   // Helper function to fetch detailed collaborator status
   const fetchDetailedStatus = async (userId: string, eventId: string) => {
+    if (!isMountedRef.current) return;
+    
     try {
       const response = await eventService.getEventCollaborators(eventId);
+      
+      if (!isMountedRef.current) return;
+      
       const collaboratorsList = response.data as CollaboratorWithStatus[];
       
       if (collaboratorsList && collaboratorsList.length > 0) {
@@ -123,11 +136,18 @@ const CollaborateEventButton: React.FC<CollaborateEventButtonProps> = ({
           return false;
         });
         
-        if (userCollaborator) {
+        if (userCollaborator && isMountedRef.current) {
           setCollaboratorStatus(userCollaborator.status || 'pending');
         }
       }
     } catch (error) {
+      // Silently handle 403/404 errors to reduce console spam
+      if (error && typeof error === 'object' && 'response' in error) {
+        const axiosError = error as any;
+        if (axiosError.response?.status === 403 || axiosError.response?.status === 404) {
+          return;
+        }
+      }
       console.error('Error fetching detailed collaborator status:', error);
     }
   };
@@ -157,11 +177,22 @@ const CollaborateEventButton: React.FC<CollaborateEventButtonProps> = ({
   const isOrganizer = user?._id === organizerId;
   const isCreator = user?._id === creatorId;
   const hasFullAccess = user?.role === 'admin' || user?.role === 'superadmin' || 
-                       user?.role === 'department_admin' || user?.role === 'department_head';
-
-  // Check collaborator status directly from API when component mounts
+                       user?.role === 'department_admin' || user?.role === 'department_head';  // Check collaborator status directly from API when component mounts
   useEffect(() => {
-    if (!eventId || !user || !user._id) return;
+    if (!eventId || !user || !user._id || !isMountedRef.current) return;
+
+    // Skip check if event doesn't exist to prevent 404 errors
+    if (!eventExists) {
+      setIsInitialized(true);
+      return;
+    }
+
+    // Check cache first for known non-existent events
+    const cachedExists = eventExistenceCache.get(eventId);
+    if (cachedExists === false) {
+      setIsInitialized(true);
+      return;
+    }
 
     // Skip check if user is organizer or creator
     if (isOrganizer || isCreator) {
@@ -170,60 +201,113 @@ const CollaborateEventButton: React.FC<CollaborateEventButtonProps> = ({
     }
 
     const checkCollaboratorStatus = async () => {
+      if (!isMountedRef.current) return;
+      
       setIsLoading(true);
+      
+      // Add debounce delay to batch similar requests and avoid spam
+      await new Promise(resolve => setTimeout(resolve, API_CALL_DEBOUNCE_TIME));
+      
+      if (!isMountedRef.current) return;
+      
       try {
-        // Direct API call to get event details including collaborators
-        const eventResponse = await eventService.getEventById(eventId);
-        if (!eventResponse.success || !eventResponse.data) return;
+        // First try context-based check to avoid API call if possible
+        const isUserACollaborator = isUserCollaborator(eventId);
         
-        const event = eventResponse.data;
-        
-        // Check if user is in collaborators list
-        if (event.collaborators && Array.isArray(event.collaborators)) {
-          const userCollaborator = event.collaborators.find((collab: EventCollaborator) => {
-            // Handle different collaborator formats
-            if (typeof collab === 'string') {
-              return collab === user._id;
-            } else if (collab.user) {
-              const userId = typeof collab.user === 'string' ? collab.user : collab.user._id;
-              return userId === user._id;
-            }
-            return false;
-          });
-          
-          if (userCollaborator) {
-            // User is a collaborator, set state
+        if (isUserACollaborator) {
+          // User is already known to be a collaborator from context
+          if (isMountedRef.current) {
             setIsCollaborator(true);
             
-            // Get status if available (might be in object form)
-            if (typeof userCollaborator === 'object' && userCollaborator.status) {
-              setCollaboratorStatus(userCollaborator.status);
-            } else {
-              // If no status info in event, fetch from collaborators endpoint
-              // Chỉ gọi hàm nếu user._id là một chuỗi hợp lệ
-              if (user._id) {
-                await fetchDetailedStatus(user._id, eventId);
+            // Only fetch detailed status if needed
+            if (user._id) {
+              await fetchDetailedStatus(user._id, eventId);
+            }
+          }
+        } else {
+          // Only make API call if context doesn't have the info and eventId looks valid
+          // Basic validation to prevent calls for obviously invalid IDs
+          if (eventId.length === 24 && /^[0-9a-fA-F]{24}$/.test(eventId)) {
+            // Direct API call to get event details including collaborators
+            const eventResponse = await eventService.getEventById(eventId);
+            
+            // Handle error responses gracefully
+            if (!eventResponse.success || !eventResponse.data) {
+              if (eventResponse.error === 'Event not found') {
+                // Cache that this event doesn't exist to prevent future API calls
+                eventExistenceCache.set(eventId, false);
+                return;
+              }
+              return;
+            }
+            
+            // Cache that this event exists
+            eventExistenceCache.set(eventId, true);
+            
+            const event = eventResponse.data;
+            
+            // Check if user is in collaborators list
+            if (event.collaborators && Array.isArray(event.collaborators) && isMountedRef.current) {
+              const userCollaborator = event.collaborators.find((collab: EventCollaborator) => {
+                // Handle different collaborator formats
+                if (typeof collab === 'string') {
+                  return collab === user._id;
+                } else if (collab.user) {
+                  const userId = typeof collab.user === 'string' ? collab.user : collab.user._id;
+                  return userId === user._id;
+                }
+                return false;
+              });
+              
+              if (userCollaborator && isMountedRef.current) {
+                // User is a collaborator, set state
+                setIsCollaborator(true);
+                
+                // Get status if available (might be in object form)
+                if (typeof userCollaborator === 'object' && userCollaborator.status) {
+                  setCollaboratorStatus(userCollaborator.status);
+                } else {
+                  // If no status info in event, fetch from collaborators endpoint
+                  if (user._id) {
+                    await fetchDetailedStatus(user._id, eventId);
+                  }
+                }
               }
             }
           }
         }
       } catch (error) {
-        console.error('Error checking collaborator status:', error);
-        // Fallback to context-based check
-        const isUserACollaborator = isUserCollaborator(eventId);
-        setIsCollaborator(isUserACollaborator);
+        // Silently handle 404 errors to reduce console spam
+        if (error && typeof error === 'object' && 'response' in error) {
+          const axiosError = error as any;
+          if (axiosError.response?.status === 404) {
+            // Cache that this event doesn't exist
+            eventExistenceCache.set(eventId, false);
+            return;
+          }
+        }
         
-        if (isUserACollaborator && user._id) {
-          await fetchDetailedStatus(user._id, eventId);
+        console.error('Error checking collaborator status:', error);
+        
+        // Fallback to context-based check only if it's not a 404
+        if (isMountedRef.current) {
+          const isUserACollaborator = isUserCollaborator(eventId);
+          setIsCollaborator(isUserACollaborator);
+          
+          if (isUserACollaborator && user._id) {
+            await fetchDetailedStatus(user._id, eventId);
+          }
         }
       } finally {
-        setIsLoading(false);
-        setIsInitialized(true);
+        if (isMountedRef.current) {
+          setIsLoading(false);
+          setIsInitialized(true);
+        }
       }
     };
     
     checkCollaboratorStatus();
-  }, [eventId, user, isUserCollaborator, isOrganizer, isCreator]);
+  }, [eventId, user, isUserCollaborator, isOrganizer, isCreator, eventExists]);
 
   // Helper function to extract available support days from setupTime
   const extractAvailableDays = (setupTime: any) => {

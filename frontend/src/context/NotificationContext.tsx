@@ -138,11 +138,10 @@ export const NotificationProvider = ({ children }: { children: React.ReactNode }
       // Reset flag nếu có lỗi
       socketInitialized.current = false;
       socketRef.current = null;
-    }
-
-    socketInstance.on('newNotification', (data) => {
-      console.log('New notification received:', data);
-      console.log('Notification type:', data.type);
+    }    if (socketInstance) {
+      socketInstance.on('newNotification', (data) => {
+        console.log('New notification received:', data);
+        console.log('Notification type:', data.type);
       
       // Debounced invalidation để tránh multiple concurrent requests
       if (invalidationTimeoutRef.current) {
@@ -286,18 +285,17 @@ export const NotificationProvider = ({ children }: { children: React.ReactNode }
           console.log('Audio playback not supported', error);
         }
       }
-    });
+    });      socketInstance.on('disconnect', () => {
+        console.log('Socket disconnected');
+        socketInitialized.current = false;
+      });
 
-    socketInstance.on('disconnect', () => {
-      console.log('Socket disconnected');
-      socketInitialized.current = false;
-    });
-
-    socketInstance.on('unreadCount', (data) => {
-      console.log('Unread count updated:', data);
-      // Immediately update the unreadCount in React Query
-      queryClient.setQueryData(['unreadCount', user?._id], { unreadCount: data.count });
-    });
+      socketInstance.on('unreadCount', (data) => {
+        console.log('Unread count updated:', data);
+        // Immediately update the unreadCount in React Query
+        queryClient.setQueryData(['unreadCount', user?._id], { unreadCount: data.count });
+      });
+    }
 
     return () => {
       if (notificationTimeoutId) {

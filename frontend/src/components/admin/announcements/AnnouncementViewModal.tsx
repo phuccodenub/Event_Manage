@@ -67,9 +67,7 @@ const AnnouncementViewModal = ({ isOpen, onClose, announcement }: Props) => {
 
                   <div className="prose max-w-none">
                     <p className="whitespace-pre-wrap">{announcement.content}</p>
-                  </div>
-
-                  {announcement.images?.length > 0 && (
+                  </div>                  {announcement.images && announcement.images.length > 0 && (
                     <div className="grid grid-cols-2 gap-4">
                       {announcement.images.map((image, index) => (
                         <img

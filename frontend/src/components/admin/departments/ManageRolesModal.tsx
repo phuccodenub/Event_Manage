@@ -7,11 +7,12 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { toast } from 'react-toastify';
 import { useDepartment } from '@/context/DepartmentContext';
 
-const UserAvatar = ({ user }: { user: User }) => {
-  if (user.avatar?.url) {
+const UserAvatar = ({ user }: { user: any }) => {
+  const avatarUrl = typeof user.avatar === 'string' ? user.avatar : user.avatar?.url;
+  if (avatarUrl) {
     return (
       <img 
-        src={user.avatar.url} 
+        src={avatarUrl} 
         alt={user.fullName} 
         className="h-10 w-10 rounded-full object-cover"
       />
@@ -102,9 +103,8 @@ const ManageRolesModal = ({ isOpen, onClose, department }: ManageRolesModalProps
       default: return null;
     };
   };
-
-  const getUserDepartmentRoles = (user: User) => {
-    const role = getUserRoleInDepartment(user._id);
+  const getUserDepartmentRoles = (user: any) => {
+    const role = getUserRoleInDepartment(user._id || user.id || '');
     return role ? [getCurrentRoleDisplay(role)] : [];
   };
 
@@ -117,9 +117,8 @@ const ManageRolesModal = ({ isOpen, onClose, department }: ManageRolesModalProps
       );
 
   const handleRoleUpdate = async (userId: string, role: 'administrators' | 'moderators', action: 'add' | 'remove') => {
-    try {
-      setProcessing(userId);
-      await updateDepartmentRoles(currentDepartment._id, role, userId, action);
+    try {      setProcessing(userId);
+      await updateDepartmentRoles(currentDepartment?._id || '', role, userId, action);
       await fetchDepartments();
       toast.success(`${action === 'add' ? 'Thêm' : 'Xóa'} ${role === 'administrators' ? 'quản trị viên' : 'kiểm duyệt viên'} thành công`);
     } catch (error: any) {
@@ -208,16 +207,14 @@ const ManageRolesModal = ({ isOpen, onClose, department }: ManageRolesModalProps
                             <div className="flex items-center space-x-3">
                               <UserAvatar user={user} />
                               <div>
-                                <div className="font-medium">{user.fullName}</div>
-                                <div className="text-sm text-gray-500 flex items-center gap-2">
-                                  <span>#{user.userId || 'N/A'}</span>
+                                <div className="font-medium">{user.fullName}</div>                                <div className="text-sm text-gray-500 flex items-center gap-2">                                  <span>#{(user as any).userId || user._id || 'N/A'}</span>
                                   <span className={`px-2 py-0.5 rounded-full text-xs
-                                    ${user.role === 'admin' ? 'bg-red-100 text-red-800' : 
-                                      user.role === 'teacher' ? 'bg-blue-100 text-blue-800' : 
+                                    ${(user as any).role === 'admin' ? 'bg-red-100 text-red-800' : 
+                                      (user as any).role === 'teacher' ? 'bg-blue-100 text-blue-800' : 
                                       'bg-green-100 text-green-800'}`}
                                   >
-                                    {user.role === 'admin' ? 'Admin' : 
-                                     user.role === 'teacher' ? 'Giảng viên' : 
+                                    {(user as any).role === 'admin' ? 'Admin' : 
+                                     (user as any).role === 'teacher' ? 'Giảng viên' : 
                                      'Sinh viên'}
                                   </span>
                                   {getUserDepartmentRoles(user).map((role, idx) => (

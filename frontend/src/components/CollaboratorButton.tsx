@@ -139,13 +139,22 @@ const CollaboratorButton: React.FC<CollaboratorButtonProps> = ({
         </button>
       </div>
 
-      {setupTime && (
-        <CollaboratorScheduleModal
+      {setupTime && (        <CollaboratorScheduleModal
           isOpen={showScheduleModal}
           onClose={() => setShowScheduleModal(false)}
           eventId={eventId}
           eventTitle={eventTitle}
-          setupTime={setupTime}
+          setupTime={{
+            supportDays: [{
+              date: setupTime.start,
+              sessions: [{
+                type: 'setup',
+                startTime: typeof setupTime.start === 'string' ? setupTime.start : setupTime.start.toISOString(),
+                endTime: typeof setupTime.end === 'string' ? setupTime.end : setupTime.end.toISOString(),
+                label: 'Setup Time'
+              }]
+            }]
+          }}
           onSuccess={handleScheduleSubmitSuccess}
         />
       )}

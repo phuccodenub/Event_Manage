@@ -8,6 +8,7 @@ import { XIcon } from '@heroicons/react/outline';
 import { IoSchoolOutline, IoPersonOutline, IoCallOutline, IoCalendarOutline, IoCloseCircleOutline, IoSaveOutline, IoWarningOutline, IoBusiness } from 'react-icons/io5';
 import { FaFacebook, FaLinkedin, FaGithub, FaInstagram } from 'react-icons/fa';
 import { useAuth } from '../../context/AuthContext';
+import { getSafeAvatarUrl } from '../../utils/avatarUtils';
 
 interface ProfileEditModalProps {
   isOpen: boolean;
@@ -183,10 +184,9 @@ const ProfileEditModal: React.FC<ProfileEditModalProps> = ({
                 {/* Avatar Preview */}
                 <div className="flex justify-center -mt-12">
                   <div className="relative">
-                    <div className="w-24 h-24 rounded-full border-4 border-white shadow-md overflow-hidden bg-orange-100 flex items-center justify-center">
-                      {userData?.avatar?.url ? (
+                    <div className="w-24 h-24 rounded-full border-4 border-white shadow-md overflow-hidden bg-orange-100 flex items-center justify-center">                      {userData?.avatar ? (
                         <img 
-                          src={userData.avatar.url} 
+                          src={getSafeAvatarUrl(userData.avatar)} 
                           alt={userData.fullName || 'User'} 
                           className="w-full h-full object-cover"
                         />

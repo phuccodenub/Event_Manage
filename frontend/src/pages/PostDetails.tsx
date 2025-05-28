@@ -402,9 +402,13 @@ const PostDetails: React.FC = () => {
                 onLeaveSuccess={() => handleParticipantUpdate(false)}
                 creatorId={post.creator?._id}
                 organizerId={post.organizer?._id}
+<<<<<<< Updated upstream
               />
               
               {/* Collaborator Button */}
+=======
+              />                {/* Collaborator Button */}
+>>>>>>> Stashed changes
               {user && post && post.status !== 'cancelled' && post.status !== 'completed' && 
                 isEvent(post) && (
                   <CollaborateEventButton 
@@ -419,6 +423,7 @@ const PostDetails: React.FC = () => {
                     onLeaveSuccess={() => handleCollaboratorUpdate(false)}
                     organizerId={post.organizer?._id}
                     creatorId={post.creator?._id}
+                    eventExists={!!post && !error} // Only true if event was successfully loaded
                   />
                 )
               }
@@ -629,8 +634,7 @@ const EventSidebar: React.FC<EventSidebarProps> = ({ event, currentParticipants,
               creatorId={event.creator?._id}
               organizerId={event.organizer?._id}
             />
-            
-            {/* Collaborator Button */}
+              {/* Collaborator Button */}
             {user && event.status !== 'cancelled' && event.status !== 'completed' && (
               <CollaborateEventButton 
                 eventId={event._id}
@@ -644,6 +648,7 @@ const EventSidebar: React.FC<EventSidebarProps> = ({ event, currentParticipants,
                 onLeaveSuccess={() => handleCollaboratorUpdate(false)}
                 organizerId={event.organizer?._id}
                 creatorId={event.creator?._id}
+                eventExists={true} // Always true in EventSidebar since we're in event details page
               />
             )}
           </div>

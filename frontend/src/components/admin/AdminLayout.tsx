@@ -12,9 +12,20 @@ import notificationService from '@/services/notificationService';
 import adminNotificationService from '@/services/adminNotificationService';
 import NotificationModal from './notifications/NotificationModal';
 import type { User } from '@/types';
+import { getSafeAvatarUrl } from '../../utils/avatarUtils';
 
 interface AdminLayoutProps {
   children: React.ReactNode;
+}
+
+interface AdminNotification {
+  _id: string;
+  title: string;
+  message: string;
+  createdAt: string;
+  read: boolean;
+  type: string;
+  link?: string;
 }
 
 const AdminLayout = ({ children }: AdminLayoutProps) => {
@@ -23,7 +34,7 @@ const AdminLayout = ({ children }: AdminLayoutProps) => {
   const [isProfileDropdownOpen, setIsProfileDropdownOpen] = useState(false);
   const [user, setUser] = useState<User | null>(null);
   const [isNotificationModalOpen, setIsNotificationModalOpen] = useState(false);
-  const [notifications, setNotifications] = useState([]);
+  const [notifications, setNotifications] = useState<AdminNotification[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
 
   useEffect(() => {
@@ -174,11 +185,10 @@ const AdminLayout = ({ children }: AdminLayoutProps) => {
                 <button
                   onClick={() => setIsProfileDropdownOpen(!isProfileDropdownOpen)}
                   className="flex items-center space-x-3 text-sm focus:outline-none"
-                >
-                  {user?.avatar?.url ? (
+                >                  {getSafeAvatarUrl(user?.avatar) !== '/default-avatar.png' ? (
                     <img
-                      src={user.avatar.url}
-                      alt={user.fullName}
+                      src={getSafeAvatarUrl(user?.avatar)}
+                      alt={user?.fullName || 'User'}
                       className="h-9 w-9 rounded-full object-cover ring-2 ring-gray-100"
                       onError={(e) => {
                         const target = e.target as HTMLImageElement;

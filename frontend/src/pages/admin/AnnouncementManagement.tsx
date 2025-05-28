@@ -13,17 +13,19 @@ interface AdminAnnouncement {
   _id: string;
   title: string;
   content: string;
-  category: 'academic' | 'general';
-  priority: number;
-  status: 'active' | 'expired' | 'archived';
-  images: Array<{
-    public_id: string;
+  type: 'event' | 'news' | 'urgent';
+  priority: 'high' | 'low' | 'medium';
+  status: string; // Make more flexible to handle API variations
+  category?: string;
+  images?: Array<{
     url: string;
+    name: string;
+    type: string;
   }>;
   creator: {
     _id: string;
     fullName: string;
-    email: string;
+    email?: string;
     avatar?: {
       url: string;
     };
@@ -32,7 +34,7 @@ interface AdminAnnouncement {
     _id: string;
     name: string;
   };
-  expiresAt: string;
+  expiresAt?: string;
   createdAt: string;
   updatedAt: string;
 }
@@ -227,15 +229,13 @@ const AnnouncementManagement = () => {
                 <td className="px-6 py-4">
                   <div className="flex flex-col">
                     <span className="font-medium text-gray-900">{announcement.title}</span>
-                    <span className="text-sm text-gray-500 line-clamp-1">{announcement.content}</span>
-                    {announcement.images.length > 0 && (
+                    <span className="text-sm text-gray-500 line-clamp-1">{announcement.content}</span>                    {announcement.images && announcement.images.length > 0 && (
                       <span className="text-xs text-orange-600 mt-1">
                         {announcement.images.length} hình ảnh đính kèm
                       </span>
                     )}
                   </div>
-                </td>
-                <td className="px-6 py-4">
+                </td>                <td className="px-6 py-4">
                   <span className={`px-2.5 py-1 rounded-full text-xs font-medium
                     ${announcement.category === 'academic' ? 'bg-blue-100 text-blue-800' : 'bg-gray-100 text-gray-800'}`}
                   >
@@ -264,7 +264,7 @@ const AnnouncementManagement = () => {
                     {getStatusBadge(announcement.status)}
                     <span className="text-xs text-gray-500 flex items-center gap-1">
                       <CalendarIcon className="h-3 w-3" />
-                      Hết hạn: {format(new Date(announcement.expiresAt), 'dd/MM/yyyy HH:mm', { locale: vi })}
+                      Hết hạn: {announcement.expiresAt ? format(new Date(announcement.expiresAt), 'dd/MM/yyyy HH:mm', { locale: vi }) : 'Không có'}
                     </span>
                   </div>
                 </td>
@@ -336,17 +336,16 @@ const AnnouncementManagement = () => {
       />
 
       {selectedAnnouncement && (
-        <>
-          <AnnouncementViewModal
+        <>          <AnnouncementViewModal
             isOpen={isViewModalOpen}
             onClose={() => setIsViewModalOpen(false)}
-            announcement={selectedAnnouncement}
+            announcement={selectedAnnouncement as any}
           />
 
           <AnnouncementEditModal
             isOpen={isEditModalOpen}
             onClose={() => setIsEditModalOpen(false)}
-            announcement={selectedAnnouncement}
+            announcement={selectedAnnouncement as any}
             onSubmit={handleEdit}
           />
 

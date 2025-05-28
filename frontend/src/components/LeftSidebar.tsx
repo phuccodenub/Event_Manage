@@ -14,6 +14,7 @@ import {
   IoRibbonOutline,
   IoStarOutline
 } from 'react-icons/io5';
+import { getSafeAvatarUrl } from '../utils/avatarUtils';
 import userService from '../services/userService';
 
 // Define event interface from the API response
@@ -188,11 +189,10 @@ const LeftSidebar: React.FC = () => {
       <div className="bg-white rounded-lg shadow-md overflow-hidden">
         <div className="h-16 bg-gradient-to-r from-orange-600 to-orange-500"></div>
         <div className="p-4">
-          {/* Avatar section */}
-          <div className="relative w-fit mx-auto">
-            {userInfo.avatar?.url ? (
+          {/* Avatar section */}          <div className="relative w-fit mx-auto">
+            {getSafeAvatarUrl(userInfo.avatar) !== '/default-avatar.png' ? (
               <img
-                src={userInfo.avatar?.url}
+                src={getSafeAvatarUrl(userInfo.avatar)}
                 alt={userInfo.fullName}
                 className="w-20 h-20 rounded-full border-4 border-white -mt-10 object-cover shadow-lg"
                 onError={(e) => {

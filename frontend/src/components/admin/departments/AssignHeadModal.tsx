@@ -6,11 +6,12 @@ import { useUserList } from '@/hooks/useUserList';
 import { useDepartment } from '@/context/DepartmentContext';
 import { toast } from 'react-toastify';
 
-const UserAvatar = ({ user }: { user: User }) => {
-  if (user.avatar?.url) {
+const UserAvatar = ({ user }: { user: any }) => {
+  const avatarUrl = typeof user.avatar === 'string' ? user.avatar : user.avatar?.url;
+  if (avatarUrl) {
     return (
       <img 
-        src={user.avatar.url} 
+        src={avatarUrl} 
         alt={user.fullName} 
         className="h-10 w-10 rounded-full object-cover"
       />
@@ -130,14 +131,12 @@ const AssignHeadModal = ({ isOpen, onClose, departmentId, departmentName }: Assi
                       <div className="flex items-center space-x-3 p-3 rounded-lg border bg-gray-50">
                         <UserAvatar user={currentHead} />
                         <div>
-                          <div className="font-medium">{currentHead.fullName}</div>
-                          <div className="text-sm text-gray-500 flex items-center gap-2">
-                            <span>#{currentHead.userId || 'N/A'}</span>
+                          <div className="font-medium">{currentHead.fullName}</div>                          <div className="text-sm text-gray-500 flex items-center gap-2">                            <span>#{(currentHead as any)?.userId || currentHead._id || 'N/A'}</span>
                             <span className={`px-2 py-0.5 rounded-full text-xs
-                              ${currentHead.role === 'admin' ? 'bg-red-100 text-red-800' : 
+                              ${(currentHead as any)?.role === 'admin' ? 'bg-red-100 text-red-800' : 
                                 'bg-blue-100 text-blue-800'}`}
                             >
-                              {currentHead.role === 'admin' ? 'Admin' : 'Giảng viên'}
+                              {(currentHead as any)?.role === 'admin' ? 'Admin' : 'Giảng viên'}
                             </span>
                           </div>
                         </div>
@@ -193,8 +192,7 @@ const AssignHeadModal = ({ isOpen, onClose, departmentId, departmentName }: Assi
                               </div>
                             </div>
                           </div>
-                          <button
-                            onClick={() => handleAssign(user._id)}
+                          <button                            onClick={() => handleAssign(user._id || user.id || '')}
                             className="px-3 py-1 text-sm text-blue-600 hover:bg-blue-50 rounded-lg"
                           >
                             Chọn

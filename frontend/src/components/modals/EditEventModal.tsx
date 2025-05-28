@@ -27,11 +27,13 @@ const EditEventModal: React.FC<EditEventModalProps> = ({ isOpen, onClose, onSubm
     if (event) {
       setFormData({
         title: event.title,
-        description: event.description,
-        startDate: new Date(event.startDate).toISOString().slice(0, 16),
-        endDate: new Date(event.endDate).toISOString().slice(0, 16),
+        description: event.description,        startDate: event.startDate ? new Date(event.startDate).toISOString().slice(0, 16) : '',
+        endDate: event.endDate ? new Date(event.endDate).toISOString().slice(0, 16) : '',
         eventType: event.eventType,
-        location: event.location
+        location: {
+          physical: event.location?.physical || { address: '', room: '' },
+          online: event.location?.online || { platform: '', meetingLink: '' }
+        }
       });
     }
   }, [event]);

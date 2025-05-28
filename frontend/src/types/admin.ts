@@ -1,5 +1,35 @@
 import { User, Event, Announcement } from './index';
 
+export interface AdminDepartment {
+  _id: string;
+  name: string;
+  code: string;
+  description?: string;  head?: {
+    _id: string;
+    fullName: string;
+    userId?: string;
+    role?: string;
+    avatar?: any;
+  };
+  administrators?: Array<{
+    _id: string;
+    fullName: string;
+    userId?: string;
+    role?: string;
+    avatar?: any;
+  }>;
+  moderators?: Array<{
+    _id: string;
+    fullName: string;
+    userId?: string;
+    role?: string;
+    avatar?: any;
+  }>;
+  isActive: boolean;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
 export interface DateRange {
   start: Date;
   end: Date;
@@ -71,22 +101,23 @@ export interface DashboardStats {
   }>;
 }
 
-export interface AdminEvent extends Event {
-  department: {
-    id: string;
+export interface AdminEvent extends Omit<Event, 'status'> {
+  department?: {
+    _id: string;
     name: string;
+    code?: string;
   };
-  category: string;
-  capacity: number;
-  registered: number;
-  attendance: number;
-  status: 'draft' | 'published' | 'cancelled' | 'completed';
-  timeline: Array<{
+  category?: string;
+  capacity?: number;
+  status: 'draft' | 'published' | 'completed' | 'cancelled';
+  registered?: number;
+  attendance?: number;
+  timeline?: Array<{
     status: string;
     timestamp: Date;
     updatedBy: string;
   }>;
-  analytics: {
+  analytics?: {
     viewCount: number;
     registrationRate: number;
     attendanceRate: number;
@@ -110,17 +141,21 @@ export interface AdminUser extends User {
   };
 }
 
-export interface AdminAnnouncement extends Announcement {
-  viewCount: number;
+export interface AdminAnnouncement extends Omit<Announcement, 'status'> {
+  viewCount?: number;
   status: 'draft' | 'published' | 'archived';
-  analytics: {
+  analytics?: {
     views: number;
     uniqueViews: number;
     engagement: number;
   };
-  history: Array<{
+  history?: Array<{
     action: string;
     timestamp: Date;
     user: string;
+  }>;
+  images?: Array<{
+    public_id: string;
+    url: string;
   }>;
 }

@@ -82,7 +82,7 @@ const CommunityForm: React.FC = () => {
       setFormData({
         name: data.name,
         description: data.description,
-        isActive: data.isActive,
+        isActive: data.isActive ?? true,
         avatar: {
           url: data.avatar?.url || '',
           public_id: data.avatar?.public_id || undefined,

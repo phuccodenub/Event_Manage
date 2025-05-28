@@ -17,6 +17,7 @@ import NotificationDropdown from './NotificationDropdown';
 import ProfileModal from './modals/ProfileModal';
 import { useNotifications } from '../context/NotificationContext';
 import { useUnreadCount } from '../hooks/useUnreadCount';
+import { getSafeAvatarUrl } from '../utils/avatarUtils';
 
 const Header: React.FC = () => {
   const location = useLocation();
@@ -200,11 +201,10 @@ const Header: React.FC = () => {
                     className="relative"
                     onClick={toggleProfileMenu}
                   >
-                    {/* Profile Picture */}
-                    <div className="w-10 h-10 rounded-full bg-gray-200 ring-2 ring-gray-200 flex items-center justify-center overflow-hidden">
-                      {userData.avatar?.url ? (
+                    {/* Profile Picture */}                    <div className="w-10 h-10 rounded-full bg-gray-200 ring-2 ring-gray-200 flex items-center justify-center overflow-hidden">
+                      {getSafeAvatarUrl(userData.avatar) !== '/default-avatar.png' ? (
                         <img 
-                          src={userData.avatar.url}
+                          src={getSafeAvatarUrl(userData.avatar)}
                           alt={userData.fullName || ''}
                           className="w-full h-full object-cover"
                           onError={(e) => {
@@ -295,11 +295,10 @@ const Header: React.FC = () => {
                     <Link
                       to="/profile"
                       className="flex items-center px-4 py-3 rounded-lg transition-colors text-gray-700 hover:bg-gray-50"
-                    >
-                      <div className="w-8 h-8 rounded-full bg-gray-200 mr-3 flex items-center justify-center overflow-hidden">
-                        {userData.avatar?.url ? (
+                    >                      <div className="w-8 h-8 rounded-full bg-gray-200 mr-3 flex items-center justify-center overflow-hidden">
+                        {getSafeAvatarUrl(userData.avatar) !== '/default-avatar.png' ? (
                           <img 
-                            src={userData.avatar.url}
+                            src={getSafeAvatarUrl(userData.avatar)}
                             alt={userData.fullName || ''}
                             className="w-full h-full object-cover"
                           />
@@ -378,11 +377,10 @@ const Header: React.FC = () => {
                   : 'text-gray-600'
                 }`}
             >
-              {!userLoading && userData ? (
-                <div className="w-6 h-6 rounded-full bg-gray-200 flex items-center justify-center overflow-hidden mb-1">
-                  {userData.avatar?.url ? (
+              {!userLoading && userData ? (                <div className="w-6 h-6 rounded-full bg-gray-200 flex items-center justify-center overflow-hidden mb-1">
+                  {getSafeAvatarUrl(userData.avatar) !== '/default-avatar.png' ? (
                     <img 
-                      src={userData.avatar.url}
+                      src={getSafeAvatarUrl(userData.avatar)}
                       alt={userData.fullName || ''}
                       className="w-full h-full object-cover"
                     />

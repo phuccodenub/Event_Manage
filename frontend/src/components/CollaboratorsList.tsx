@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useEvents } from '../context/EventContext';
+import { CollaboratorWithStatus } from '../types';
 import { UserIcon } from '@heroicons/react/outline';
 import { FaTrash } from 'react-icons/fa';
 import { RiTimeLine } from 'react-icons/ri';
@@ -16,16 +17,13 @@ interface CollaboratorListProps {
   onUpdate?: () => void;
 }
 
-// Interface for collaborator with status
-interface Collaborator {
+// Type alias for the standardized collaborator interface with a normalized user
+type Collaborator = {
   user: {
     _id: string;
     fullName: string;
-    avatar?: {
-      url: string;
-      public_id: string;
-    };
     email?: string;
+    avatar?: string | { url: string; public_id?: string };
     role?: string;
   };
   status: 'pending' | 'approved' | 'rejected';
@@ -40,7 +38,31 @@ interface Collaborator {
     start: string | Date;
     end: string | Date;
   };
-}
+};
+
+// Helper function to safely get user ID from CollaboratorWithStatus
+const getUserId = (collaborator: CollaboratorWithStatus): string => {
+  return typeof collaborator.user === 'string' ? collaborator.user : collaborator.user._id;
+};
+
+// Helper function to safely get user info from CollaboratorWithStatus
+const getUserInfo = (collaborator: CollaboratorWithStatus): Collaborator['user'] => {
+  if (typeof collaborator.user === 'string') {
+    return {
+      _id: collaborator.user,
+      fullName: 'Unknown User'
+    };
+  }
+  return collaborator.user;
+};
+
+// Helper function to get avatar URL from user avatar
+const getAvatarUrl = (avatar?: string | { url: string; public_id?: string }): string | undefined => {
+  if (typeof avatar === 'string') {
+    return avatar;
+  }
+  return avatar?.url;
+};
 
 interface ErrorWithMessage {
   response?: {
@@ -85,9 +107,13 @@ const CollaboratorsList: React.FC<CollaboratorListProps> = ({ eventId, onUpdate 
       try {
         setLoadingEventDetails(true);
         const response = await eventService.getEventById(eventId);
+        
         if (response.success && response.data) {
           setEventDetails(response.data);
           console.log("Event details loaded:", response.data);
+        } else if (response.error === 'Event not found') {
+          console.warn('Event not found for collaborators list');
+          // Could show a message to user that event doesn't exist
         }
       } catch (error) {
         console.error("Error fetching event details:", error);
@@ -153,35 +179,17 @@ const CollaboratorsList: React.FC<CollaboratorListProps> = ({ eventId, onUpdate 
     collaborators = currentCollaboratorList
       .filter(item => item && typeof item === 'object')
       .map(item => {
-        // Safely access properties
-        const userProperty = (item as { user?: unknown }).user;
+        const collaboratorItem = item as CollaboratorWithStatus;
+        const userInfo = getUserInfo(collaboratorItem);
         
-        // Ensure proper structure for each collaborator
-        if (!userProperty || (typeof userProperty !== 'object' && typeof userProperty !== 'string')) {
-          console.warn('Invalid collaborator format:', item);
-          return null;
-        }
-        
-        // Handle string user ID
-        if (typeof userProperty === 'string') {
-          return {
-            user: { _id: userProperty, fullName: 'Unknown User' },
-            status: (item as { status?: string }).status || 'pending',
-            requestedAt: (item as { requestedAt?: string }).requestedAt || new Date().toISOString(),
-            approvedAt: (item as { approvedAt?: string }).approvedAt,
-            approvedBy: (item as { approvedBy?: { _id: string; fullName?: string } }).approvedBy,
-            rejectionReason: (item as { rejectionReason?: string }).rejectionReason
-          } as Collaborator;
-        }
-        
-        // Handle object user
         return {
-          user: userProperty as Collaborator['user'],
-          status: (item as { status?: string }).status || 'pending',
-          requestedAt: (item as { requestedAt?: string }).requestedAt || new Date().toISOString(),
-          approvedAt: (item as { approvedAt?: string }).approvedAt,
-          approvedBy: (item as { approvedBy?: { _id: string; fullName?: string } }).approvedBy,
-          rejectionReason: (item as { rejectionReason?: string }).rejectionReason
+          user: userInfo,
+          status: collaboratorItem.status || 'pending',
+          requestedAt: collaboratorItem.requestedAt || new Date().toISOString(),
+          approvedAt: collaboratorItem.approvedAt,
+          approvedBy: collaboratorItem.approvedBy,
+          rejectionReason: collaboratorItem.rejectionReason,
+          workingSchedule: (collaboratorItem as any).workingSchedule
         } as Collaborator;
       })
       .filter(Boolean) as Collaborator[]; // Remove null entries
@@ -363,9 +371,9 @@ const CollaboratorsList: React.FC<CollaboratorListProps> = ({ eventId, onUpdate 
             <div className="flex items-center gap-3">
               {/* Avatar */}
               <div className="h-12 w-12 rounded-full overflow-hidden bg-gray-100 flex items-center justify-center">
-                {collaborator.user.avatar?.url ? (
+                {getAvatarUrl(collaborator.user.avatar) ? (
                   <img 
-                    src={collaborator.user.avatar.url} 
+                    src={getAvatarUrl(collaborator.user.avatar)} 
                     alt={collaborator.user.fullName} 
                     className="h-full w-full object-cover"
                   />
@@ -434,9 +442,9 @@ const CollaboratorsList: React.FC<CollaboratorListProps> = ({ eventId, onUpdate 
             <div className="flex items-center gap-3">
               {/* Avatar */}
               <div className="h-12 w-12 rounded-full overflow-hidden bg-gray-100 flex items-center justify-center">
-                {collaborator.user.avatar?.url ? (
+                {getAvatarUrl(collaborator.user.avatar) ? (
                   <img 
-                    src={collaborator.user.avatar.url} 
+                    src={getAvatarUrl(collaborator.user.avatar)} 
                     alt={collaborator.user.fullName} 
                     className="h-full w-full object-cover"
                   />

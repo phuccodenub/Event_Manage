@@ -5,15 +5,23 @@ import eventService from '../services/eventService';
  * Custom hook to fetch and cache events data
  * Uses React Query for efficient caching and avoiding redundant API calls
  */
-export const useEventData = (eventId?: string) => {
-  // Query for a single event
+export const useEventData = (eventId?: string) => {  // Query for a single event
   const singleEventQuery = useQuery({
     queryKey: ['event', eventId],
     queryFn: async () => {
       if (!eventId) return null;
-      return await eventService.getEventById(eventId);
+      const result = await eventService.getEventById(eventId);
+      
+      // Handle error responses from the service
+      if (result.success === false) {
+        console.error('Event fetch error:', result.error);
+        return null;
+      }
+      
+      return result;
     },
     enabled: !!eventId, // Only run this query if eventId is provided
+    retry: false, // Don't retry on 404 errors
   });
 
   // Query for all events

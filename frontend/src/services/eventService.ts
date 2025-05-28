@@ -51,14 +51,28 @@ const eventService = {
       return [];
     }
   },
-
   getEventById: async (eventId: string) => {
     try {
       const response = await apiClient.get(`/event/${eventId}`);
       return response.data;
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error fetching event:', error);
-      throw error;
+      
+      // Handle specific error cases
+      if (error.response?.status === 404) {
+        return {
+          success: false,
+          error: 'Event not found',
+          message: 'Sự kiện không tồn tại hoặc đã bị xóa'
+        };
+      }
+      
+      // For other errors, maintain the original structure but add success: false
+      return {
+        success: false,
+        error: error.response?.data?.error || 'Failed to fetch event',
+        message: error.response?.data?.message || 'Không thể tải thông tin sự kiện'
+      };
     }
   },
 

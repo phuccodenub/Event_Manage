@@ -4,6 +4,7 @@ import feedbackService from '../services/feedbackService';
 import { FeedbackItem } from '../services/feedbackService';
 import { IoClose } from 'react-icons/io5';
 import { UserIcon } from '@heroicons/react/outline';
+import { getSafeAvatarUrl } from '../utils/avatarUtils';
 
 interface EventFeedbackListProps {
   eventId: string;
@@ -272,11 +273,9 @@ const EventFeedbackList: React.FC<EventFeedbackListProps> = ({ eventId }) => {
           <div className="space-y-5">
             {filteredFeedbackItems.map((item) => (
               <div key={item._id} className="p-5 bg-white rounded-lg shadow-sm border border-gray-100 hover:border-orange-100 transition-colors">
-                <div className="flex items-start">
-                  <div className="flex-shrink-0">
-                    {item.user.avatar?.url? (
+                <div className="flex items-start">                  <div className="flex-shrink-0">                    {item.user.avatar ? (
                       <img 
-                        src={item.user.avatar?.url} 
+                        src={getSafeAvatarUrl(item.user.avatar)} 
                         alt={item.user.fullName} 
                         className="w-12 h-12 rounded-full object-cover border-2 border-orange-200"
                       />
