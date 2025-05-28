@@ -470,11 +470,28 @@ const CommunityDetail: React.FC = () => {
                 <div className="flex flex-col lg:flex-row">
                   {/* Event Image */}
                   <div className="lg:w-1/3 h-48 lg:h-auto">
-                    <img
-                      src={event.images && event.images.length > 0 ? event.images[0].url : 'https://placehold.co/400x300/orange/white?text=' + encodeURIComponent(event.title)}
-                      alt={event.title}
-                      className="w-full h-full object-cover"
-                    />
+                    {event.images && event.images.length > 0 ? (
+                      <img
+                        src={event.images[0].url}
+                        alt={event.title}
+                        className="w-full h-full object-cover"
+                        onError={(e) => {
+                          const target = e.target as HTMLImageElement;
+                          target.src = `https://placehold.co/400x300/orange/white?text=${encodeURIComponent(event.title)}`;
+                        }}
+                      />
+                    ) : (
+                      <div className="w-full h-full bg-gradient-to-br from-orange-400 to-orange-600 flex items-center justify-center text-white">
+                        <div className="text-center p-4">
+                          <div className="text-2xl font-bold mb-2">
+                            {event.title.charAt(0).toUpperCase()}
+                          </div>
+                          <div className="text-sm opacity-75">
+                            {event.title.length > 20 ? event.title.substring(0, 20) + '...' : event.title}
+                          </div>
+                        </div>
+                      </div>
+                    )}
                   </div>
                   
                   {/* Event Content */}
@@ -488,6 +505,12 @@ const CommunityDetail: React.FC = () => {
                         {event.organizer?.fullName || 'Unknown'} 
                         {event.department?.name && ` • ${event.department.name}`}
                       </span>
+                      {/* Visibility Badge */}
+                      {event.visibility === 'private' && (
+                        <span className="px-2 py-1 bg-blue-100 text-blue-700 text-xs rounded-full font-medium">
+                          Riêng tư
+                        </span>
+                      )}
                     </div>
 
                     {/* Event Title */}

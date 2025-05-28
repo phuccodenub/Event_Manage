@@ -100,10 +100,20 @@ const communityService = {
   // Lấy danh sách events của một community
   getCommunityEvents: async (communityId: string) => {
     try {
+      console.log(`Fetching events for community: ${communityId}`);
       const response = await apiClient.get(`/communities/${communityId}/events`);
+      console.log(`Received ${response.data.data?.length || 0} events for community ${communityId}`);
       return response.data.data || [];
     } catch (error: any) {
       console.error(`Lỗi khi lấy sự kiện cộng đồng ${communityId}:`, error);
+      
+      // Log chi tiết về lỗi auth nếu có
+      if (error.status === 401) {
+        console.warn('User not authenticated, may not see private events');
+      } else if (error.status === 403) {
+        console.warn('User does not have permission to view events');
+      }
+      
       return [];
     }
   },

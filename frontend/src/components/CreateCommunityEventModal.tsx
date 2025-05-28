@@ -4,6 +4,7 @@ import { useAuth } from '../context/AuthContext';
 import eventService from '../services/eventService';
 import notificationService from '../services/notificationService';
 import departmentService from '../services/departmentService';
+import uploadService from '../services/uploadService';
 import EventDaysSelector from './EventDaysSelector';
 import SupportScheduleSelector from './SupportScheduleSelector';
 
@@ -91,6 +92,7 @@ const CreateCommunityEventModal: React.FC<CreateCommunityEventModalProps> = ({
   const [uploadedImages, setUploadedImages] = useState<Array<{public_id: string, url: string}>>([]);
   const [currentTag, setCurrentTag] = useState('');
   const [departments, setDepartments] = useState<Array<{_id: string, name: string}>>([]);
+  const [imageUploadLoading, setImageUploadLoading] = useState(false);
 
   useEffect(() => {
     if (!isOpen) {
@@ -129,11 +131,53 @@ const CreateCommunityEventModal: React.FC<CreateCommunityEventModalProps> = ({
     }
   };
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files) {
       const files = Array.from(e.target.files);
+      
+      // Set files for preview and fallback
       setFormData(prev => ({ ...prev, images: files }));
+      
+      // Try to pre-upload images
+      if (files.length > 0) {
+        setImageUploadLoading(true);
+        try {
+          console.log('Pre-uploading images for community event...');
+          console.log('Files to upload:', files.map(f => ({ name: f.name, size: f.size, type: f.type })));
+          
+          const uploadResults = await uploadService.uploadCommunityEventImages(files);
+          console.log('Upload results:', uploadResults);
+          
+          if (uploadResults && uploadResults.length > 0) {
+            setUploadedImages(uploadResults);
+            console.log('Images uploaded successfully:', uploadResults.length);
+          } else {
+            console.warn('Upload returned empty results, will use direct upload');
+            setUploadedImages([]);
+          }
+        } catch (error: any) {
+          console.warn('Pre-upload failed, will use direct upload:', {
+            message: error.message,
+            status: error.response?.status,
+            data: error.response?.data
+          });
+          // Reset uploaded images so direct upload will be used
+          setUploadedImages([]);
+        } finally {
+          setImageUploadLoading(false);
+        }
+      }
     }
+  };
+
+  const removeUploadedImage = (index: number) => {
+    setUploadedImages(prev => prev.filter((_, i) => i !== index));
+    
+    // Also remove from formData.images if same index
+    setFormData(prev => ({
+      ...prev,
+      images: prev.images.filter((_, i) => i !== index)
+    }));
   };
 
   const addTag = () => {
@@ -246,20 +290,68 @@ const CreateCommunityEventModal: React.FC<CreateCommunityEventModalProps> = ({
         }));
       }
 
-      // Images
-      uploadedImages.forEach((image, index) => {
-        submitData.append(`images[${index}][public_id]`, image.public_id);
-        submitData.append(`images[${index}][url]`, image.url);
+      // Handle images - prioritize pre-uploaded images, fallback to direct upload
+      console.log('=== FRONTEND IMAGES PROCESSING ===');
+      console.log('Processing images for community event:', {
+        uploadedImagesCount: uploadedImages.length,
+        formImagesCount: formData.images.length,
+        uploadedImages: uploadedImages,
+        formImages: formData.images.map(f => ({ name: f.name, size: f.size, type: f.type }))
       });
 
-      // File uploads
-      formData.images.forEach(file => {
-        submitData.append('eventImages', file);
+      if (uploadedImages.length > 0) {
+        // Use pre-uploaded images
+        console.log('Using pre-uploaded images:', uploadedImages.length);
+        uploadedImages.forEach((image, index) => {
+          console.log(`Adding pre-uploaded image ${index}:`, image);
+          submitData.append(`images[${index}][public_id]`, image.public_id);
+          submitData.append(`images[${index}][url]`, image.url);
+        });
+        console.log('Pre-uploaded images added to FormData');
+      } else if (formData.images.length > 0) {
+        // Fallback to direct upload
+        console.log('Using direct upload for images:', formData.images.length);
+        formData.images.forEach((file, index) => {
+          console.log(`Adding file ${index} for direct upload:`, {
+            name: file.name, 
+            size: file.size,
+            type: file.type,
+            lastModified: file.lastModified
+          });
+          submitData.append('eventImages', file);
+        });
+        console.log('Files added to FormData for direct upload');
+      } else {
+        console.log('No images to process');
+      }
+
+      // Debug FormData contents
+      console.log('=== FORMDATA DEBUG ===');
+      console.log('FormData keys:', Array.from(submitData.keys()));
+      
+      // Count how many images are being sent
+      const imageKeys = Array.from(submitData.keys()).filter(key => 
+        key.startsWith('images[') || key === 'eventImages'
+      );
+      console.log('Image-related keys in FormData:', imageKeys);
+      
+      // Check if eventImages files are properly attached
+      const eventImageFiles = submitData.getAll('eventImages');
+      console.log('EventImages files in FormData:', eventImageFiles.length);
+      eventImageFiles.forEach((file, index) => {
+        if (file instanceof File) {
+          console.log(`EventImages file ${index}:`, {
+            name: file.name,
+            size: file.size,
+            type: file.type
+          });
+        }
       });
 
       console.log('Submitting community event data:', {
         communityId,
-        formDataEntries: Array.from(submitData.entries())
+        totalImagesProcessed: uploadedImages.length || formData.images.length,
+        submissionMethod: uploadedImages.length > 0 ? 'pre-uploaded' : 'direct-upload'
       });
 
       // Create community event
@@ -600,22 +692,60 @@ const CreateCommunityEventModal: React.FC<CreateCommunityEventModalProps> = ({
             </div>
           </div>
 
-          {/* Image Upload */}
+          {/* Image Upload with Preview */}
           <div>
             <label className="flex items-center gap-2 text-sm font-medium mb-1">
               <Upload size={16} />
               Hình ảnh sự kiện
             </label>
+            
+            {/* Upload Input */}
             <input
               type="file"
               multiple
               accept="image/*"
               onChange={handleFileChange}
               className="w-full p-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
+              disabled={imageUploadLoading}
             />
-            {formData.images.length > 0 && (
+            
+            {imageUploadLoading && (
+              <p className="text-sm text-blue-600 mt-1 flex items-center">
+                <span className="animate-spin mr-2">⏳</span>
+                Đang tải lên hình ảnh...
+              </p>
+            )}
+            
+            {/* Image Preview */}
+            {uploadedImages.length > 0 && (
+              <div className="mt-3">
+                <p className="text-sm text-green-600 mb-2">
+                  ✓ Đã tải lên {uploadedImages.length} hình ảnh
+                </p>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+                  {uploadedImages.map((image, index) => (
+                    <div key={index} className="relative">
+                      <img
+                        src={image.url}
+                        alt={`Preview ${index + 1}`}
+                        className="w-full h-20 object-cover rounded border"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => removeUploadedImage(index)}
+                        className="absolute -top-1 -right-1 bg-red-500 text-white rounded-full w-5 h-5 flex items-center justify-center text-xs hover:bg-red-600"
+                      >
+                        ×
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+            
+            {formData.images.length > 0 && uploadedImages.length === 0 && (
               <p className="text-sm text-gray-600 mt-1">
-                Đã chọn {formData.images.length} hình ảnh
+                Đã chọn {formData.images.length} hình ảnh (sẽ upload khi tạo sự kiện)
               </p>
             )}
           </div>
@@ -626,16 +756,16 @@ const CreateCommunityEventModal: React.FC<CreateCommunityEventModalProps> = ({
               type="button"
               onClick={onClose}
               className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50"
-              disabled={loading}
+              disabled={loading || imageUploadLoading}
             >
               Hủy
             </button>
             <button
               type="submit"
               className="flex-1 px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 disabled:bg-blue-300"
-              disabled={loading}
+              disabled={loading || imageUploadLoading}
             >
-              {loading ? 'Đang tạo...' : 'Tạo sự kiện'}
+              {loading ? 'Đang tạo...' : imageUploadLoading ? 'Đang tải ảnh...' : 'Tạo sự kiện'}
             </button>
           </div>
         </form>

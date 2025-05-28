@@ -8,7 +8,13 @@ const router = express.Router();
 // @desc Upload multiple images for events
 router.post('/events', protect, async (req, res) => {
   try {
+    console.log('=== UPLOAD EVENTS ENDPOINT DEBUG ===');
+    console.log('req.files exists:', !!req.files);
+    console.log('req.files keys:', req.files ? Object.keys(req.files) : 'none');
+    console.log('req.files.images exists:', !!(req.files && req.files.images));
+    
     if (!req.files || !req.files.images) {
+      console.log('No files found in request');
       return res.status(400).json({
         success: false,
         error: 'Please upload at least one image'
@@ -16,9 +22,23 @@ router.post('/events', protect, async (req, res) => {
     }
 
     const files = Array.isArray(req.files.images) ? req.files.images : [req.files.images];
+    console.log('Number of files to upload:', files.length);
+    
+    files.forEach((file, index) => {
+      console.log(`File ${index}:`, {
+        name: file.name,
+        size: file.size,
+        mimetype: file.mimetype,
+        hasTempFilePath: !!file.tempFilePath,
+        hasData: !!file.data
+      });
+    });
+    
     const uploadedImages = await Promise.all(
       files.map(file => uploadToCloudinary(file, 'events'))
     );
+    
+    console.log('Upload completed. Results:', uploadedImages.length);
 
     res.status(200).json({
       success: true,
@@ -29,6 +49,32 @@ router.post('/events', protect, async (req, res) => {
     res.status(500).json({
       success: false,
       error: 'Error uploading images'
+    });
+  }
+});
+
+// @route POST /api/v1/upload/test
+// @desc Test upload endpoint to debug file processing
+router.post('/test', protect, async (req, res) => {
+  try {
+    console.log('=== UPLOAD TEST ENDPOINT ===');
+    console.log('req.files:', req.files ? 'exists' : 'not exists');
+    console.log('req.files keys:', req.files ? Object.keys(req.files) : 'none');
+    console.log('req.body keys:', Object.keys(req.body));
+    
+    res.status(200).json({
+      success: true,
+      data: {
+        hasFiles: !!req.files,
+        fileKeys: req.files ? Object.keys(req.files) : [],
+        bodyKeys: Object.keys(req.body)
+      }
+    });
+  } catch (error) {
+    console.error('Test endpoint error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Test error'
     });
   }
 });
@@ -130,6 +176,55 @@ router.get('/proxy/:folder/:publicId', async (req, res) => {
     res.status(500).json({
       success: false,
       error: 'Error retrieving image'
+    });
+  }
+});
+
+// @route POST /api/v1/upload/community-events
+// @desc Upload multiple images for community events
+router.post('/community-events', protect, async (req, res) => {
+  try {
+    console.log('=== UPLOAD COMMUNITY EVENTS ENDPOINT ===');
+    console.log('req.files exists:', !!req.files);
+    console.log('req.files keys:', req.files ? Object.keys(req.files) : 'none');
+    console.log('req.files.images exists:', !!(req.files && req.files.images));
+    
+    if (!req.files || !req.files.images) {
+      console.log('No files found in request');
+      return res.status(400).json({
+        success: false,
+        error: 'Please upload at least one image'
+      });
+    }
+
+    const files = Array.isArray(req.files.images) ? req.files.images : [req.files.images];
+    console.log('Number of files to upload:', files.length);
+    
+    files.forEach((file, index) => {
+      console.log(`File ${index}:`, {
+        name: file.name,
+        size: file.size,
+        mimetype: file.mimetype,
+        hasTempFilePath: !!file.tempFilePath,
+        hasData: !!file.data
+      });
+    });
+    
+    const uploadedImages = await Promise.all(
+      files.map(file => uploadToCloudinary(file, 'community-events'))
+    );
+    
+    console.log('Upload completed. Results:', uploadedImages.length);
+
+    res.status(200).json({
+      success: true,
+      data: uploadedImages
+    });
+  } catch (error) {
+    console.error('Community events upload error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Error uploading images'
     });
   }
 });

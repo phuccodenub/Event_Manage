@@ -201,7 +201,6 @@ exports.createEvent = async (req, res, next) => {
 
     // Handle images array from form data
     const images = [];
-    // Check if we have image data in the request
     if (req.body['images[0][public_id]']) {
       let index = 0;
       while (req.body[`images[${index}][public_id]`]) {
@@ -212,7 +211,45 @@ exports.createEvent = async (req, res, next) => {
         index++;
       }
       eventData.images = images;
+      console.log('Found pre-uploaded images:', images.length);
     }
+
+    // Handle file uploads if any
+    if (req.files && req.files.eventImages) {
+      console.log('Processing file uploads...');
+      const uploadedImages = [];
+      const files = Array.isArray(req.files.eventImages) ? req.files.eventImages : [req.files.eventImages];
+      
+      console.log('Number of files to upload:', files.length);
+      
+      for (const file of files) {
+        try {
+          console.log('Uploading file:', file.name);
+          const result = await uploadToCloudinary(file.tempFilePath || file.data, 'community-events');
+          uploadedImages.push({
+            public_id: result.public_id,
+            url: result.secure_url
+          });
+          console.log('Successfully uploaded:', result.public_id);
+        } catch (uploadError) {
+          console.error('Error uploading image:', uploadError);
+        }
+      }
+      
+      if (uploadedImages.length > 0) {
+        eventData.images = [...(eventData.images || []), ...uploadedImages];
+        console.log('Total images after upload:', eventData.images.length);
+      }
+    } else {
+      console.log('No files found in request');
+    }
+
+    // Debug: Log final images
+    console.log('Final event images:', eventData.images ? eventData.images.length : 0);
+
+    // Ensure proper data types
+    eventData.capacity = parseInt(eventData.capacity) || 0;
+    eventData.isRegistrationRequired = eventData.isRegistrationRequired === 'true';
 
     // Create event first
     const event = await Event.create(eventData);
@@ -1493,6 +1530,13 @@ exports.createCommunityEvent = async (req, res, next) => {
     const { communityId } = req.params;
     const eventData = { ...req.body };
     
+    // Debug logging
+    console.log('=== CREATE COMMUNITY EVENT DEBUG ===');
+    console.log('Request body keys:', Object.keys(req.body));
+    console.log('Request files:', req.files ? Object.keys(req.files) : 'No files');
+    console.log('EventImages in files:', req.files?.eventImages ? 'Yes' : 'No');
+    console.log('Images array in body:', req.body['images[0][public_id]'] ? 'Yes' : 'No');
+    
     // Set community-specific fields
     eventData.creator = req.user.id;
     eventData.community = communityId;
@@ -1579,48 +1623,101 @@ exports.createCommunityEvent = async (req, res, next) => {
     eventData.needsVolunteers = req.body.needsVolunteers === 'true';
     eventData.maxVolunteers = parseInt(req.body.maxVolunteers) || 0;
 
-    // Handle images array from form data
+    // IMAGES PROCESSING - Detailed debug
+    console.log('=== IMAGES PROCESSING START ===');
     const images = [];
+    
+    // Check for pre-uploaded images
     if (req.body['images[0][public_id]']) {
+      console.log('Found pre-uploaded images in body');
       let index = 0;
       while (req.body[`images[${index}][public_id]`]) {
-        images.push({
+        const image = {
           public_id: req.body[`images[${index}][public_id]`],
           url: req.body[`images[${index}][url]`]
-        });
+        };
+        images.push(image);
+        console.log(`Pre-uploaded image ${index}:`, image);
         index++;
       }
       eventData.images = images;
+      console.log('Total pre-uploaded images:', images.length);
     }
 
     // Handle file uploads if any
     if (req.files && req.files.eventImages) {
+      console.log('Found files to upload directly');
+      console.log('Files object:', Object.keys(req.files));
+      console.log('EventImages type:', typeof req.files.eventImages);
+      console.log('EventImages is array?', Array.isArray(req.files.eventImages));
+      
       const uploadedImages = [];
       const files = Array.isArray(req.files.eventImages) ? req.files.eventImages : [req.files.eventImages];
       
-      for (const file of files) {
+      console.log('Number of files to upload:', files.length);
+      
+      for (let i = 0; i < files.length; i++) {
+        const file = files[i];
         try {
-          const result = await uploadToCloudinary(file.tempFilePath, 'events');
-          uploadedImages.push({
+          console.log(`Uploading file ${i + 1}:`, {
+            name: file.name,
+            size: file.size,
+            mimetype: file.mimetype,
+            tempFilePath: file.tempFilePath ? 'exists' : 'not exists',
+            dataBuffer: file.data ? 'exists' : 'not exists'
+          });
+          
+          const result = await uploadToCloudinary(file.tempFilePath || file.data, 'community-events');
+          const uploadedImage = {
             public_id: result.public_id,
             url: result.secure_url
-          });
+          };
+          uploadedImages.push(uploadedImage);
+          console.log(`Successfully uploaded file ${i + 1}:`, uploadedImage);
         } catch (uploadError) {
-          console.error('Error uploading image:', uploadError);
+          console.error(`Error uploading file ${i + 1}:`, uploadError);
+          // Continue with other files even if one fails
         }
       }
       
       if (uploadedImages.length > 0) {
         eventData.images = [...(eventData.images || []), ...uploadedImages];
+        console.log('Total images after direct upload:', eventData.images.length);
+        console.log('Final images array:', eventData.images);
+      } else {
+        console.log('No images were successfully uploaded');
       }
+    } else {
+      console.log('No files found in request for direct upload');
+      console.log('req.files:', req.files ? 'exists but no eventImages' : 'null/undefined');
     }
+
+    // Final debug for images
+    console.log('=== FINAL IMAGES DEBUG ===');
+    console.log('eventData.images exists?', !!eventData.images);
+    console.log('eventData.images length:', eventData.images ? eventData.images.length : 0);
+    console.log('eventData.images content:', eventData.images);
+    console.log('=== IMAGES PROCESSING END ===');
 
     // Ensure proper data types
     eventData.capacity = parseInt(eventData.capacity) || 0;
     eventData.isRegistrationRequired = eventData.isRegistrationRequired === 'true';
 
     // Create event
+    console.log('Creating event with data:', {
+      title: eventData.title,
+      imagesCount: eventData.images ? eventData.images.length : 0,
+      hasImages: !!eventData.images && eventData.images.length > 0
+    });
+    
     const event = await Event.create(eventData);
+    
+    console.log('Event created successfully:', {
+      id: event._id,
+      title: event.title,
+      imagesInDb: event.images ? event.images.length : 0,
+      imagesContent: event.images
+    });
 
     // If registration form is needed, create it
     if (eventData.needsRegistrationForm) {

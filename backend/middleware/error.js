@@ -6,7 +6,16 @@ module.exports = (err, req, res, next) => {
 
   // Log error for development
   if (process.env.NODE_ENV === 'development') {
-    console.error(err);
+    console.error('Full error:', err);
+    if (err.name === 'ValidationError') {
+      console.error('Validation errors:', err.errors);
+    }
+  }
+
+  // Mongoose validation error
+  if (err.name === 'ValidationError') {
+    const messages = Object.values(err.errors).map(val => val.message);
+    err = new ErrorHandler(messages.join(', '), 400);
   }
 
   // Mongoose duplicate key error
