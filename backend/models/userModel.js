@@ -160,6 +160,53 @@ const userSchema = new mongoose.Schema({
       }
     }
   ],
+  joinedCommunities: [
+    {
+      community: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Community',
+        required: true
+      },
+      role: {
+        type: String,
+        enum: ['member', 'admin', 'moderator'],
+        default: 'member'
+      },
+      joinedAt: {
+        type: Date,
+        default: Date.now
+      },
+      status: {
+        type: String,
+        enum: ['active', 'inactive', 'banned'],
+        default: 'active'
+      },
+      lastActive: {
+        type: Date,
+        default: Date.now
+      },
+      notifications: {
+        enabled: {
+          type: Boolean,
+          default: true
+        },
+        settings: {
+          newEvents: {
+            type: Boolean,
+            default: true
+          },
+          announcements: {
+            type: Boolean,
+            default: true
+          },
+          discussions: {
+            type: Boolean,
+            default: true
+          }
+        }
+      }
+    }
+  ],
   resetPasswordToken: String,
   resetPasswordExpire: Date,
   oauthProvider: {
@@ -270,6 +317,99 @@ userSchema.statics.countUniqueEvents = function(registeredEvents, collaboratorEv
 // Phương thức instance để đếm số lượng sự kiện không trùng lặp
 userSchema.methods.getUniqueEventCount = function() {
   return this.constructor.countUniqueEvents(this.registeredEvents, this.collaboratorEvents);
+};
+
+// Phương thức thêm community
+userSchema.methods.joinCommunity = async function(communityId, role = 'member') {
+  const existingJoin = this.joinedCommunities.find(
+    join => join.community.toString() === communityId.toString()
+  );
+
+  if (existingJoin) {
+    if (existingJoin.status === 'banned') {
+      throw new Error('Bạn đã bị cấm tham gia cộng đồng này');
+    }
+    if (existingJoin.status === 'active') {
+      throw new Error('Bạn đã là thành viên của cộng đồng này');
+    }
+    // Nếu đã tham gia nhưng inactive, cập nhật lại status
+    existingJoin.status = 'active';
+    existingJoin.lastActive = new Date();
+    await this.save();
+    return existingJoin;
+  }
+
+  this.joinedCommunities.push({
+    community: communityId,
+    role,
+    joinedAt: new Date(),
+    lastActive: new Date()
+  });
+
+  await this.save();
+  return this.joinedCommunities[this.joinedCommunities.length - 1];
+};
+
+// Phương thức rời community
+userSchema.methods.leaveCommunity = async function(communityId) {
+  const joinIndex = this.joinedCommunities.findIndex(
+    join => join.community.toString() === communityId.toString()
+  );
+
+  if (joinIndex === -1) {
+    throw new Error('Bạn chưa tham gia cộng đồng này');
+  }
+
+  // Thay vì xóa, chúng ta sẽ đánh dấu là inactive
+  this.joinedCommunities[joinIndex].status = 'inactive';
+  this.joinedCommunities[joinIndex].lastActive = new Date();
+  
+  await this.save();
+  return this.joinedCommunities[joinIndex];
+};
+
+// Phương thức cập nhật thông tin tham gia community
+userSchema.methods.updateCommunityJoin = async function(communityId, updates) {
+  const joinIndex = this.joinedCommunities.findIndex(
+    join => join.community.toString() === communityId.toString()
+  );
+
+  if (joinIndex === -1) {
+    throw new Error('Bạn chưa tham gia cộng đồng này');
+  }
+
+  // Cập nhật các trường được phép
+  const allowedUpdates = ['role', 'notifications', 'status'];
+  Object.keys(updates).forEach(key => {
+    if (allowedUpdates.includes(key)) {
+      this.joinedCommunities[joinIndex][key] = updates[key];
+    }
+  });
+
+  this.joinedCommunities[joinIndex].lastActive = new Date();
+  await this.save();
+  return this.joinedCommunities[joinIndex];
+};
+
+// Phương thức lấy danh sách communities đang tham gia
+userSchema.methods.getActiveCommunities = function() {
+  return this.joinedCommunities.filter(join => join.status === 'active');
+};
+
+// Phương thức kiểm tra xem user có phải là admin của community không
+userSchema.methods.isCommunityAdmin = function(communityId) {
+  const join = this.joinedCommunities.find(
+    join => join.community.toString() === communityId.toString() && join.status === 'active'
+  );
+  return join && join.role === 'admin';
+};
+
+// Phương thức kiểm tra xem user có phải là moderator của community không
+userSchema.methods.isCommunityModerator = function(communityId) {
+  const join = this.joinedCommunities.find(
+    join => join.community.toString() === communityId.toString() && join.status === 'active'
+  );
+  return join && (join.role === 'moderator' || join.role === 'admin');
 };
 
 module.exports = mongoose.model('User', userSchema);

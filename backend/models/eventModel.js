@@ -21,10 +21,6 @@ const eventSchema = new mongoose.Schema({
     type: String,
     required: [true, 'Please enter event description']
   },
-  speakers: [{
-    type: mongoose.Schema.Types.ObjectId,
-    ref: 'User'
-  }],
   department: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'Department',
@@ -210,41 +206,6 @@ const eventSchema = new mongoose.Schema({
       approvedBy: {
         type: mongoose.Schema.Types.ObjectId,
         ref: 'User'
-      }
-    }
-  ],
-  likes: [
-    {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: 'User',
-    }
-  ],
-  comments: [
-    {
-      user: {
-        type: mongoose.Schema.Types.ObjectId,
-        ref: 'User',
-        required: true
-      },
-      text: {
-        type: String,
-        required: true
-      },
-      createdAt: {
-        type: Date,
-        default: Date.now
-      }
-    }
-  ],
-  shares: [
-    {
-      user: {
-        type: mongoose.Schema.Types.ObjectId,
-        ref: 'User',
-      },
-      sharedAt: {
-        type: Date,
-        default: Date.now
       }
     }
   ],

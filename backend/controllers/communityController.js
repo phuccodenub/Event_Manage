@@ -260,7 +260,8 @@ const handleJoinRequest = catchAsyncErrors(async (req, res, next) => {
   // Kiểm tra quyền (leader hoặc deputy)
   if (
     community.leader.toString() !== req.user._id.toString() &&
-    !community.deputies.includes(req.user._id)
+    !community.deputies.includes(req.user._id) &&
+    req.user.role !== 'admin'
   ) {
     return next(new ErrorHandler('Không có quyền phê duyệt yêu cầu', 403));
   }
