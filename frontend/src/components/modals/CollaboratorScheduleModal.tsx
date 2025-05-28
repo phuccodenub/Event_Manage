@@ -5,6 +5,7 @@ import { XIcon, ClockIcon, CalendarIcon, UserIcon } from '@heroicons/react/outli
 import { motion } from 'framer-motion';
 import eventService from '../../services/eventService';
 import { toast } from 'react-toastify';
+import { useAuth } from '../../context/AuthContext';
 
 interface SupportShift {
   date: string;
@@ -63,12 +64,53 @@ const CollaboratorScheduleModal: React.FC<Props> = ({
   setupTime,
   onSuccess
 }) => {
+  const { user } = useAuth();
   const [selectedShifts, setSelectedShifts] = useState<SupportShift[]>([]);
   const [availableDays, setAvailableDays] = useState<SupportDay[]>([]);
   const [formFields, setFormFields] = useState<FormField[]>([]);
   const [formData, setFormData] = useState<Record<string, any>>({});
   const [loading, setLoading] = useState(false);
   const [currentStep, setCurrentStep] = useState(1); // 1: Form, 2: Schedule
+
+  // Auto-fill user data when form fields change
+  useEffect(() => {
+    if (formFields.length > 0) {
+      const initialFormData: Record<string, any> = {};
+      formFields.forEach((field: FormField) => {
+        if (field.type === 'checkbox') {
+          initialFormData[field.fieldId] = [];
+        } else {
+          // Auto-fill user data if available
+          if (user) {
+            switch (field.fieldId) {
+              case 'fullName':
+                initialFormData[field.fieldId] = user.fullName || '';
+                break;
+              case 'email':
+                initialFormData[field.fieldId] = user.email || '';
+                break;              case 'studentId':
+                initialFormData[field.fieldId] = user.userId || '';
+                break;
+              case 'phone':
+                initialFormData[field.fieldId] = user.phone || '';
+                break;
+              case 'department':
+                initialFormData[field.fieldId] = user.department || '';
+                break;
+              case 'class':
+                initialFormData[field.fieldId] = user.class || '';
+                break;
+              default:
+                initialFormData[field.fieldId] = '';
+            }
+          } else {
+            initialFormData[field.fieldId] = '';
+          }
+        }
+      });
+      setFormData(initialFormData);
+    }
+  }, [formFields, user]);
 
   useEffect(() => {
     if (isOpen && eventId) {
@@ -99,17 +141,8 @@ const CollaboratorScheduleModal: React.FC<Props> = ({
         const fields = response.data?.fields || [];
         setFormFields(fields);
         
-        // Initialize form data with default values
-        const initialFormData: Record<string, any> = {};
-        fields.forEach((field: FormField) => {
-          if (field.type === 'checkbox') {
-            initialFormData[field.fieldId] = [];
-          } else {
-            initialFormData[field.fieldId] = '';
-          }
-        });
-        setFormData(initialFormData);
-
+        // Remove manual initialization - auto-fill will be handled by useEffect
+        
         // If no setupTime from props, try to get from API response
         if (!setupTime?.supportDays && response.data?.setupTime?.supportDays) {
           console.log('Setting available days from API response:', response.data.setupTime.supportDays);
@@ -168,13 +201,7 @@ const CollaboratorScheduleModal: React.FC<Props> = ({
         }
       ]);
       
-      // Initialize form data with fallback fields
-      setFormData({
-        fullName: '',
-        studentId: '',
-        phone: '',
-        email: ''
-      });
+      // Don't initialize form data here - let the useEffect handle auto-fill
     } finally {
       setLoading(false);
     }

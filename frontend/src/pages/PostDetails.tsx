@@ -81,11 +81,16 @@ const PostDetails: React.FC = () => {
 
     fetchPostDetails();
   }, [id, isEventPage]);
-
   useEffect(() => {
     if (post && isEvent(post) && post.participants && post.collaborators) {
       setCurrentParticipants(post.participants);
-      setCurrentCollaborators(post.collaborators);
+      // Extract user IDs from collaborators array
+      const collaboratorIds = post.collaborators.map(collab => 
+        typeof collab === 'string' 
+          ? collab 
+          : (typeof collab.user === 'string' ? collab.user : collab.user._id)
+      );
+      setCurrentCollaborators(collaboratorIds);
     }
   }, [post]);
 
@@ -351,17 +356,19 @@ const PostDetails: React.FC = () => {
           <div className="space-y-4">
             <div className="mb-6">
               {renderDescription(post.description)}
-            </div>
-
-            <div className="flex items-center gap-6 mt-3 text-sm text-gray-600">
-              <div className="flex items-center gap-2">
-                <BsCalendarEvent className="text-orange-500" />
-                <span>Bắt đầu: {new Date(post.startDate).toLocaleString('vi-VN')}</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <BsCalendarCheck className="text-orange-500" />
-                <span>Kết thúc: {new Date(post.endDate).toLocaleString('vi-VN')}</span>
-              </div>
+            </div>            <div className="flex items-center gap-6 mt-3 text-sm text-gray-600">
+              {post.startDate && (
+                <div className="flex items-center gap-2">
+                  <BsCalendarEvent className="text-orange-500" />
+                  <span>Bắt đầu: {new Date(post.startDate).toLocaleString('vi-VN')}</span>
+                </div>
+              )}
+              {post.endDate && (
+                <div className="flex items-center gap-2">
+                  <BsCalendarCheck className="text-orange-500" />
+                  <span>Kết thúc: {new Date(post.endDate).toLocaleString('vi-VN')}</span>
+                </div>
+              )}
             </div>
           </div>
 
@@ -403,8 +410,7 @@ const PostDetails: React.FC = () => {
                 creatorId={post.creator?._id}
                 organizerId={post.organizer?._id}
               />
-              
-              {/* Collaborator Button */}
+                {/* Collaborator Button */}
               {user && post && post.status !== 'cancelled' && post.status !== 'completed' && 
                 isEvent(post) && (
                   <CollaborateEventButton 
@@ -414,7 +420,6 @@ const PostDetails: React.FC = () => {
                     collaborators={currentCollaborators}
                     startDate={typeof post.startDate === 'string' ? new Date(post.startDate) : post.startDate}
                     endDate={typeof post.endDate === 'string' ? new Date(post.endDate) : post.endDate}
-                    setupTime={post.setupTime}
                     onJoinSuccess={() => handleCollaboratorUpdate(true)}
                     onLeaveSuccess={() => handleCollaboratorUpdate(false)}
                     organizerId={post.organizer?._id}
@@ -568,9 +573,8 @@ const EventSidebar: React.FC<EventSidebarProps> = ({ event, currentParticipants,
       fetchCollaborators(event._id);
     }
   }, [event._id, fetchParticipants, fetchCollaborators]);
-
   // Check if the event has ended to show certificate section
-  const isEventEnded = new Date(event.endDate) < new Date();
+  const isEventEnded = event.endDate ? new Date(event.endDate) < new Date() : false;
   const isUserParticipant = user && user._id ? currentParticipants.includes(user._id) : false;
   const isUserCollaborator = user && user._id ? currentCollaborators.includes(user._id) : false;
   
@@ -633,13 +637,11 @@ const EventSidebar: React.FC<EventSidebarProps> = ({ event, currentParticipants,
             {/* Collaborator Button */}
             {user && event.status !== 'cancelled' && event.status !== 'completed' && (
               <CollaborateEventButton 
-                eventId={event._id}
-                eventTitle={event.title}
+                eventId={event._id}                eventTitle={event.title}
                 status={event.status}
                 collaborators={currentCollaborators}
                 startDate={typeof event.startDate === 'string' ? new Date(event.startDate) : event.startDate}
                 endDate={typeof event.endDate === 'string' ? new Date(event.endDate) : event.endDate}
-                setupTime={event.setupTime}
                 onJoinSuccess={() => handleCollaboratorUpdate(true)}
                 onLeaveSuccess={() => handleCollaboratorUpdate(false)}
                 organizerId={event.organizer?._id}

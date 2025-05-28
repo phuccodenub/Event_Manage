@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Dialog, Transition } from '@headlessui/react';
 import { Fragment } from 'react';
 import { XIcon, CalendarIcon, ClockIcon } from '@heroicons/react/outline';
+import { useAuth } from '../../context/AuthContext';
 
 interface FormField {
   fieldId: string;
@@ -41,35 +42,54 @@ const FormModal: React.FC<FormModalProps> = ({
   eventDays = [],
   eventTitle = ''
 }) => {
+  const { user } = useAuth();
   const [formData, setFormData] = useState<Record<string, any>>({});
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [selectedSessions, setSelectedSessions] = useState<Array<{date: string, session: string}>>([]);
+
+  // Filter out duplicated default fields from custom fields
+  const defaultFieldIds = ['fullName', 'studentId', 'email'];
+  const customFields = fields.filter(field => !defaultFieldIds.includes(field.fieldId));
 
   useEffect(() => {
     if (isOpen) {
       // Initialize form data with default values
       const initialData: Record<string, any> = {};
       
-      // Add default required fields if not present
-      const defaultFields = [
-        { fieldId: 'fullName', label: 'Họ và tên', type: 'text', required: true },
-        { fieldId: 'studentId', label: 'MSSV', type: 'text', required: true },
-        { fieldId: 'email', label: 'Email', type: 'email', required: true }
-      ];
+      // Initialize default required fields with user data
+      if (user) {
+        initialData.fullName = user.fullName || '';
+        initialData.email = user.email || '';
+        initialData.studentId = user.userId || ''; // User.userId maps to studentId
+      } else {
+        initialData.fullName = '';
+        initialData.email = '';
+        initialData.studentId = '';
+      }
 
-      // Merge default fields with custom fields, avoiding duplicates
-      const allFields = [...defaultFields];
-      fields.forEach(field => {
-        if (!allFields.find(f => f.fieldId === field.fieldId)) {
-          allFields.push(field);
-        }
-      });
-
-      allFields.forEach(field => {
+      // Initialize custom fields
+      customFields.forEach(field => {
         if (field.type === 'checkbox') {
           initialData[field.fieldId] = [];
         } else {
-          initialData[field.fieldId] = '';
+          // Auto-fill user data if available for custom fields
+          if (user) {
+            switch (field.fieldId) {
+              case 'phone':
+                initialData[field.fieldId] = user.phone || '';
+                break;
+              case 'department':
+                initialData[field.fieldId] = user.department || '';
+                break;
+              case 'class':
+                initialData[field.fieldId] = user.class || '';
+                break;
+              default:
+                initialData[field.fieldId] = '';
+            }
+          } else {
+            initialData[field.fieldId] = '';
+          }
         }
       });
 
@@ -77,7 +97,7 @@ const FormModal: React.FC<FormModalProps> = ({
       setErrors({});
       setSelectedSessions([]);
     }
-  }, [isOpen, fields]);
+  }, [isOpen, customFields, user]);
 
   const handleInputChange = (fieldId: string, value: any) => {
     setFormData(prev => ({
@@ -112,22 +132,19 @@ const FormModal: React.FC<FormModalProps> = ({
   const validateForm = () => {
     const newErrors: Record<string, string> = {};
     
-    // Default required fields
-    const defaultFields = [
-      { fieldId: 'fullName', label: 'Họ và tên', required: true },
-      { fieldId: 'studentId', label: 'MSSV', required: true },
-      { fieldId: 'email', label: 'Email', required: true }
-    ];
-
-    // Validate default fields
-    defaultFields.forEach(field => {
-      if (field.required && !formData[field.fieldId]) {
-        newErrors[field.fieldId] = `${field.label} là bắt buộc`;
-      }
-    });
+    // Validate default required fields
+    if (!formData.fullName) {
+      newErrors.fullName = 'Họ và tên là bắt buộc';
+    }
+    if (!formData.studentId) {
+      newErrors.studentId = 'MSSV là bắt buộc';
+    }
+    if (!formData.email) {
+      newErrors.email = 'Email là bắt buộc';
+    }
 
     // Validate custom fields
-    fields.forEach(field => {
+    customFields.forEach(field => {
       if (field.required && !formData[field.fieldId]) {
         newErrors[field.fieldId] = `${field.label} là bắt buộc`;
       }
@@ -297,7 +314,7 @@ const FormModal: React.FC<FormModalProps> = ({
               )}
 
               <form onSubmit={handleSubmit} className="space-y-6">
-                {/* Default Required Fields */}
+                {/* Required Personal Information */}
                 <div className="space-y-4">
                   <h3 className="text-lg font-medium text-gray-900">Thông tin cá nhân</h3>
                   
@@ -347,11 +364,11 @@ const FormModal: React.FC<FormModalProps> = ({
                   </div>
                 </div>
 
-                {/* Custom Fields */}
-                {fields.length > 0 && (
+                {/* Custom Fields - Only show if there are custom fields */}
+                {customFields.length > 0 && (
                   <div className="space-y-4">
                     <h3 className="text-lg font-medium text-gray-900">Thông tin bổ sung</h3>
-                    {fields.map((field) => (
+                    {customFields.map((field) => (
                       <div key={field.fieldId}>
                         <label className="block text-sm font-medium text-gray-700 mb-2">
                           {field.label}
