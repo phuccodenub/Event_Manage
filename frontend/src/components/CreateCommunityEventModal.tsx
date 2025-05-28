@@ -302,11 +302,11 @@ const CreateCommunityEventModal: React.FC<CreateCommunityEventModalProps> = ({
       if (uploadedImages.length > 0) {
         // Use pre-uploaded images
         console.log('Using pre-uploaded images:', uploadedImages.length);
-        uploadedImages.forEach((image, index) => {
+      uploadedImages.forEach((image, index) => {
           console.log(`Adding pre-uploaded image ${index}:`, image);
-          submitData.append(`images[${index}][public_id]`, image.public_id);
-          submitData.append(`images[${index}][url]`, image.url);
-        });
+        submitData.append(`images[${index}][public_id]`, image.public_id);
+        submitData.append(`images[${index}][url]`, image.url);
+      });
         console.log('Pre-uploaded images added to FormData');
       } else if (formData.images.length > 0) {
         // Fallback to direct upload
@@ -318,7 +318,7 @@ const CreateCommunityEventModal: React.FC<CreateCommunityEventModalProps> = ({
             type: file.type,
             lastModified: file.lastModified
           });
-          submitData.append('eventImages', file);
+        submitData.append('eventImages', file);
         });
         console.log('Files added to FormData for direct upload');
       } else {

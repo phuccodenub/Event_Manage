@@ -121,14 +121,14 @@ const RightSidebar: React.FC = () => {
         dateDisplay = formatEventTimeDisplay(event.eventDays);
       } else if (event.startDate && event.endDate) {
         dateDisplay = `${new Date(event.startDate).toLocaleString('vi-VN', {
-          day: '2-digit',
-          month: '2-digit',
-          year: 'numeric',
-          hour: '2-digit',
-          minute: '2-digit',
-        })} - ${new Date(event.endDate).toLocaleString('vi-VN', {
-          hour: '2-digit',
-          minute: '2-digit',
+        day: '2-digit',
+        month: '2-digit',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+      })} - ${new Date(event.endDate).toLocaleString('vi-VN', {
+        hour: '2-digit',
+        minute: '2-digit',
         })}`;
       }
       

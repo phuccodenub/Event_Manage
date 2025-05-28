@@ -8,7 +8,11 @@ const { deleteFromCloudinary } = require('../utils/cloudinary');
 const getAllCommunities = catchAsyncErrors(async (req, res, next) => {
   const communities = await Community.find()
     .populate('leader', 'fullName avatar')
-    .select('name description avatar banner members events isActive');
+    .populate({
+      path: 'pendingRequests.user',
+      select: 'fullName avatar'
+    })
+    .select('name description avatar banner members events isActive pendingRequests');
 
   res.status(200).json({
     success: true,
@@ -72,7 +76,11 @@ const searchCommunities = catchAsyncErrors(async (req, res, next) => {
     $text: { $search: keyword }
   })
   .populate('leader', 'fullName avatar')
-  .select('name description avatar members');
+  .populate({
+    path: 'pendingRequests.user',
+    select: 'fullName avatar'
+  })
+  .select('name description avatar banner members events isActive pendingRequests');
 
   res.status(200).json({
     success: true,
@@ -260,8 +268,7 @@ const handleJoinRequest = catchAsyncErrors(async (req, res, next) => {
   // Kiểm tra quyền (leader hoặc deputy)
   if (
     community.leader.toString() !== req.user._id.toString() &&
-    !community.deputies.includes(req.user._id) &&
-    req.user.role !== 'admin'
+    !community.deputies.includes(req.user._id)
   ) {
     return next(new ErrorHandler('Không có quyền phê duyệt yêu cầu', 403));
   }

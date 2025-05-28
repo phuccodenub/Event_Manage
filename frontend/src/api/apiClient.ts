@@ -1,12 +1,6 @@
 import axios, { AxiosRequestConfig, AxiosError } from 'axios';
 import { cache } from '../utils/cacheManager';
 
-// Định nghĩa interface cho queue item
-interface QueueItem {
-  resolve: (value?: unknown) => void;
-  reject: (reason?: unknown) => void;
-}
-
 const apiClient = axios.create({
   baseURL: import.meta.env.VITE_API_BASE_URL || '/api/v1', // Thay localhost bằng relative path làm mặc định
   withCredentials: true, // Giữ để hỗ trợ gửi cookies (nếu cần xác thực)
@@ -23,29 +17,14 @@ export const disableCachingForRequest = (config: AxiosRequestConfig): AxiosReque
   return config;
 };
 
-// Tạo flag để tránh lặp vô hạn khi refresh token
-let isRefreshing = false;
-let failedQueue: QueueItem[] = [];
-
-const processQueue = (error: unknown, token: string | null = null) => {
-  failedQueue.forEach(prom => {
-    if (error) {
-      prom.reject(error);
-    } else {
-      prom.resolve(token);
-    }
-  });
-  
-  failedQueue = [];
-};
-
 // Request interceptor
 apiClient.interceptors.request.use(
   (config) => {
-    const token = localStorage.getItem('token');
-    if (token) {
-      config.headers.Authorization = `Bearer ${token}`;
-    }
+    // Không cần thêm Authorization header vì backend sử dụng cookies
+    // const token = localStorage.getItem('token');
+    // if (token) {
+    //   config.headers.Authorization = `Bearer ${token}`;
+    // }
     return config;
   },
   (error) => Promise.reject(error)
@@ -80,46 +59,24 @@ apiClient.interceptors.response.use(
       }
     }
     return response;
-  },
-  async (error: AxiosError) => {
+  },  async (error: AxiosError) => {
     const originalRequest = error.config as AxiosRequestConfig & { _retry?: boolean };
     
     // Bỏ qua xử lý với request login (tránh vòng lặp)
     const isLoginRequest = originalRequest.url?.includes('/auth/login');
     
-    // Xử lý lỗi 401 (Unauthorized)
+    // Xử lý lỗi 401 (Unauthorized) - đơn giản hóa vì sử dụng cookies
     if (error.response?.status === 401 && !originalRequest._retry && !isLoginRequest) {
-      // Nếu đang refresh rồi thì thêm request vào queue
-      if (isRefreshing) {
-        return new Promise((resolve, reject) => {
-          failedQueue.push({ resolve, reject });
-        })
-          .then(token => {
-            if (originalRequest && originalRequest.headers) {
-              originalRequest.headers.Authorization = `Bearer ${token}`;
-            }
-            return apiClient(originalRequest as AxiosRequestConfig);
-          })
-          .catch(err => Promise.reject(err));
-      }
-
       originalRequest._retry = true;
-      isRefreshing = true;
-
-      try {
-        handleAuthError();
-        
-        // Mặc định cho phiên đăng nhập hết hạn
-        return Promise.reject({ 
-          message: 'Phiên đăng nhập đã hết hạn, vui lòng đăng nhập lại', 
-          status: 401 
-        });
-      } catch (refreshError) {
-        processQueue(refreshError, null);
-        return Promise.reject(refreshError);
-      } finally {
-        isRefreshing = false;
-      }
+      
+      // Với cookie-based auth, không cần refresh token
+      // Chỉ cần chuyển hướng đến trang login
+      handleAuthError();
+      
+      return Promise.reject({ 
+        message: 'Phiên đăng nhập đã hết hạn, vui lòng đăng nhập lại', 
+        status: 401 
+      });
     }
 
     // Xử lý các lỗi khác

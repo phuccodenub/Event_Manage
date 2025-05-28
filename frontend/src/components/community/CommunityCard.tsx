@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { useLocation } from 'wouter';
 import type { Community } from '../../services/communityService';
@@ -40,7 +40,22 @@ const CommunityCard: React.FC<CommunityCardProps> = ({
   const isAdmin = user && user.role === 'admin';
   const isTeacher = user && user.role === 'teacher';
   const userId = user?.id || user?._id;
-  
+
+  // Reset local state khi có data mới từ server
+  useEffect(() => {
+    if (user && community.pendingRequests) {
+      const serverHasPendingRequest = community.pendingRequests.some(
+        request => request.user && request.user._id === userId && request.status === 'pending'
+      );
+      
+      // Chỉ reset local state nếu nó khác với server state
+      if (localHasPendingRequest !== null && localHasPendingRequest !== serverHasPendingRequest) {
+        console.log(`[CommunityCard] Resetting local state for ${community.name}: ${localHasPendingRequest} -> ${serverHasPendingRequest}`);
+        setLocalHasPendingRequest(null);
+      }
+    }
+  }, [community.pendingRequests, userId, localHasPendingRequest, community.name, user]);
+
   // Xử lý leader
   const leader = community.leader || (community.createdBy ? {
     _id: community.createdBy,
@@ -93,7 +108,7 @@ const CommunityCard: React.FC<CommunityCardProps> = ({
     if (!confirm('Bạn có chắc chắn muốn xóa cộng đồng này? Hành động này không thể hoàn tác.')) {
       return;
     }
-
+    
     try {
       setIsLoading(true);
       setError(null);
@@ -189,16 +204,16 @@ const CommunityCard: React.FC<CommunityCardProps> = ({
       {/* Banner với Avatar và Management Buttons */}
       <div className="h-32 bg-gradient-to-br from-orange-400 to-orange-600 relative overflow-hidden">
         {community.banner?.url && community.banner.url !== '/default-banner.png' ? (
-          <img 
+            <img 
             src={community.banner.url} 
-            alt={`${community.name} banner`}
-            className="w-full h-full object-cover"
-            onError={(e) => {
-              const target = e.target as HTMLImageElement;
-              target.style.display = 'none';
-            }}
-          />
-        ) : (
+              alt={`${community.name} banner`}
+              className="w-full h-full object-cover"
+              onError={(e) => {
+                const target = e.target as HTMLImageElement;
+                target.style.display = 'none';
+              }}
+            />
+          ) : (
           <div className="w-full h-full bg-gradient-to-br from-orange-400 to-orange-600" />
         )}
         
@@ -223,7 +238,7 @@ const CommunityCard: React.FC<CommunityCardProps> = ({
               </button>
             )}
           </div>
-        )}
+          )}
 
         {/* Status Badge */}
         <div className="absolute top-2 left-2">
@@ -235,8 +250,8 @@ const CommunityCard: React.FC<CommunityCardProps> = ({
             {isActive ? 'Hoạt động' : 'Tạm dừng'}
           </div>
         </div>
-      </div>
-
+        </div>
+        
       {/* Community Info */}
       <div className="p-4">
         {/* Avatar and Content - Clickable area for details */}
@@ -260,11 +275,11 @@ const CommunityCard: React.FC<CommunityCardProps> = ({
                   <span className="text-orange-600 font-bold text-xl">
                     {community.name.charAt(0).toUpperCase()}
                   </span>
-                </div>
-              )}
-            </div>
-          </div>
-          
+                      </div>
+                    )}
+                  </div>
+              </div>
+              
           {/* Content */}
           <div className="flex-1">
             <h3 className="font-bold text-lg text-gray-800 mb-1 line-clamp-1">{community.name}</h3>
@@ -273,9 +288,9 @@ const CommunityCard: React.FC<CommunityCardProps> = ({
             </p>
             <p className="text-gray-600 text-sm line-clamp-2 leading-relaxed">
               {community.description}
-            </p>
+              </p>
+            </div>
           </div>
-        </div>
 
         {/* Stats */}
         <div className="flex items-center justify-between mb-3 text-sm text-gray-500">
