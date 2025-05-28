@@ -45,16 +45,15 @@ const STATUS_OPTIONS = {
 };
 
 const CATEGORIES = {
-  all: 'Tất cả loại',
-  academic: 'Học thuật',
-  cultural: 'Văn hóa'
+  all: 'Tất cả phạm vi',
+  general: 'Chung',
+  community: 'Cộng đồng'
 };
 
 const Events: React.FC = () => {
   const { user } = useAuth();
-  const { events, loading, error } = useEvents();
-  const [filteredEvents, setFilteredEvents] = useState<Event[]>([]);
-  const [filters, setFilters] = useState({
+  const { events, loading, error, fetchEvents } = useEvents();
+  const [filteredEvents, setFilteredEvents] = useState<Event[]>([]);  const [filters, setFilters] = useState({
     search: '',
     category: 'all',
     eventType: 'all',
@@ -67,16 +66,22 @@ const Events: React.FC = () => {
   const [showFilters, setShowFilters] = useState(false);
   const [, navigate] = useLocation();
 
+  // Fetch events khi component mount nếu chưa có dữ liệu
+  useEffect(() => {
+    if (events.length === 0 && !loading) {
+      fetchEvents();
+    }
+  }, [events.length, loading, fetchEvents]);
+
   useEffect(() => {
     if (events) {
       setFilteredEvents(events);
     }
   }, [events]);
-
   const applyFilters = () => {
     let filtered = [...events].map(event => ({
       ...event,
-      status: event.eventDays ? getEventStatusFromEventDays(event.eventDays) : 'upcoming'
+      status: event.eventDays ? getEventStatusFromEventDays(event.eventDays) as Event['status'] : 'upcoming' as Event['status']
     }));
 
     if (filters.search) {
@@ -87,10 +92,8 @@ const Events: React.FC = () => {
         event.location?.physical?.address?.toLowerCase().includes(searchQuery) ||
         event.department?.name?.toLowerCase().includes(searchQuery)
       );
-    }
-
-    if (filters.category !== 'all') {
-      filtered = filtered.filter(event => event.category === filters.category);
+    }    if (filters.category !== 'all') {
+      filtered = filtered.filter(event => event.eventScope === filters.category);
     }
 
     if (filters.eventType !== 'all') {
@@ -152,7 +155,7 @@ const Events: React.FC = () => {
           <div className="relative bg-orange-600 text-white py-16 overflow-hidden">
             <div className="absolute inset-0 opacity-10">
               <div className="absolute inset-0" style={{
-                backgroundImage: "url(\"data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23000000' fill-opacity='1'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E\")",
+                backgroundImage: "url(\"data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23000000' fill-opacity='1'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2V6h4V4H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E\")",
               }} />
             </div>
             <div className="container mx-auto px-4 relative">
@@ -209,11 +212,9 @@ const Events: React.FC = () => {
                           <option key={value} value={value}>{label}</option>
                         ))}
                       </select>
-                    </div>
-
-                    {/* Category */}
+                    </div>                    {/* Category */}
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Loại</label>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Phạm vi</label>
                       <select
                         value={filters.category}
                         onChange={(e) => setFilters(prev => ({ ...prev, category: e.target.value }))}
@@ -242,8 +243,7 @@ const Events: React.FC = () => {
                     {/* Date Range */}
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1">Ngày</label>
-                      <div className="flex flex-col sm:flex-row gap-2">
-                        <DatePicker
+                      <div className="flex flex-col sm:flex-row gap-2">                        <DatePicker
                           selected={filters.dateRange.start}
                           onChange={(date) => setFilters(prev => ({ ...prev, dateRange: { ...prev.dateRange, start: date } }))}
                           selectsStart
@@ -259,7 +259,7 @@ const Events: React.FC = () => {
                           selectsEnd
                           startDate={filters.dateRange.start}
                           endDate={filters.dateRange.end}
-                          minDate={filters.dateRange.start}
+                          minDate={filters.dateRange.start || undefined}
                           dateFormat="dd/MM/yyyy"
                           placeholderText="Đến ngày"
                           className="w-full px-4 py-2 bg-gray-50 border border-gray-200 rounded-lg focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 transition-all"
@@ -390,26 +390,39 @@ const Events: React.FC = () => {
                             <span>{event.eventDays ? formatEventTimeDisplay(event.eventDays) : 'Chưa xác định'}</span>
                           </div>
                           
-                          {/* Location - show only one based on event type */}
-                          {(event.eventType === 'offline' || event.eventType === 'hybrid') && 
-                            event.location?.physical?.address && (
-                              <div className="flex items-center gap-2">
-                                <IoLocationOutline className="text-orange-500 w-4 h-4 flex-shrink-0" />
-                                <span className="truncate">
-                                  {event.location.physical.room 
-                                    ? `${event.location.physical.address} - ${event.location.physical.room}`
-                                    : event.location.physical.address}
-                                </span>
-                              </div>
-                          )}
-                          
-                          {(event.eventType === 'online' || event.eventType === 'hybrid') && 
-                            event.location?.online?.platform && (
-                              <div className="flex items-center gap-2">
-                                <IoDesktopOutline className="text-orange-500 w-4 h-4 flex-shrink-0" />
-                                <span className="truncate">{event.location.online.platform}</span>
-                              </div>
-                          )}
+                          {/* Location and Post Time Row */}
+                          <div className="flex items-center justify-between gap-4">
+                            {/* Location - show only one based on event type */}
+                            <div className="flex items-center gap-2 flex-1 min-w-0">
+                              {(event.eventType === 'offline' || event.eventType === 'hybrid') && 
+                                event.location?.physical?.address ? (
+                                  <>
+                                    <IoLocationOutline className="text-orange-500 w-4 h-4 flex-shrink-0" />
+                                    <span className="truncate">
+                                      {event.location.physical.room 
+                                        ? `${event.location.physical.address} - ${event.location.physical.room}`
+                                        : event.location.physical.address}
+                                    </span>
+                                  </>
+                                ) : (event.eventType === 'online' || event.eventType === 'hybrid') && 
+                                  event.location?.online?.platform ? (
+                                  <>
+                                    <IoDesktopOutline className="text-orange-500 w-4 h-4 flex-shrink-0" />
+                                    <span className="truncate">{event.location.online.platform}</span>
+                                  </>
+                                ) : (
+                                  <>
+                                    <IoLocationOutline className="text-orange-500 w-4 h-4 flex-shrink-0" />
+                                    <span className="text-gray-400">Chưa xác định địa điểm</span>
+                                  </>
+                                )}
+                            </div>
+                            
+                            {/* Post Time */}
+                            <div className="text-xs text-gray-400 flex-shrink-0">
+                              {event.createdAt ? formatDate(event.createdAt) : ''}
+                            </div>
+                          </div>
                           
                           <div className="flex items-center gap-2">
                             <IoPeopleOutline className="text-orange-500 w-4 h-4 flex-shrink-0" />
@@ -417,13 +430,10 @@ const Events: React.FC = () => {
                           </div>
                         </div>
                         
-                        {/* Right side - Department and Time */}
-                        <div className="flex flex-col items-end gap-2 text-sm">
-                          <div className="text-gray-500 text-right">
+                        {/* Bottom section - Department and Status */}
+                        <div className="flex justify-between items-center mt-3 pt-3 border-t border-gray-100">
+                          <div className="text-sm text-gray-500">
                             <div className="font-medium">{event.department?.name || 'Chưa xác định'}</div>
-                            <div className="text-xs">
-                              {event.createdAt ? formatDate(event.createdAt) : ''}
-                            </div>
                           </div>
                           
                           {/* Status badge */}

@@ -563,33 +563,46 @@ const Home: React.FC = () => {
                     </span>
                   )}
                 </div>
-                <span className="text-xs text-gray-500 hover:text-orange-600 cursor-pointer whitespace-nowrap flex-shrink-0 ml-2">
-                  {event.createdAt ? formatTimeAgo(event.createdAt) : ''}
-                </span>
               </div>
               
-              {/* Location info on separate line */}
-              <div className="flex items-center gap-3 flex-wrap">
-                {(event.eventType === 'offline' || event.eventType === 'hybrid') && 
-                  event.location?.physical?.address && (
-                    <div className="flex items-center space-x-1">
-                      <IoLocationOutline className="text-orange-500 w-3 h-3" />
-                      <span className="text-xs text-gray-500 truncate max-w-[200px]">
-                        {event.location.physical.room 
-                          ? `${event.location.physical.address} - ${event.location.physical.room}`
-                          : event.location.physical.address}
-                      </span>
-                    </div>
-                )}
-                {(event.eventType === 'online' || event.eventType === 'hybrid') && 
-                  event.location?.online?.platform && (
-                    <div className="flex items-center space-x-1">
-                      <IoDesktopOutline className="text-orange-500 w-3 h-3" />
-                      <span className="text-xs text-gray-500 truncate">
-                        {event.location.online.platform}
-                      </span>
-                    </div>
-                )}
+              {/* Location info and Post Time on same line */}
+              <div className="flex items-center justify-between gap-4">
+                <div className="flex items-center gap-3 flex-wrap flex-1 min-w-0">
+                  {(event.eventType === 'offline' || event.eventType === 'hybrid') && 
+                    event.location?.physical?.address && (
+                      <div className="flex items-center space-x-1">
+                        <IoLocationOutline className="text-orange-500 w-3 h-3" />
+                        <span className="text-xs text-gray-500 truncate max-w-[200px]">
+                          {event.location.physical.room 
+                            ? `${event.location.physical.address} - ${event.location.physical.room}`
+                            : event.location.physical.address}
+                        </span>
+                      </div>
+                  )}
+                  {(event.eventType === 'online' || event.eventType === 'hybrid') && 
+                    event.location?.online?.platform && (
+                      <div className="flex items-center space-x-1">
+                        <IoDesktopOutline className="text-orange-500 w-3 h-3" />
+                        <span className="text-xs text-gray-500 truncate">
+                          {event.location.online.platform}
+                        </span>
+                      </div>
+                  )}
+                  {/* Show default location if no location is set */}
+                  {!(event.eventType === 'offline' || event.eventType === 'hybrid') || !event.location?.physical?.address ? 
+                    !(event.eventType === 'online' || event.eventType === 'hybrid') || !event.location?.online?.platform ? (
+                      <div className="flex items-center space-x-1">
+                        <IoLocationOutline className="text-orange-500 w-3 h-3" />
+                        <span className="text-xs text-gray-400">Chưa xác định địa điểm</span>
+                      </div>
+                    ) : null : null
+                  }
+                </div>
+                
+                {/* Post Time */}
+                <span className="text-xs text-gray-400 hover:text-orange-600 cursor-pointer whitespace-nowrap flex-shrink-0">
+                  {event.createdAt ? formatTimeAgo(event.createdAt) : ''}
+                </span>
               </div>
             </div>
           </div>

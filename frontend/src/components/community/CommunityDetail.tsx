@@ -74,7 +74,7 @@ const CommunityDetail: React.FC = () => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [formData, setFormData] = useState<FormData>(initialFormData);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [activeTab, setActiveTab] = useState<'about' | 'events' | 'discussions'>('about');
+  const [activeTab, setActiveTab] = useState<'about' | 'events' | 'discussions'>('events');
   const [showEventForm, setShowEventForm] = useState(false);
   const [showCreateEventModal, setShowCreateEventModal] = useState(false);
   const [showDiscussionForm, setShowDiscussionForm] = useState(false);

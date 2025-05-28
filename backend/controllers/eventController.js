@@ -74,7 +74,6 @@ exports.getAllEvents = async (req, res, next) => {
       .populate('department', 'name')
       .populate('participants', 'fullName avatar')
       .populate('collaborators.user', 'fullName avatar')
-      .populate('speakers', 'fullName avatar')
       .populate('community', 'name description avatar banner')
       .populate('creator', 'fullName avatar email')
       .sort({ createdAt: -1 });
@@ -98,7 +97,6 @@ exports.getEventById = async (req, res, next) => {
       .populate('department', 'name')
       .populate('participants', 'fullName avatar')
       .populate('collaborators.user', 'fullName avatar')
-      .populate('speakers', 'fullName avatar')
       .populate('community', 'name description avatar banner')
       .populate('creator', 'fullName avatar email')
       .lean();
@@ -2149,7 +2147,6 @@ exports.getCommunityEvents = async (req, res, next) => {
       .populate('department', 'name')
       .populate('participants', 'fullName avatar')
       .populate('collaborators.user', 'fullName avatar')
-      .populate('speakers', 'fullName avatar')
       .populate('community', 'name description avatar banner')
       .populate('creator', 'fullName avatar email')
       .sort({ createdAt: -1 });
