@@ -33,6 +33,9 @@ const CommunityCard: React.FC<CommunityCardProps> = ({
   const [, navigate] = useLocation();
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  
+  // Local state để track join request status
+  const [localHasPendingRequest, setLocalHasPendingRequest] = useState<boolean | null>(null);
 
   const isAdmin = user && user.role === 'admin';
   const isTeacher = user && user.role === 'teacher';
@@ -60,9 +63,12 @@ const CommunityCard: React.FC<CommunityCardProps> = ({
     return member.user && member.user._id === userId;
   });
 
-  const hasPendingRequest = user && community.pendingRequests?.some(
-    request => request.user && request.user._id === userId && request.status === 'pending'
-  );
+  // Sử dụng local state nếu có, nếu không thì dùng data từ server
+  const hasPendingRequest = localHasPendingRequest !== null 
+    ? localHasPendingRequest
+    : user && community.pendingRequests?.some(
+        request => request.user && request.user._id === userId && request.status === 'pending'
+      );
 
   // Xử lý isActive
   const isActive = community.isActive !== undefined ? community.isActive : 
@@ -114,13 +120,51 @@ const CommunityCard: React.FC<CommunityCardProps> = ({
     try {
       setIsLoading(true);
       setError(null);
+      
       await communityService.requestToJoin(community._id);
-      if (onJoinRequest) {
-        onJoinRequest(community._id);
+      
+      // Cập nhật local state ngay lập tức
+      setLocalHasPendingRequest(true);
+      
+      // Gọi onUpdate để parent component sync data với server
+      if (onUpdate) {
+        onUpdate();
       }
+      
     } catch (error: any) {
       console.error('Error requesting to join:', error);
       setError(error.message || 'Có lỗi xảy ra khi gửi yêu cầu tham gia');
+      setLocalHasPendingRequest(null);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleCancelJoinRequest = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    
+    if (!confirm('Bạn có chắc chắn muốn hủy yêu cầu tham gia cộng đồng này không?')) {
+      return;
+    }
+
+    try {
+      setIsLoading(true);
+      setError(null);
+      
+      await communityService.cancelJoinRequest(community._id);
+      
+      // Cập nhật local state ngay lập tức
+      setLocalHasPendingRequest(false);
+      
+      // Gọi onUpdate để parent component sync data với server
+      if (onUpdate) {
+        onUpdate();
+      }
+      
+    } catch (error: any) {
+      console.error('Error canceling join request:', error);
+      setError(error.message || 'Có lỗi xảy ra khi hủy yêu cầu tham gia');
+      setLocalHasPendingRequest(null);
     } finally {
       setIsLoading(false);
     }
@@ -141,7 +185,7 @@ const CommunityCard: React.FC<CommunityCardProps> = ({
   };
 
   return (
-    <div className="bg-white rounded-xl shadow-md hover:shadow-lg transition-all duration-300 overflow-hidden cursor-pointer group" onClick={handleViewDetails}>
+    <div className="bg-white rounded-xl shadow-md hover:shadow-lg transition-all duration-300 overflow-hidden group">
       {/* Banner với Avatar và Management Buttons */}
       <div className="h-32 bg-gradient-to-br from-orange-400 to-orange-600 relative overflow-hidden">
         {community.banner?.url && community.banner.url !== '/default-banner.png' ? (
@@ -181,8 +225,6 @@ const CommunityCard: React.FC<CommunityCardProps> = ({
           </div>
         )}
 
-
-
         {/* Status Badge */}
         <div className="absolute top-2 left-2">
           <div className={`px-2 py-1 rounded-full text-xs font-medium ${
@@ -197,8 +239,8 @@ const CommunityCard: React.FC<CommunityCardProps> = ({
 
       {/* Community Info */}
       <div className="p-4">
-        {/* Avatar and Content */}
-        <div className="flex gap-4 mb-3">
+        {/* Avatar and Content - Clickable area for details */}
+        <div className="flex gap-4 mb-3 cursor-pointer" onClick={handleViewDetails}>
           {/* Avatar */}
           <div className="w-16 h-16 flex-shrink-0">
             <div className="w-full h-full rounded-xl bg-white border shadow-sm overflow-hidden">
@@ -287,10 +329,15 @@ const CommunityCard: React.FC<CommunityCardProps> = ({
           )}
 
           {hasPendingRequest && (
-            <div className="px-3 py-2 bg-yellow-50 text-yellow-600 rounded-lg text-sm font-medium flex items-center gap-1">
+            <button
+              onClick={handleCancelJoinRequest}
+              disabled={isLoading}
+              className="px-3 py-2 bg-yellow-50 text-yellow-600 hover:bg-yellow-100 rounded-lg transition-colors text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1"
+              title="Bấm để hủy yêu cầu tham gia"
+            >
               <IoTimeOutline />
-              Chờ duyệt
-            </div>
+              {isLoading ? 'Đang xử lý...' : 'Chờ duyệt'}
+            </button>
           )}
 
           {isMember && (

@@ -82,6 +82,17 @@ const CommunityList: React.FC = () => {
     }
   };
 
+  // Hàm load communities mà không hiển thị loading - dùng cho update sau join/cancel
+  const loadCommunitiesQuietly = async () => {
+    try {
+      const data = await communityService.getAllCommunities();
+      setCommunities(data);
+    } catch (error: any) {
+      console.error('Lỗi khi cập nhật danh sách cộng đồng:', error);
+      // Không set error để tránh hiển thị lỗi khi đang thao tác
+    }
+  };
+
   const handleSearch = async () => {
     if (!searchQuery.trim()) {
       loadCommunities();
@@ -315,11 +326,10 @@ const CommunityList: React.FC = () => {
                   <CommunityCard 
                     key={community._id} 
                     community={community} 
-                    onUpdate={loadCommunities}
+                    onUpdate={loadCommunitiesQuietly}
                     onDelete={(id) => {
                       setCommunities(prev => prev.filter(c => c._id !== id));
                     }}
-                    onJoinRequest={loadCommunities}
                     onEdit={handleEditCommunity}
                   />
                 ))}

@@ -18,6 +18,11 @@ const getAllCommunities = catchAsyncErrors(async (req, res, next) => {
 
 // Lấy chi tiết một community
 const getCommunityDetails = catchAsyncErrors(async (req, res, next) => {
+  console.log('=== GET COMMUNITY DETAILS DEBUG ===');
+  console.log('Community ID:', req.params.id);
+  console.log('User ID:', req.user?._id || 'No user');
+  console.log('Fetch timestamp:', new Date().toISOString());
+  
   // Kiểm tra ID có hợp lệ theo định dạng MongoDB không
   const isValidObjectId = mongoose.Types.ObjectId.isValid(req.params.id);
   
@@ -38,7 +43,19 @@ const getCommunityDetails = catchAsyncErrors(async (req, res, next) => {
     });
 
   if (!community) {
+    console.log('❌ Community not found');
     return next(new ErrorHandler('Không tìm thấy cộng đồng', 404));
+  }
+
+  console.log('✓ Community found:', community.name);
+  console.log('Members count:', community.members?.length || 0);
+  console.log('Pending requests count:', community.pendingRequests?.length || 0);
+  
+  if (community.pendingRequests?.length > 0) {
+    console.log('Pending requests details:');
+    community.pendingRequests.forEach((req, index) => {
+      console.log(`  ${index + 1}. User: ${req.user._id || req.user}, Status: ${req.status}`);
+    });
   }
 
   res.status(200).json({
@@ -97,21 +114,36 @@ const createCommunity = catchAsyncErrors(async (req, res, next) => {
 
 // Gửi yêu cầu tham gia community
 const requestToJoin = catchAsyncErrors(async (req, res, next) => {
+  console.log('=== REQUEST TO JOIN DEBUG ===');
+  console.log('Community ID:', req.params.id);
+  console.log('User ID:', req.user._id);
+  console.log('Timestamp:', new Date().toISOString());
+  
   // Kiểm tra ID có hợp lệ theo định dạng MongoDB không
   const isValidObjectId = mongoose.Types.ObjectId.isValid(req.params.id);
   
   if (!isValidObjectId) {
+    console.log('❌ Invalid community ID format');
     return next(new ErrorHandler('ID cộng đồng không hợp lệ', 400));
   }
 
   const community = await Community.findById(req.params.id);
 
   if (!community) {
+    console.log('❌ Community not found');
     return next(new ErrorHandler('Không tìm thấy cộng đồng', 404));
   }
 
+  console.log('✓ Community found:', community.name);
+  console.log('Members count:', community.members?.length || 0);
+  console.log('Pending requests count:', community.pendingRequests?.length || 0);
+
   // Kiểm tra xem đã là thành viên chưa
-  if (community.members.some(member => member.user.toString() === req.user._id.toString())) {
+  const isMember = community.members.some(member => member.user.toString() === req.user._id.toString());
+  console.log('Is already member?', isMember);
+  
+  if (isMember) {
+    console.log('❌ User is already a member');
     return next(new ErrorHandler('Bạn đã là thành viên của cộng đồng này', 400));
   }
 
@@ -121,19 +153,83 @@ const requestToJoin = catchAsyncErrors(async (req, res, next) => {
     request.status === 'pending'
   );
 
+  console.log('Existing pending request?', !!existingRequest);
   if (existingRequest) {
+    console.log('❌ User already has pending request:', existingRequest._id);
+    console.log('Request details:', {
+      user: existingRequest.user,
+      status: existingRequest.status,
+      date: existingRequest.requestDate
+    });
     return next(new ErrorHandler('Bạn đã gửi yêu cầu tham gia trước đó', 400));
   }
 
-  community.pendingRequests.push({
-    user: req.user._id
-  });
+  console.log('✓ Proceeding to add join request...');
 
-  await community.save();
+  // Sử dụng findByIdAndUpdate để tránh validation issues
+  const updatedCommunity = await Community.findByIdAndUpdate(
+    req.params.id,
+    {
+      $push: {
+        pendingRequests: {
+          user: req.user._id,
+          requestDate: new Date(),
+          status: 'pending'
+        }
+      }
+    },
+    { new: true, runValidators: false }
+  );
+
+  if (!updatedCommunity) {
+    console.log('❌ Failed to update community');
+    return next(new ErrorHandler('Không thể gửi yêu cầu tham gia', 500));
+  }
+
+  console.log('✅ Successfully added join request');
+  console.log('New pending requests count:', updatedCommunity.pendingRequests?.length || 0);
+  console.log('Response timestamp:', new Date().toISOString());
 
   res.status(200).json({
     success: true,
     message: 'Đã gửi yêu cầu tham gia thành công'
+  });
+});
+
+// Hủy yêu cầu tham gia community
+const cancelJoinRequest = catchAsyncErrors(async (req, res, next) => {
+  // Kiểm tra ID có hợp lệ theo định dạng MongoDB không
+  const isValidObjectId = mongoose.Types.ObjectId.isValid(req.params.id);
+  
+  if (!isValidObjectId) {
+    return next(new ErrorHandler('ID cộng đồng không hợp lệ', 400));
+  }
+
+  // Sử dụng findOneAndUpdate để xóa pending request
+  const updatedCommunity = await Community.findOneAndUpdate(
+    { 
+      _id: req.params.id,
+      'pendingRequests.user': req.user._id,
+      'pendingRequests.status': 'pending'
+    },
+    {
+      $pull: {
+        pendingRequests: {
+          user: req.user._id,
+          status: 'pending'
+        }
+      }
+    },
+    { new: true }
+  );
+
+  if (!updatedCommunity) {
+    return next(new ErrorHandler('Không tìm thấy yêu cầu tham gia để hủy', 404));
+  }
+
+  res.status(200).json({
+    success: true,
+    message: 'Đã hủy yêu cầu tham gia thành công'
   });
 });
 
@@ -170,15 +266,37 @@ const handleJoinRequest = catchAsyncErrors(async (req, res, next) => {
   }
 
   const request = community.pendingRequests.id(requestId);
-  request.status = status;
-
-  if (status === 'approved') {
-    community.members.push({
-      user: request.user
-    });
+  if (!request) {
+    return next(new ErrorHandler('Không tìm thấy yêu cầu tham gia', 404));
   }
 
-  await community.save();
+  // Cập nhật status của request
+  const updateQuery = {
+    $set: {
+      'pendingRequests.$.status': status
+    }
+  };
+
+  // Nếu approved, thêm user vào members
+  if (status === 'approved') {
+    updateQuery.$push = {
+      members: {
+        user: request.user,
+        status: 'active',
+        joinedAt: new Date()
+      }
+    };
+  }
+
+  const updatedCommunity = await Community.findOneAndUpdate(
+    { 'pendingRequests._id': requestId },
+    updateQuery,
+    { new: true, runValidators: false }
+  );
+
+  if (!updatedCommunity) {
+    return next(new ErrorHandler('Không thể xử lý yêu cầu', 500));
+  }
 
   res.status(200).json({
     success: true,
@@ -288,6 +406,7 @@ module.exports = {
   getCommunityDetails,
   createCommunity,
   requestToJoin,
+  cancelJoinRequest,
   handleJoinRequest,
   updateCommunity,
   deleteCommunity

@@ -6,6 +6,7 @@ const {
   getCommunityDetails,
   createCommunity,
   requestToJoin,
+  cancelJoinRequest,
   handleJoinRequest,
   updateCommunity,
   deleteCommunity
@@ -39,10 +40,11 @@ router.post('/new', protect, createCommunity);
 router.put('/requests/:requestId', protect, handleJoinRequest);
 
 // Routes với params
-router.get('/:id', getCommunityDetails);
+router.get('/:id', conditionalAuth, getCommunityDetails);
 router.put('/:id', protect, updateCommunity);
 router.delete('/:id', protect, deleteCommunity);
 router.post('/:id/join', protect, requestToJoin);
+router.delete('/:id/join', protect, cancelJoinRequest);
 
 // Community events - sử dụng conditionalAuth để hỗ trợ cả user có và chưa có auth
 router.get('/:communityId/events', conditionalAuth, getCommunityEvents);
