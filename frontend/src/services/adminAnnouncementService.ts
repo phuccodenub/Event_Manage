@@ -51,7 +51,7 @@ const adminAnnouncementService = {
       
       // Kiểm tra và cập nhật trạng thái dựa trên thời gian hết hạn
       return announcements.map((announcement: AdminAnnouncement) => {
-        const isExpired = new Date(announcement.expiresAt) < new Date();
+        const isExpired = new Date(announcement.expiresAt || Date.now()) < new Date();
         if (isExpired && announcement.status === 'active') {
           // Tự động cập nhật status nếu đã hết hạn
           adminAnnouncementService.updateStatus(announcement._id, 'expired');

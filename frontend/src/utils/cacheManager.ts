@@ -44,7 +44,7 @@ class CacheManager {
    */
   private cleanupMemoryCache(): void {
     const now = Date.now();
-    for (const [key, item] of this.memoryCache) {
+    for (const [key, item] of Array.from(this.memoryCache.entries())) {
       if (this.isExpired(item)) {
         this.memoryCache.delete(key);
       }
@@ -147,8 +147,8 @@ class CacheManager {
    */
   clearByTags(tags: string[]): void {
     // Clear from memory cache
-    for (const [key, item] of this.memoryCache) {
-      if (item.tags.some(tag => tags.includes(tag))) {
+    for (const [key, item] of Array.from(this.memoryCache.entries())) {
+      if (item.tags.some((tag: string) => tags.includes(tag))) {
         this.memoryCache.delete(key);
       }
     }

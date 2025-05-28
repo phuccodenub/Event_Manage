@@ -22,6 +22,7 @@ import { useEvents } from '../context/EventContext';
 import JoinEventButton from '../components/JoinEventButton';
 import CollaborateEventButton from '../components/CollaborateEventButton';
 import { formatDescriptionWithLinks } from '@/utils/linkUtils';
+import { getSafeAvatarUrl } from '@/utils/avatarUtils';
 import { UserIcon } from '@heroicons/react/outline';
 import LoadingSpinner from '../components/LoadingSpinner';
 import { 
@@ -32,6 +33,7 @@ import {
   formatEventTimeDisplay,
   formatDate
 } from '../utils/dateUtils';
+import { FiPlus, FiRefreshCw, FiClock, FiMapPin, FiEdit2, FiTrash2, FiMoreHorizontal } from 'react-icons/fi';
 
 // Define cache keys
 const CACHE_KEYS = {
@@ -101,7 +103,7 @@ const Home: React.FC = () => {
       }
 
       // If neither are upcoming, sort by creation date (newest first)
-      return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+      return new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime();
     });
   };
 
@@ -190,11 +192,11 @@ const Home: React.FC = () => {
           return b.priority - a.priority;
         }
         // Then by creation date
-        return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+        return new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime();
       });
 
       // Ensure participants are mapped correctly
-      const formattedEvents = fetchedEvents.map(event => ({
+      const formattedEvents = fetchedEvents.map((event: any) => ({
         ...event,
         participants: event.participants.map((p: any) => 
           typeof p === 'string' ? p : p._id.toString()
@@ -334,7 +336,7 @@ const Home: React.FC = () => {
           }}
           className="p-1 hover:bg-gray-100 rounded-full transition-colors"
         >
-          <BsThreeDotsVertical className="text-gray-600" />
+          <FiMoreHorizontal className="text-gray-600" />
         </button>
 
         {activeDropdown === item._id && (
@@ -367,7 +369,7 @@ const Home: React.FC = () => {
                     }}
                     className="w-full px-4 py-2 text-left text-sm hover:bg-gray-100 flex items-center gap-2"
                   >
-                    <MdEdit className="text-blue-600" />
+                    <FiEdit2 className="text-blue-600" />
                     <span>Edit {type}</span>
                   </button>
                   
@@ -380,7 +382,7 @@ const Home: React.FC = () => {
                     }}
                     className="w-full px-4 py-2 text-left text-sm hover:bg-gray-100 text-red-600 flex items-center gap-2"
                   >
-                    <MdDelete className="text-red-600" />
+                    <FiTrash2 className="text-red-600" />
                     <span>Delete {type}</span>
                   </button>
                 </>
@@ -428,9 +430,8 @@ const Home: React.FC = () => {
       }`}
     >
       <div className="flex items-center justify-between mb-4">
-        <div className="flex items-center">
-          {announcement.creator?.avatar?.url ? (
-            <img src={announcement.creator?.avatar.url} alt="" className="w-10 h-10 rounded-full object-cover flex-shrink-0" />
+        <div className="flex items-center">          {getSafeAvatarUrl(announcement.creator?.avatar) ? (
+            <img src={getSafeAvatarUrl(announcement.creator?.avatar)} alt="" className="w-10 h-10 rounded-full object-cover flex-shrink-0" />
           ) : (
             <div className="w-10 h-10 rounded-full bg-gray-100 flex items-center justify-center flex-shrink-0">
               <UserIcon className="w-6 h-6 text-gray-400" />
@@ -475,19 +476,15 @@ const Home: React.FC = () => {
         <div className="mt-4 mb-4">
           <EventImageGrid 
             images={announcement.images}
-            title={announcement.title}
-            event={{
-              title: announcement.title,
-              description: announcement.content,
-              organizer: {
-                fullName: announcement.creator.fullName,
-                avatar: announcement.creator.avatar,
-              },
-              createdAt: new Date(announcement.createdAt),
-              status: announcement.status,
-              category: announcement.category,
-              priority: announcement.priority
-            }}
+            title={announcement.title}              event={{
+                title: announcement.title,
+                description: announcement.content,
+                organizer: {
+                  fullName: announcement.creator.fullName,
+                  avatar: getSafeAvatarUrl(announcement.creator.avatar),
+                },
+                createdAt: new Date(announcement.createdAt)
+              }}
           />
         </div>
       )}
@@ -539,9 +536,8 @@ const Home: React.FC = () => {
               const target = e.target as HTMLImageElement;
               target.src = '/default-avatar.png';
             }}
-          /> */}
-          {event.organizer?.avatar?.url ? (
-            <img src={event.organizer?.avatar.url} alt="" className="w-10 h-10 rounded-full object-cover flex-shrink-0" />
+          /> */}          {getSafeAvatarUrl(event.organizer?.avatar) ? (
+            <img src={getSafeAvatarUrl(event.organizer?.avatar)} alt="" className="w-10 h-10 rounded-full object-cover flex-shrink-0" />
           ) : (
             <div className="w-10 h-10 rounded-full bg-gray-100 flex items-center justify-center flex-shrink-0">
               <UserIcon className="w-6 h-6 text-gray-400" />
@@ -634,16 +630,9 @@ const Home: React.FC = () => {
               description: event.description,
               organizer: {
                 fullName: event.organizer.fullName,
-                avatar: event.organizer.avatar,
+                avatar: getSafeAvatarUrl(event.organizer.avatar),
               },
-              department: event.department,
-              startDate: event.startDate,
-              endDate: event.endDate,
-              createdAt: event.createdAt,
-              eventType: event.eventType,
-              location: event.location,
-              participants: event.participants,
-              status: event.status
+              createdAt: event.createdAt ? new Date(event.createdAt) : new Date()
             }}
           />
         )}
@@ -662,12 +651,15 @@ const Home: React.FC = () => {
               <JoinEventButton 
                 eventId={event._id}
                 participants={event.participants || []}
-                startDate={event.startDate}
-                endDate={event.endDate}
+                startDate={typeof event.startDate === "string" ? new Date(event.startDate) : event.startDate}
+                endDate={typeof event.endDate === "string" ? new Date(event.endDate) : event.endDate}
                 status={event.status}
                 creatorId={event.creator?._id}
                 organizerId={event.organizer?._id}
-                eventDays={event.eventDays}
+                eventDays={event.eventDays?.map(day => ({
+                  date: typeof day.date === 'string' ? day.date : day.date.toISOString(),
+                  sessions: day.sessions
+                }))}
                 eventTitle={event.title}
               />
               
@@ -675,7 +667,16 @@ const Home: React.FC = () => {
                 <CollaborateEventButton 
                   eventId={event._id}
                   status={event.status}
-                  collaborators={event.collaborators || []}
+                  collaborators={event.collaborators?.map(collaborator => {
+                    if (typeof collaborator === 'string') {
+                      return collaborator;
+                    }
+                    return {
+                      _id: collaborator._id || '',
+                      user: typeof collaborator.user === 'string' ? collaborator.user : undefined,
+                      status: collaborator.status
+                    };
+                  }) || []}
                   organizerId={event.organizer?._id}
                   creatorId={event.creator?._id}
                 />
@@ -722,9 +723,8 @@ const Home: React.FC = () => {
           )}
 
           <div className="bg-white rounded-lg shadow-sm p-4 mb-4">
-            <div className="flex items-start space-x-2">
-              {user?.avatar?.url ? (
-                <img src={user.avatar.url} alt="" className="w-12 h-12 rounded-full object-cover flex-shrink-0" />
+            <div className="flex items-start space-x-2">              {getSafeAvatarUrl(user?.avatar) ? (
+                <img src={getSafeAvatarUrl(user?.avatar)} alt="" className="w-12 h-12 rounded-full object-cover flex-shrink-0" />
               ) : (
                 <div className="w-12 h-12 rounded-full bg-gray-100 flex items-center justify-center flex-shrink-0">
                   <UserIcon className="w-6 h-6 text-gray-400" />
@@ -794,9 +794,6 @@ const Home: React.FC = () => {
           setIsModalOpen(false);
           setError(null);
         }}
-        onSubmit={handlePostEvent}
-        isLoading={isLoading}
-        error={error}
       />
 
       <EditEventModal

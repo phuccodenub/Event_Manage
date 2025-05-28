@@ -8,6 +8,7 @@ import JoinEventButton from '../components/JoinEventButton';
 import EventImageGrid from '../components/EventImageGrid';
 import { formatTimeAgo } from '@/utils/timeUtils';
 import { formatDescriptionWithLinks } from '@/utils/linkUtils';
+import { getSafeAvatarUrl } from '@/utils/avatarUtils';
 import LoadingSpinner from '../components/LoadingSpinner';
 import { 
   IoBriefcaseOutline, IoCalendarOutline, IoPeopleOutline, 
@@ -41,7 +42,7 @@ interface DepartmentData {
 
 const DepartmentDetail = () => {
   const { id } = useParams();
-  const { departmentEvents, fetchDepartmentEvents, loading: eventsLoading } = useEvents();
+  const { departmentEvents, fetchDepartmentEvents, loading: eventsLoading, updateEventParticipants } = useEvents();
   const { user } = useAuth();
   const [activeTab, setActiveTab] = useState('events');
   const [isFollowing, setIsFollowing] = useState(false);
@@ -212,16 +213,10 @@ const DepartmentDetail = () => {
               title: event.title,
               description: event.description,
               organizer: {
-                fullName: event.organizer?.fullName || '',
-                avatar: event.organizer?.avatar,
+                fullName: event.organizer.fullName,
+                avatar: getSafeAvatarUrl(event.organizer.avatar),
               },
-              createdAt: new Date(event.createdAt),
-              startDate: event.startDate,
-              endDate: event.endDate,
-              eventType: event.mode,
-              location: event.location,
-              participants: event.participants,
-              status: event.status
+              createdAt: new Date(event.createdAt || Date.now())
             }}
           />
         )}
@@ -239,10 +234,14 @@ const DepartmentDetail = () => {
                 endDate={event.endDate}
                 status={event.status}
                 onJoinSuccess={() => {
-                  updateEventParticipants(event._id, user?._id, true);
+                  if (user?._id) {
+                    updateEventParticipants(event._id, user._id, true);
+                  }
                 }}
                 onLeaveSuccess={() => {
-                  updateEventParticipants(event._id, user?._id, false);
+                  if (user?._id) {
+                    updateEventParticipants(event._id, user._id, false);
+                  }
                 }}
               />
               <button className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200">

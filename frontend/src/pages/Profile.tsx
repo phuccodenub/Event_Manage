@@ -13,6 +13,9 @@ import { User } from '../types';
 import { useAuth } from '../context/AuthContext';
 import Certificate from '../components/Certificate';
 import certificateService from '../services/certificateService';
+import { formatDistanceToNow } from 'date-fns';
+import { vi } from 'date-fns/locale';
+import { getSafeAvatarUrl } from '@/utils/avatarUtils';
 
 // Kiểu dữ liệu cho chứng nhận
 interface Certificate {
@@ -255,10 +258,10 @@ const Profile = () => {
                 {/* Avatar */}
                 <div className="relative">
                   <div className="w-32 h-32 rounded-xl border-4 border-white shadow-lg overflow-hidden">
-                    {user?.avatar?.url ? (
+                    {getSafeAvatarUrl(user?.avatar) ? (
                       <img 
-                        src={user.avatar.url} 
-                        alt={user.fullName || 'User avatar'}
+                        src={getSafeAvatarUrl(user?.avatar)} 
+                        alt={user?.fullName || 'User avatar'}
                         className="w-full h-full object-cover"
                       />
                     ) : (

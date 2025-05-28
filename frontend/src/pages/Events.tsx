@@ -112,7 +112,7 @@ const Events: React.FC = () => {
       });
     }
 
-    setFilteredEvents(filtered);
+    setFilteredEvents(filtered as Event[]);
   };
 
   useEffect(() => {
@@ -259,7 +259,7 @@ const Events: React.FC = () => {
                           selectsEnd
                           startDate={filters.dateRange.start}
                           endDate={filters.dateRange.end}
-                          minDate={filters.dateRange.start}
+                          minDate={filters.dateRange.start || undefined}
                           dateFormat="dd/MM/yyyy"
                           placeholderText="Đến ngày"
                           className="w-full px-4 py-2 bg-gray-50 border border-gray-200 rounded-lg focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 transition-all"

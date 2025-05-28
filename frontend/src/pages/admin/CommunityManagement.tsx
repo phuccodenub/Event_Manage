@@ -195,7 +195,7 @@ const CommunityManagement: React.FC = () => {
                             </span>
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                            {new Date(community.createdAt).toLocaleDateString('vi-VN')}
+                            {new Date(community.createdAt || Date.now()).toLocaleDateString('vi-VN')}
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                             <a

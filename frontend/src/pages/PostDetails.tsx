@@ -16,6 +16,7 @@ import JoinEventButton from '../components/JoinEventButton';
 import CollaborateEventButton from '../components/CollaborateEventButton';
 import { useEvents } from '../context/EventContext';
 import { formatDescriptionWithLinks } from '@/utils/linkUtils';
+import { getSafeAvatarUrl } from '@/utils/avatarUtils';
 import Certificate from '../components/Certificate';
 import { UserIcon } from '@heroicons/react/outline';
 import CollaboratorsList from '../components/CollaboratorsList';
@@ -85,7 +86,14 @@ const PostDetails: React.FC = () => {
   useEffect(() => {
     if (post && isEvent(post) && post.participants && post.collaborators) {
       setCurrentParticipants(post.participants);
-      setCurrentCollaborators(post.collaborators);
+      // Convert collaborators to string array for currentCollaborators state
+      const collaboratorIds = post.collaborators.map(collaborator => {
+        if (typeof collaborator === 'string') {
+          return collaborator;
+        }
+        return collaborator._id || '';
+      }).filter(id => id !== '');
+      setCurrentCollaborators(collaboratorIds);
     }
   }, [post]);
 
@@ -356,11 +364,11 @@ const PostDetails: React.FC = () => {
             <div className="flex items-center gap-6 mt-3 text-sm text-gray-600">
               <div className="flex items-center gap-2">
                 <BsCalendarEvent className="text-orange-500" />
-                <span>Bắt đầu: {new Date(post.startDate).toLocaleString('vi-VN')}</span>
+                <span>Bắt đầu: {new Date(post.startDate || Date.now()).toLocaleString('vi-VN')}</span>
               </div>
               <div className="flex items-center gap-2">
                 <BsCalendarCheck className="text-orange-500" />
-                <span>Kết thúc: {new Date(post.endDate).toLocaleString('vi-VN')}</span>
+                <span>Kết thúc: {new Date(post.endDate || Date.now()).toLocaleString('vi-VN')}</span>
               </div>
             </div>
           </div>
@@ -402,13 +410,9 @@ const PostDetails: React.FC = () => {
                 onLeaveSuccess={() => handleParticipantUpdate(false)}
                 creatorId={post.creator?._id}
                 organizerId={post.organizer?._id}
-<<<<<<< Updated upstream
               />
               
               {/* Collaborator Button */}
-=======
-              />                {/* Collaborator Button */}
->>>>>>> Stashed changes
               {user && post && post.status !== 'cancelled' && post.status !== 'completed' && 
                 isEvent(post) && (
                   <CollaborateEventButton 
@@ -418,7 +422,6 @@ const PostDetails: React.FC = () => {
                     collaborators={currentCollaborators}
                     startDate={typeof post.startDate === 'string' ? new Date(post.startDate) : post.startDate}
                     endDate={typeof post.endDate === 'string' ? new Date(post.endDate) : post.endDate}
-                    setupTime={post.setupTime}
                     onJoinSuccess={() => handleCollaboratorUpdate(true)}
                     onLeaveSuccess={() => handleCollaboratorUpdate(false)}
                     organizerId={post.organizer?._id}
@@ -575,7 +578,7 @@ const EventSidebar: React.FC<EventSidebarProps> = ({ event, currentParticipants,
   }, [event._id, fetchParticipants, fetchCollaborators]);
 
   // Check if the event has ended to show certificate section
-  const isEventEnded = new Date(event.endDate) < new Date();
+  const isEventEnded = new Date(event.endDate || Date.now()) < new Date();
   const isUserParticipant = user && user._id ? currentParticipants.includes(user._id) : false;
   const isUserCollaborator = user && user._id ? currentCollaborators.includes(user._id) : false;
   
@@ -643,7 +646,6 @@ const EventSidebar: React.FC<EventSidebarProps> = ({ event, currentParticipants,
                 collaborators={currentCollaborators}
                 startDate={typeof event.startDate === 'string' ? new Date(event.startDate) : event.startDate}
                 endDate={typeof event.endDate === 'string' ? new Date(event.endDate) : event.endDate}
-                setupTime={event.setupTime}
                 onJoinSuccess={() => handleCollaboratorUpdate(true)}
                 onLeaveSuccess={() => handleCollaboratorUpdate(false)}
                 organizerId={event.organizer?._id}
@@ -740,8 +742,8 @@ const EventSidebar: React.FC<EventSidebarProps> = ({ event, currentParticipants,
           {currentParticipantList.length > 0 ? (
             currentParticipantList.map((participant) => (
               <div key={participant._id} className="flex items-center gap-3">
-                {participant.avatar?.url ? (
-                  <img src={participant.avatar.url} alt="" className="w-10 h-10 rounded-full object-cover flex-shrink-0" />
+                {getSafeAvatarUrl(participant.avatar) ? (
+                  <img src={getSafeAvatarUrl(participant.avatar)} alt="" className="w-10 h-10 rounded-full object-cover flex-shrink-0" />
                 ) : (
                   <div className="w-10 h-10 rounded-full bg-gray-100 flex items-center justify-center flex-shrink-0">
                     <UserIcon className="w-6 h-6 text-gray-400" />

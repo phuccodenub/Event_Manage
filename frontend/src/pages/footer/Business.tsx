@@ -165,8 +165,8 @@ const Business: React.FC = () => {
                     <div className="text-gray-500">VNĐ/tháng</div>
                   </div>
                   <ul className="space-y-4 mb-8 min-h-[280px]">
-                    {plan.features.map((feature, idx) => (
-                      <li key={idx} className="flex items-start gap-3">
+                    {plan.features.map((feature: string, index: number) => (
+                      <li key={index} className="flex items-start gap-3">
                         <IoCheckmarkCircle className="text-orange-500 text-xl flex-shrink-0 mt-0.5" />
                         <span className="text-gray-600">{feature}</span>
                       </li>
@@ -230,7 +230,12 @@ const Business: React.FC = () => {
   );
 };
 
-const ServiceCard = ({ icon: Icon, title, description, features }) => (
+const ServiceCard = ({ icon: Icon, title, description, features }: {
+  icon: any;
+  title: string;
+  description: string;
+  features: string[];
+}) => (
   <div className="bg-white rounded-xl p-8 shadow-sm hover:shadow-xl transition-all border border-gray-100">
     <div className="w-14 h-14 bg-orange-100 rounded-xl flex items-center justify-center mb-6">
       <Icon className="w-7 h-7 text-orange-600" />
@@ -238,7 +243,7 @@ const ServiceCard = ({ icon: Icon, title, description, features }) => (
     <h3 className="text-xl font-bold mb-3">{title}</h3>
     <p className="text-gray-600 mb-6">{description}</p>
     <ul className="space-y-3">
-      {features.map((feature, index) => (
+      {features.map((feature: string, index: number) => (
         <li key={index} className="flex items-center gap-2 text-gray-600">
           <span className="w-1.5 h-1.5 bg-orange-600 rounded-full"></span>
           {feature}

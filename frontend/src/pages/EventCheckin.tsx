@@ -87,6 +87,12 @@ const MenuDropdown = ({
   position,
   onDeleteCheckin,
   onDeleteAllCheckins
+}: {
+  isOpen: boolean;
+  onClose: () => void;
+  position: { x: number; y: number };
+  onDeleteCheckin: () => void;
+  onDeleteAllCheckins: () => void;
 }) => {
   if (!isOpen) return null;
   
@@ -454,7 +460,7 @@ const EventCheckin = () => {
   // Check if user has access to the check-in page
   const isUserCollaborator = user && user._id && event.collaborators ? 
     event.collaborators.some(
-      collaboratorId => collaboratorId?.toString() === user._id?.toString()
+      (collaboratorId: any) => collaboratorId?.toString() === user._id?.toString()
     ) : false;
 
   const canAccessCheckin = 

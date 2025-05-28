@@ -20,9 +20,10 @@ interface FilterState {
   search: string;
   status: string;
   type: string;
-  department: string;  dateRange: {
-    start: Date | undefined;
-    end: Date | undefined;
+  department: string;
+  dateRange: {
+    start: Date | null;
+    end: Date | null;
   };
 }
 
@@ -93,9 +94,10 @@ const EventManagement = () => {
     search: '',
     status: 'all',
     type: 'all',
-    department: 'all',    dateRange: {
-      start: undefined,
-      end: undefined
+    department: 'all',
+    dateRange: {
+      start: null,
+      end: null
     }
   });
   const [selectedEvent, setSelectedEvent] = useState<Event | null>(null);
@@ -237,7 +239,7 @@ const EventManagement = () => {
               selectsEnd
               startDate={filters.dateRange.start}
               endDate={filters.dateRange.end}
-              minDate={filters.dateRange.start}
+              minDate={filters.dateRange.start || undefined}
               dateFormat="dd/MM/yyyy"
               placeholderText="Đến ngày"
               className="w-full px-3 py-2 border rounded-lg"
@@ -330,11 +332,11 @@ const EventManagement = () => {
                   <td className={`px-6 py-4 ${COLUMN_WIDTHS.time}`}>
                     <div className="space-y-1">
                       <div className="flex items-center gap-1 text-gray-600">
-                        <ClockIcon className="h-4 w-4 text-orange-500" />                        {event.startDate ? formatDateTime(event.startDate) : 'N/A'}
+                        <ClockIcon className="h-4 w-4 text-orange-500" />                        {event.startDate ? formatDateTime(typeof event.startDate === 'string' ? event.startDate : event.startDate.toISOString()) : 'N/A'}
                       </div>
                       <div className="flex items-center gap-1 text-gray-600">
                         <ArrowRightIcon className="h-4 w-4 text-orange-500" />
-                        {event.endDate ? formatDateTime(event.endDate) : 'N/A'}
+                        {event.endDate ? formatDateTime(typeof event.endDate === 'string' ? event.endDate : event.endDate.toISOString()) : 'N/A'}
                       </div>
                     </div>
                   </td>
@@ -429,7 +431,6 @@ const EventManagement = () => {
           setIsDeleteModalOpen(false);
           setSelectedEvent(null);
         }}
-        onConfirm={handleDeleteEvent}
         event={selectedEvent}
       />
 

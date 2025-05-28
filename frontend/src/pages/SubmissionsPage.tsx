@@ -27,6 +27,8 @@ const SubmissionsPage = () => {
 
   useEffect(() => {
     const fetchData = async () => {
+      if (!id) return;
+      
       try {
         const [eventData, formData, submissionsData] = await Promise.all([
           eventService.getEventById(id),

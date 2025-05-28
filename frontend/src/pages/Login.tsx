@@ -8,6 +8,7 @@ import { GoogleLogin } from '@react-oauth/google';
 import { jwtDecode } from "jwt-decode";
 import FacebookLogin from '@greatsumini/react-facebook-login';
 import { getEventStartDate } from '../utils/dateUtils';
+import { toast } from 'react-toastify';
 
 const Login = () => {
   const [credentials, setCredentials] = useState({ username: '', password: '' });
@@ -290,9 +291,8 @@ const Login = () => {
               <div style={{ width: 0, height: 0, overflow: 'hidden' }}>
                 <GoogleLogin
                   onSuccess={handleGoogleSuccess}
-                  onError={(error) => {
-                    console.error('Google login error:', error);
-                    setError('Đăng nhập Google thất bại');
+                  onError={() => {
+                    toast.error('Đăng nhập Google thất bại');
                   }}
                   type="standard"
                   theme="filled_black"

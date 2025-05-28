@@ -163,23 +163,31 @@ const NotificationDropdown: React.FC<NotificationDropdownProps> = ({ isOpen, onC
                       </h4>                      <p className="mt-1 text-sm text-gray-600 line-clamp-2">
                         {notification.message}
                       </p>
-                      {notification.eventDetails && typeof notification.eventDetails === 'object' && (
-                        <div className="mt-2 flex items-center gap-4 text-xs">
-                          <div className="flex items-center gap-1.5 text-gray-500">
-                            <IoCalendarOutline className="text-orange-500" />
-                            <span className="group-hover:text-orange-600 transition-colors">
-                              {(notification.eventDetails as any).date || 'N/A'}
-                            </span>
+                      {/* {notification.eventDetails && typeof notification.eventDetails === 'object' && (
+                        <>
+                          <div className="mt-2 flex items-center gap-4 text-xs">
+                            <div className="flex items-center gap-1 text-gray-500">
+                              <IoCalendarOutline className="text-orange-500" />
+                              <span>
+                                {new Date((notification.eventDetails as any).startDate).toLocaleDateString('vi-VN')}
+                              </span>
+                            </div>
+                            <div className="flex items-center gap-1 text-gray-500">
+                              <IoTimeOutline className="text-orange-500" />
+                              <span>
+                                {new Date((notification.eventDetails as any).startDate).toLocaleTimeString('vi-VN', {
+                                  hour: '2-digit',
+                                  minute: '2-digit'
+                                })}
+                              </span>
+                            </div>
+                            <div className="flex items-center gap-1 text-gray-500">
+                              <IoLocationOutline className="text-orange-500" />
+                              <span>{(notification.eventDetails as any).location || 'TBA'}</span>
+                            </div>
                           </div>
-                          <div className="h-1 w-1 rounded-full bg-gray-300" />
-                          <div className="flex items-center gap-1.5 text-gray-500">
-                            <IoLocationOutline className="text-orange-500" />
-                            <span className="group-hover:text-orange-600 transition-colors">
-                              {(notification.eventDetails as any).location || 'N/A'}
-                            </span>
-                          </div>
-                        </div>
-                      )}
+                        </>
+                      )} */}
                       
                       <span className="absolute top-0 right-0 text-xs text-gray-400 group-hover:text-orange-500 transition-colors">
                         {formatTimeAgo(new Date(notification.createdAt))}

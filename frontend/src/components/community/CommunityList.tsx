@@ -114,7 +114,7 @@ const CommunityList: React.FC = () => {
     setFormData({
       name: community.name,
       description: community.description,
-      isActive: community.isActive,
+      isActive: community.isActive ?? true,
       avatar: {
         url: community.avatar?.url || '',
         public_id: community.avatar?.public_id || undefined,

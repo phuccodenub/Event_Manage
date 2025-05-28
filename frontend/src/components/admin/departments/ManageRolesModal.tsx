@@ -35,9 +35,10 @@ interface ManageRolesModalProps {
   isOpen: boolean;
   onClose: () => void;
   department: Department;
+  onUpdateRole?: (role: 'administrators' | 'moderators', userId: string, action: 'add' | 'remove') => Promise<void>;
 }
 
-const ManageRolesModal = ({ isOpen, onClose, department }: ManageRolesModalProps) => {
+const ManageRolesModal = ({ isOpen, onClose, department, onUpdateRole }: ManageRolesModalProps) => {
   const [activeTab, setActiveTab] = useState('administrators');
   const [search, setSearch] = useState('');
   const [processing, setProcessing] = useState<string>('');
@@ -117,9 +118,16 @@ const ManageRolesModal = ({ isOpen, onClose, department }: ManageRolesModalProps
       );
 
   const handleRoleUpdate = async (userId: string, role: 'administrators' | 'moderators', action: 'add' | 'remove') => {
-    try {      setProcessing(userId);
-      await updateDepartmentRoles(currentDepartment?._id || '', role, userId, action);
-      await fetchDepartments();
+    try {
+      setProcessing(userId);
+      
+      if (onUpdateRole) {
+        await onUpdateRole(role, userId, action);
+      } else {
+        await updateDepartmentRoles(currentDepartment?._id || '', role, userId, action);
+        await fetchDepartments();
+      }
+      
       toast.success(`${action === 'add' ? 'Thêm' : 'Xóa'} ${role === 'administrators' ? 'quản trị viên' : 'kiểm duyệt viên'} thành công`);
     } catch (error: any) {
       toast.error(error.message || 'Có lỗi xảy ra');

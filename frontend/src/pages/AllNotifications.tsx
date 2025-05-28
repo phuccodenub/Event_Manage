@@ -47,10 +47,10 @@ const AllNotifications = () => {
       label: 'Gần đây', 
       icon: IoTimeOutline,
       description: 'Thông báo trong 7 ngày gần đây',
-      filter: (notifications) => {
+      filter: (notifications: any[]) => {
         const weekAgo = new Date();
         weekAgo.setDate(weekAgo.getDate() - 7);
-        return notifications.filter(n => new Date(n.createdAt) >= weekAgo);
+        return notifications.filter((n: any) => new Date(n.createdAt) >= weekAgo);
       }
     },
     { 
@@ -58,7 +58,7 @@ const AllNotifications = () => {
       label: 'Sự kiện', 
       icon: IoCalendarOutline,
       description: 'Thông báo về sự kiện',
-      filter: (notifications) => notifications.filter(n => 
+      filter: (notifications: any[]) => notifications.filter((n: any) => 
         n.type === 'new_event' || 
         n.type === 'event_joined' || 
         n.type === 'event_left' || 
@@ -70,7 +70,7 @@ const AllNotifications = () => {
       label: 'Thông báo', 
       icon: IoCheckmarkCircleOutline,
       description: 'Thông báo từ hệ thống',
-      filter: (notifications) => notifications.filter(n => 
+      filter: (notifications: any[]) => notifications.filter((n: any) => 
         n.type === 'new_announcement'
       )
     }
@@ -85,12 +85,12 @@ const AllNotifications = () => {
     const viewFiltered = selectedViewType ? selectedViewType.filter(filtered) : filtered;
     
     // Finally sort by date (newest first)
-    return viewFiltered.sort((a, b) => 
+    return viewFiltered.sort((a: any, b: any) =>
       new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
     );
   }, [filterNotifications, selectedFilter, selectedPeriod, selectedView]);
 
-  const handleNotificationClick = async (notification) => {
+  const handleNotificationClick = async (notification: any) => {
     await markAsRead(notification._id);
     if (notification.link) {
       navigate(notification.link);
@@ -255,7 +255,7 @@ const AllNotifications = () => {
               </div>
             ) : filteredNotifications.length > 0 ? (
               <div className="space-y-4">
-                {filteredNotifications.map((notification) => (
+                {filteredNotifications.map((notification: any) => (
                   <div
                     key={notification._id}
                     onClick={() => handleNotificationClick(notification)}
