@@ -768,44 +768,16 @@ exports.joinEventAsCollaborator = async (req, res, next) => {
     // Validate shifts before transaction
     const { selectedShifts, formData } = req.body;
     
-    if (!selectedShifts || !Array.isArray(selectedShifts) || selectedShifts.length === 0) {
-      return next(new ErrorResponse('Vui lòng chọn ít nhất một ca hỗ trợ', 400));
-    }
-
-    // Validate each shift against setupTime
-    if (event.setupTime && event.setupTime.supportDays) {
-      for (const shift of selectedShifts) {
-        if (!shift.date || !shift.session) {
-          return next(new ErrorResponse('Thông tin ca hỗ trợ không hợp lệ', 400));
-        }
-
-        // Check if the shift is available in event's support days
-        const shiftDate = new Date(shift.date).toDateString();
-        const availableDay = event.setupTime.supportDays.find(
-          day => new Date(day.date).toDateString() === shiftDate
-        );
-
-        if (!availableDay) {
-          return next(new ErrorResponse(`Ngày ${shiftDate} không có sẵn cho hỗ trợ`, 400));
-        }
-
-        // Check if the session exists in that day
-        const sessionExists = availableDay.sessions.some(session => {
-          // Handle both old format (string) and new format (object)
-          if (typeof session === 'string') {
-            return session === shift.session;
-          } else if (typeof session === 'object') {
-            return session.type === shift.session || session.label === shift.session;
-          }
-          return false;
-        });
-
-        if (!sessionExists) {
-          return next(new ErrorResponse(`Ca ${shift.session} ngày ${shiftDate} không có sẵn`, 400));
-        }
+    // Chỉ yêu cầu selectedShifts khi event có setupTime
+    if (event.setupTime && event.setupTime.supportDays && event.setupTime.supportDays.length > 0) {
+      if (!selectedShifts || !Array.isArray(selectedShifts) || selectedShifts.length === 0) {
+        return next(new ErrorResponse('Vui lòng chọn ít nhất một ca hỗ trợ', 400));
       }
+    } else {
+      // Nếu không có setupTime, cho phép selectedShifts rỗng
+      console.log('Event không có setupTime, cho phép đăng ký mà không cần chọn ca');
     }
-
+    
     // User permissions check
     const isAdmin = ['admin', 'superadmin', 'department_head', 'department_admin'].includes(req.user.role);
     const isCreator = event.creator.toString() === req.user.id;
@@ -817,30 +789,32 @@ exports.joinEventAsCollaborator = async (req, res, next) => {
       // Re-fetch event để check conflicts trong transaction
       const currentEvent = await Event.findById(event._id).session(session);
       
-      // Check for conflicts with existing collaborators trong transaction
-      const hasConflict = currentEvent.collaborators.some(collab => {
-        if (!collab.selectedShifts || collab.status === 'rejected') return false;
-        
-        return collab.selectedShifts.some(existingShift => 
-          selectedShifts.some(newShift => 
-            new Date(existingShift.date).toDateString() === new Date(newShift.date).toDateString() &&
-            existingShift.session === newShift.session
-          )
-        );
-      });
+      // Check for conflicts with existing collaborators trong transaction (chỉ khi có selectedShifts)
+      if (selectedShifts && selectedShifts.length > 0) {
+        const hasConflict = currentEvent.collaborators.some(collab => {
+          if (!collab.selectedShifts || collab.status === 'rejected') return false;
+          
+          return collab.selectedShifts.some(existingShift => 
+            selectedShifts.some(newShift => 
+              new Date(existingShift.date).toDateString() === new Date(newShift.date).toDateString() &&
+              existingShift.session === newShift.session
+            )
+          );
+        });
 
-      if (hasConflict) {
-        throw new ErrorResponse('Một số ca đã có người đăng ký', 400);
+        if (hasConflict) {
+          throw new ErrorResponse('Một số ca đã có người đăng ký', 400);
+        }
       }
 
       const newCollaborator = {
         user: req.user._id,
         status: hasFullAccess ? 'approved' : 'pending',
         requestedAt: new Date(),
-        selectedShifts: selectedShifts.map(shift => ({
+        selectedShifts: selectedShifts && selectedShifts.length > 0 ? selectedShifts.map(shift => ({
           date: new Date(shift.date),
           session: shift.session
-        })),
+        })) : [],
         formData: new Map()
       };
 
@@ -1773,29 +1747,55 @@ exports.getEventCollaboratorForm = async (req, res) => {
   try {
     const { id } = req.params;
     
+    console.log('Getting collaborator form for event:', id);
+    
     // Validate MongoDB ObjectId
     if (!mongoose.Types.ObjectId.isValid(id)) {
+      console.log('Invalid event ID format:', id);
       return res.status(400).json({
         success: false,
         message: 'Invalid event ID format'
       });
     }
 
-    const event = await Event.findById(id)
-      .populate('collaboratorForm')
-      .select('collaboratorForm needsCollaboratorForm setupTime');
-
+    // First get event without populate to check if it exists
+    const event = await Event.findById(id).select('collaboratorForm needsCollaboratorForm setupTime creator');
+    
     if (!event) {
+      console.log('Event not found:', id);
       return res.status(404).json({
         success: false,
         message: 'Event not found'
       });
     }
 
-    // If event needs collaborator form but doesn't have one, create default form
-    if (event.needsCollaboratorForm && !event.collaboratorForm) {
+    console.log('Event found:', {
+      id: event._id,
+      needsCollaboratorForm: event.needsCollaboratorForm,
+      hasCollaboratorForm: !!event.collaboratorForm,
+      collaboratorFormId: event.collaboratorForm
+    });
+
+    let collaboratorForm = null;
+    
+    // If event has collaboratorForm, try to populate it
+    if (event.collaboratorForm) {
       try {
         const CollaboratorForm = require('../models/collaboratorFormModel');
+        collaboratorForm = await CollaboratorForm.findById(event.collaboratorForm);
+        console.log('Collaborator form found:', !!collaboratorForm);
+      } catch (populateError) {
+        console.error('Error fetching collaborator form:', populateError);
+        // Continue without form data
+      }
+    }
+
+    // If event needs collaborator form but doesn't have one, create default form
+    if (event.needsCollaboratorForm && !collaboratorForm) {
+      try {
+        console.log('Creating default collaborator form...');
+        const CollaboratorForm = require('../models/collaboratorFormModel');
+        
         const defaultForm = await CollaboratorForm.create({
           event: event._id,
           fields: [
@@ -1842,8 +1842,10 @@ exports.getEventCollaboratorForm = async (req, res) => {
               placeholder: 'Nhập số điện thoại'
             }
           ],
-          createdBy: event.creator
+          createdBy: event.creator || new mongoose.Types.ObjectId() // Fallback if no creator
         });
+
+        console.log('Default form created:', defaultForm._id);
 
         // Update event with form reference
         await Event.findByIdAndUpdate(id, { collaboratorForm: defaultForm._id });
@@ -1857,21 +1859,31 @@ exports.getEventCollaboratorForm = async (req, res) => {
         });
       } catch (formError) {
         console.error('Error creating default collaborator form:', formError);
+        // Return empty form if creation fails
+        return res.status(200).json({
+          success: true,
+          data: { 
+            fields: [],
+            setupTime: event.setupTime || null
+          }
+        });
       }
     }
 
-    // Return the populated collaborator form if it exists
-    if (event.needsCollaboratorForm && event.collaboratorForm) {
+    // Return the collaborator form if it exists
+    if (event.needsCollaboratorForm && collaboratorForm) {
+      console.log('Returning existing collaborator form');
       return res.status(200).json({
         success: true,
         data: {
-          fields: event.collaboratorForm.fields || [],
+          fields: collaboratorForm.fields || [],
           setupTime: event.setupTime || null
         }
       });
     }
 
     // Return empty fields if no form exists or not needed
+    console.log('Returning empty form');
     return res.status(200).json({
       success: true,
       data: { 

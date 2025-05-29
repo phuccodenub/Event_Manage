@@ -552,21 +552,10 @@ const CommunityDetail: React.FC = () => {
                              <CollaborateEventButton 
                                eventId={event._id}
                                status={event.status}
-                               collaborators={event.collaborators?.map(collab => 
-                                 typeof collab === 'string' 
-                                   ? collab 
-                                   : { 
-                                       _id: collab._id || '',
-                                       user: typeof collab.user === 'string' 
-                                         ? collab.user 
-                                         : collab.user._id,
-                                       status: collab.status
-                                     }
-                               ) || []}
                                isCompact={true}
                                organizerId={event.organizer?._id}
                                creatorId={event.creator?._id}
-                               eventExists={true} // Always true in community events list since these are loaded events
+                               eventExists={true}
                              />
                            )}
                         </>

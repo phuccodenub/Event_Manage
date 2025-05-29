@@ -667,18 +667,9 @@ const Home: React.FC = () => {
                 <CollaborateEventButton 
                   eventId={event._id}
                   status={event.status}
-                  collaborators={event.collaborators?.map(collaborator => {
-                    if (typeof collaborator === 'string') {
-                      return collaborator;
-                    }
-                    return {
-                      _id: collaborator._id || '',
-                      user: typeof collaborator.user === 'string' ? collaborator.user : undefined,
-                      status: collaborator.status
-                    };
-                  }) || []}
                   organizerId={event.organizer?._id}
                   creatorId={event.creator?._id}
+                  setupTime={event.setupTime}
                 />
               )}
             </div>
@@ -701,6 +692,13 @@ const Home: React.FC = () => {
         </aside>
 
         <section className="col-span-1 lg:col-span-6 mb-10">
+          {/* Test Component - chỉ hiển thị trong development */}
+          {process.env.NODE_ENV === 'development' && (
+            <div className="mb-4">
+              {/* <TestCollaboratorButton /> */}
+            </div>
+          )}
+          
           {isCachedData && (
             <div className="mb-4 flex justify-between items-center bg-white rounded-lg shadow-sm p-3">
               <span className="text-sm text-gray-500">Hiển thị dữ liệu đã lưu trong bộ nhớ cache</span>

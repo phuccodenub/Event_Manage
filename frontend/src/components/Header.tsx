@@ -114,7 +114,7 @@ const Header: React.FC = () => {
         <header className="bg-white shadow-sm sticky top-0 z-50">
           <div className="container mx-auto flex items-center justify-between h-16 px-4">
             {/* Logo Section */}
-            <div className="flex items-center space-x-2">
+            <Link to="/" className="flex items-center space-x-2 hover:opacity-80 transition-opacity">
               <img
                 src="https://media.loveitopcdn.com/3807/logo-hutech-2.png"
                 alt="HUTECH Events Logo"
@@ -123,7 +123,7 @@ const Header: React.FC = () => {
               <h1 className="text-xl font-bold text-orange-600 hidden sm:block">
                 HUTECH Events
               </h1>
-            </div>
+            </Link>
 
             {/* Search Bar - Hidden on Mobile */}
             <div className="hidden md:block flex-grow max-w-xl mx-4">

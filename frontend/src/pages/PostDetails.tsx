@@ -419,14 +419,10 @@ const PostDetails: React.FC = () => {
                     eventId={post._id}
                     eventTitle={post.title}
                     status={post.status}
-                    collaborators={currentCollaborators}
-                    startDate={typeof post.startDate === 'string' ? new Date(post.startDate) : post.startDate}
-                    endDate={typeof post.endDate === 'string' ? new Date(post.endDate) : post.endDate}
-                    onJoinSuccess={() => handleCollaboratorUpdate(true)}
-                    onLeaveSuccess={() => handleCollaboratorUpdate(false)}
                     organizerId={post.organizer?._id}
                     creatorId={post.creator?._id}
-                    eventExists={!!post && !error} // Only true if event was successfully loaded
+                    setupTime={post.setupTime}
+                    eventExists={Boolean(post)}
                   />
                 )
               }
@@ -643,14 +639,10 @@ const EventSidebar: React.FC<EventSidebarProps> = ({ event, currentParticipants,
                 eventId={event._id}
                 eventTitle={event.title}
                 status={event.status}
-                collaborators={currentCollaborators}
-                startDate={typeof event.startDate === 'string' ? new Date(event.startDate) : event.startDate}
-                endDate={typeof event.endDate === 'string' ? new Date(event.endDate) : event.endDate}
-                onJoinSuccess={() => handleCollaboratorUpdate(true)}
-                onLeaveSuccess={() => handleCollaboratorUpdate(false)}
                 organizerId={event.organizer?._id}
                 creatorId={event.creator?._id}
-                eventExists={true} // Always true in EventSidebar since we're in event details page
+                setupTime={event.setupTime}
+                eventExists={Boolean(event)}
               />
             )}
           </div>

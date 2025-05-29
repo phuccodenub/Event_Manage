@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Dialog, Transition } from '@headlessui/react';
 import { Fragment } from 'react';
 import { XIcon, CalendarIcon, ClockIcon } from '@heroicons/react/outline';
+import { useAutoFillUserData } from '../../hooks/useAutoFillUserData';
 
 interface FormField {
   fieldId: string;
@@ -45,27 +46,37 @@ const FormModal: React.FC<FormModalProps> = ({
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [selectedSessions, setSelectedSessions] = useState<Array<{date: string, session: string}>>([]);
 
+  // Merge default fields with custom fields, avoiding duplicates
+  const allFormFields = React.useMemo(() => {
+    const defaultFields = [
+      { fieldId: 'fullName', label: 'Họ và tên', type: 'text', required: true },
+      { fieldId: 'studentId', label: 'MSSV', type: 'text', required: true },
+      { fieldId: 'email', label: 'Email', type: 'email', required: true }
+    ];
+
+    const mergedFields = [...defaultFields];
+    fields.forEach(field => {
+      if (!mergedFields.find(f => f.fieldId === field.fieldId)) {
+        mergedFields.push(field);
+      }
+    });
+    
+    return mergedFields;
+  }, [fields]);
+
+  // Auto-fill user data hook
+  const { isUserDataAvailable, availableFields } = useAutoFillUserData({
+    formFields: allFormFields,
+    setFormData,
+    formData
+  });
+
   useEffect(() => {
     if (isOpen) {
       // Initialize form data with default values
       const initialData: Record<string, any> = {};
       
-      // Add default required fields if not present
-      const defaultFields = [
-        { fieldId: 'fullName', label: 'Họ và tên', type: 'text', required: true },
-        { fieldId: 'studentId', label: 'MSSV', type: 'text', required: true },
-        { fieldId: 'email', label: 'Email', type: 'email', required: true }
-      ];
-
-      // Merge default fields with custom fields, avoiding duplicates
-      const allFields = [...defaultFields];
-      fields.forEach(field => {
-        if (!allFields.find(f => f.fieldId === field.fieldId)) {
-          allFields.push(field);
-        }
-      });
-
-      allFields.forEach(field => {
+      allFormFields.forEach(field => {
         if (field.type === 'checkbox') {
           initialData[field.fieldId] = [];
         } else {
@@ -77,7 +88,7 @@ const FormModal: React.FC<FormModalProps> = ({
       setErrors({});
       setSelectedSessions([]);
     }
-  }, [isOpen, fields]);
+  }, [isOpen, allFormFields]);
 
   const handleInputChange = (fieldId: string, value: any) => {
     setFormData(prev => ({
@@ -112,15 +123,8 @@ const FormModal: React.FC<FormModalProps> = ({
   const validateForm = () => {
     const newErrors: Record<string, string> = {};
     
-    // Default required fields
-    const defaultFields = [
-      { fieldId: 'fullName', label: 'Họ và tên', required: true },
-      { fieldId: 'studentId', label: 'MSSV', required: true },
-      { fieldId: 'email', label: 'Email', required: true }
-    ];
-
     // Validate default fields
-    defaultFields.forEach(field => {
+    allFormFields.forEach(field => {
       if (field.required && !formData[field.fieldId]) {
         newErrors[field.fieldId] = `${field.label} là bắt buộc`;
       }
@@ -299,11 +303,26 @@ const FormModal: React.FC<FormModalProps> = ({
               <form onSubmit={handleSubmit} className="space-y-6">
                 {/* Default Required Fields */}
                 <div className="space-y-4">
-                  <h3 className="text-lg font-medium text-gray-900">Thông tin cá nhân</h3>
+                  <div className="flex items-center justify-between">
+                    <h3 className="text-lg font-medium text-gray-900">Thông tin cá nhân</h3>
+                    {isUserDataAvailable && availableFields.length > 0 && (
+                      <div className="flex items-center text-sm text-green-600">
+                        <svg className="w-4 h-4 mr-1" fill="currentColor" viewBox="0 0 20 20">
+                          <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                        </svg>
+                        Đã tự động điền {availableFields.length} trường
+                      </div>
+                    )}
+                  </div>
                   
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">
                       Họ và tên <span className="text-red-500">*</span>
+                      {availableFields.includes('fullName') && (
+                        <span className="ml-2 inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                          Tự động
+                        </span>
+                      )}
                     </label>
                     <input
                       type="text"
@@ -319,6 +338,11 @@ const FormModal: React.FC<FormModalProps> = ({
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">
                       MSSV <span className="text-red-500">*</span>
+                      {availableFields.includes('studentId') && (
+                        <span className="ml-2 inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                          Tự động
+                        </span>
+                      )}
                     </label>
                     <input
                       type="text"
@@ -334,6 +358,11 @@ const FormModal: React.FC<FormModalProps> = ({
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">
                       Email <span className="text-red-500">*</span>
+                      {availableFields.includes('email') && (
+                        <span className="ml-2 inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                          Tự động
+                        </span>
+                      )}
                     </label>
                     <input
                       type="email"

@@ -8,6 +8,7 @@ import AnnouncementManagement from "@/pages/admin/AnnouncementManagement";
 import Settings from "@/pages/admin/Settings";
 import FacultyManagement from "@/pages/admin/FacultyManagement";
 import CommunityManagement from "@/pages/admin/CommunityManagement";
+import CreateCommunity from "@/pages/admin/CreateCommunity";
 
 const PrivateRoutes = () => {
   return React.createElement(
@@ -25,6 +26,9 @@ const PrivateRoutes = () => {
     }),
     React.createElement(Route, { path: "/admin/communities", component: () =>
       React.createElement(AdminLayout, null, React.createElement(CommunityManagement))
+    }),
+    React.createElement(Route, { path: "/admin/communities/new", component: () =>
+      React.createElement(AdminLayout, null, React.createElement(CreateCommunity))
     }),
     React.createElement(Route, { path: "/admin/announcements", component: () =>
       React.createElement(AdminLayout, null, React.createElement(AnnouncementManagement))

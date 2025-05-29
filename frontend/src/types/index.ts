@@ -154,6 +154,17 @@ export interface Event {
   registrationForm?: {
     fields: FormField[];
   };
+  setupTime?: {
+    supportDays?: Array<{
+      date: string | Date;
+      sessions: Array<{
+        type: string;
+        startTime: string;
+        endTime: string;
+        label: string;
+      }>;
+    }>;
+  };
 }
 
 export interface Announcement {

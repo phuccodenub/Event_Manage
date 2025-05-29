@@ -1,10 +1,10 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, Fragment } from 'react';
 import { Dialog, Transition } from '@headlessui/react';
-import { Fragment } from 'react';
 import { XIcon, ClockIcon, CalendarIcon, UserIcon } from '@heroicons/react/outline';
 import { motion } from 'framer-motion';
 import eventService from '../../services/eventService';
 import { toast } from 'react-toastify';
+import { useAutoFillUserData } from '../../hooks/useAutoFillUserData';
 
 interface SupportShift {
   date: string;
@@ -69,6 +69,13 @@ const CollaboratorScheduleModal: React.FC<Props> = ({
   const [formData, setFormData] = useState<Record<string, any>>({});
   const [loading, setLoading] = useState(false);
   const [currentStep, setCurrentStep] = useState(1); // 1: Form, 2: Schedule
+
+  // Auto-fill user data hook
+  const { isUserDataAvailable, availableFields } = useAutoFillUserData({
+    formFields,
+    setFormData,
+    formData
+  });
 
   useEffect(() => {
     if (isOpen && eventId) {
@@ -438,12 +445,28 @@ const CollaboratorScheduleModal: React.FC<Props> = ({
               <div className="space-y-6">
                 {currentStep === 1 && (
                   <div className="space-y-4">
-                    <h3 className="text-lg font-medium text-gray-900">Thông tin cá nhân</h3>
+                    <div className="flex items-center justify-between">
+                      <h3 className="text-lg font-medium text-gray-900">Thông tin cá nhân</h3>
+                      {isUserDataAvailable && availableFields.length > 0 && (
+                        <div className="flex items-center text-sm text-green-600">
+                          <svg className="w-4 h-4 mr-1" fill="currentColor" viewBox="0 0 20 20">
+                            <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                          </svg>
+                          Đã tự động điền {availableFields.length} trường
+                        </div>
+                      )}
+                    </div>
+                    
                     {formFields.map((field) => (
                       <div key={field.fieldId}>
                         <label className="block text-sm font-medium text-gray-700 mb-2">
                           {field.label}
                           {field.required && <span className="text-red-500 ml-1">*</span>}
+                          {availableFields.includes(field.fieldId) && (
+                            <span className="ml-2 inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                              Tự động
+                            </span>
+                          )}
                         </label>
                         {renderFormField(field)}
                       </div>

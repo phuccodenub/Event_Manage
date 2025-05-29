@@ -166,7 +166,9 @@ const RightSidebar: React.FC = () => {
                   <div className="flex items-center text-sm text-gray-600 mb-4">
                     <LocationMarkerIcon className="w-5 h-5 mr-2 flex-shrink-0" />
                     <span className="line-clamp-1">
-                      {event.location?.physical?.address + ' - ' + event.location?.physical?.room || 'Địa điểm không xác định'}
+                      {event.location?.physical?.address 
+                        ? `${event.location.physical.address}${event.location.physical.room ? ` - ${event.location.physical.room}` : ''}`
+                        : 'Địa điểm không xác định'}
                     </span>
                   </div>
                 </div>
@@ -188,16 +190,10 @@ const RightSidebar: React.FC = () => {
                     <CollaborateEventButton 
                       eventId={event._id}
                       status={event.status}
-                      collaborators={event.collaborators?.map(collab => 
-                        typeof collab === 'string' ? collab : { 
-                          _id: collab._id || '', 
-                          user: typeof collab.user === 'string' ? collab.user : collab.user?._id,
-                          status: collab.status 
-                        }
-                      ) || []}
                       isCompact={true}
                       organizerId={event.organizer?._id}
                       creatorId={event.creator?._id}
+                      setupTime={event.setupTime}
                     />
                   )}
                 </div>
