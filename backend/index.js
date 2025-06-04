@@ -8,6 +8,7 @@ const errorHandler = require('./middleware/error');
 const path = require('path');
 const { createServer } = require('http');
 const { Server } = require('socket.io');
+const cron = require('node-cron');
 
 // Load env vars
 dotenv.config({ path: path.resolve(__dirname, '.env') });
@@ -17,29 +18,85 @@ connectDB();
 
 const app = express();
 const httpServer = createServer(app);
-
-// Socket.IO setup
 const io = new Server(httpServer, {
   cors: {
-    origin: process.env.FRONTEND_URL || 'http://localhost:5173',
-    credentials: true
-  }
+    origin: ['https://localhost:5173', 'http://localhost:5173', process.env.CLIENT_URL].filter(Boolean),
+    credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS']
+  },
+  pingTimeout: 60000, // Tăng thời gian timeout
+  pingInterval: 25000, // Tăng tần suất ping
 });
 
-// Socket.IO connection handling
-io.on('connection', (socket) => {
+// Global socket store
+global.io = io;
+global.userSockets = new Map();
+
+io.on('connection', async (socket) => {
   const userId = socket.handshake.query.userId;
+  
   if (userId) {
-    console.log(`User ${userId} connected`);
+    console.log(`User connected: ${userId} (Socket ID: ${socket.id})`);
     
-    socket.on('disconnect', () => {
-      console.log(`User ${userId} disconnected`);
+    // Lưu socket vào Map
+    global.userSockets.set(userId, socket);
+
+    try {
+    // Gửi số lượng thông báo chưa đọc khi user kết nối
+      const NotificationModel = require('./models/notificationModel');
+      const unreadCount = await NotificationModel.countDocuments({
+        recipient: userId,
+        read: false
+      });
+      
+      console.log(`Sending unread count to ${userId}:`, unreadCount);
+      socket.emit('unreadCount', { count: unreadCount });
+    } catch (error) {
+      console.error('Error sending unread count:', error);
+    }
+    
+    // Xử lý sự kiện ping từ client để giữ kết nối
+    socket.on('ping', () => {
+      socket.emit('pong');
     });
   }
+
+  socket.on('disconnect', () => {
+    if (userId) {
+      console.log(`User disconnected: ${userId}`);
+      global.userSockets.delete(userId);
+    }
+  });
+  
+  // Xử lý lỗi socket
+  socket.on('error', (error) => {
+    console.error(`Socket error for user ${userId}:`, error);
+  });
 });
 
-// Make io accessible to our controllers
-app.set('io', io);
+// Hàm tiện ích để gửi thông báo cho người dùng
+global.notifyUser = (userId, notification) => {
+  try {
+    const userSocket = global.userSockets.get(userId.toString());
+  if (userSocket) {
+      console.log(`Sending notification to ${userId}`);
+    userSocket.emit('newNotification', notification);
+      
+      // Cập nhật số lượng thông báo chưa đọc
+      const NotificationModel = require('./models/notificationModel');
+      NotificationModel.countDocuments({
+        recipient: userId,
+        read: false
+      }).then(count => {
+        userSocket.emit('unreadCount', { count });
+      });
+    } else {
+      console.log(`User ${userId} is not connected`);
+    }
+  } catch (error) {
+    console.error(`Error notifying user ${userId}:`, error);
+  }
+};
 
 // Body parser
 app.use(express.json());
@@ -49,8 +106,10 @@ app.use(cookieParser());
 
 // Enable CORS
 app.use(cors({
-  origin: process.env.FRONTEND_URL || 'http://localhost:5173',
-  credentials: true
+  origin: ['https://localhost:5173', 'http://localhost:5173', process.env.CLIENT_URL].filter(Boolean),
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
+  allowedHeaders: ['Content-Type', 'Authorization']
 }));
 
 // File upload
@@ -87,13 +146,34 @@ app.use('/api/v1/upload', uploadRoutes);
 app.use('/api/v1/communities', communityRoutes);
 app.use('/api/v1/announcements', announcementRoutes);
 
+// Handle 404 routes
+app.use('*', (req, res) => {
+  res.status(404).json({
+    success: false,
+    error: 'Route not found'
+  });
+});
+
 // Error Handler
 app.use(errorHandler);
 
 const PORT = process.env.PORT || 5000;
 
-httpServer.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
+const server = httpServer.listen(PORT, () => {
+  console.log(`Server running in ${process.env.NODE_ENV} mode on port ${PORT}`);
+  
+  // Set up cron job for updating event statuses and sending feedback notifications
+  // Run every 15 minutes
+  cron.schedule('*/15 * * * *', async () => {
+    try {
+      console.log('Running scheduled event status update...');
+      const Event = require('./models/eventModel');
+      await Event.updateEventStatus();
+      console.log('Scheduled event status update completed');
+    } catch (error) {
+      console.error('Error in scheduled event status update:', error);
+    }
+  });
 });
 
 // Handle unhandled promise rejections
