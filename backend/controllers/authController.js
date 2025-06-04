@@ -1,6 +1,7 @@
 const User = require('../models/userModel');
 const ErrorResponse = require('../utils/errorResponse');
 const { OAuth2Client } = require('google-auth-library');
+const asyncHandler = require('express-async-handler');
 
 const client = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
 
@@ -15,24 +16,22 @@ const sendTokenResponse = (user, statusCode, res) => {
   // Tạo token
   const token = user.getJWTToken();
 
-  // Tùy chọn cookie
+  // Tùy chọn cookie với enhanced security
   const options = {
     expires: new Date(
       Date.now() + process.env.COOKIE_EXPIRE * 24 * 60 * 60 * 1000
     ),
     httpOnly: true,
+    secure: process.env.NODE_ENV === 'production',
+    sameSite: process.env.NODE_ENV === 'production' ? 'strict' : 'lax',
   };
-
-  // Thêm secure flag trong production
-  if (process.env.NODE_ENV === 'production') {
-    options.secure = true;
-  }
 
   res
     .status(statusCode)
-    .cookie('token', token, options) // Chỉ lưu token vào cookie
+    .cookie('token', token, options)
     .json({
       success: true,
+      token, // Return token for localStorage
       user: {
         id: user._id,
         fullName: user.fullName,
@@ -45,7 +44,10 @@ const sendTokenResponse = (user, statusCode, res) => {
         department: user.department,
         registeredEvents: user.registeredEvents,
         collaboratorEvents: user.collaboratorEvents,
-      }, // Trả về thông tin người dùng
+        isEmailVerified: user.isEmailVerified || true,
+        mustChangePassword: user.mustChangePassword || false,
+        lastLogin: user.lastLogin
+      },
     });
 };
 
@@ -54,22 +56,81 @@ const sendTokenResponse = (user, statusCode, res) => {
 // @access  Public
 exports.register = async (req, res, next) => {
   try {
-    const { username, email, password, fullName, userId, class: className, gender, phone, birthday } = req.body;
+    console.log('Registration data received:', req.body);
+    
+    const { 
+      fullName, 
+      username, 
+      email, 
+      password, 
+      phoneNumber, 
+      studentId, 
+      department, 
+      role = 'student' 
+    } = req.body;
 
-    const user = await User.create({
-      username,
-      email,
-      password,
-      fullName,
-      userId,
-      class: className,
-      gender,
-      phone,
-      birthday
+    // Validation
+    if (!fullName || !username || !email || !password) {
+      return next(new ErrorResponse('Vui lòng nhập đầy đủ thông tin bắt buộc', 400));
+    }
+
+    // Check if username already exists
+    const existingUser = await User.findOne({
+      $or: [
+        { username: username.toLowerCase() },
+        { email: email.toLowerCase() }
+      ]
     });
+
+    if (existingUser) {
+      if (existingUser.username === username.toLowerCase()) {
+        return next(new ErrorResponse('Tên đăng nhập đã tồn tại', 400));
+      }
+      if (existingUser.email === email.toLowerCase()) {
+        return next(new ErrorResponse('Email đã được sử dụng', 400));
+      }
+    }
+
+    const userData = {
+      fullName,
+      username: username.toLowerCase(),
+      email: email.toLowerCase(),
+      password,
+      role,
+      phone: phoneNumber || '0000000000',
+      gender: 'khác', // Default value
+      class: 'Unknown' // Default value for students
+    };
+
+    // Add optional fields if provided
+    if (studentId) {
+      userData.userId = studentId;
+    }
+    if (department) {
+      userData.department = department;
+    }
+
+    console.log('Creating user with data:', { ...userData, password: '[HIDDEN]' });
+
+    const user = await User.create(userData);
+
+    console.log('User created successfully:', user._id);
 
     sendTokenResponse(user, 201, res);
   } catch (error) {
+    console.error('Registration error:', error);
+    
+    // Handle specific MongoDB errors
+    if (error.name === 'ValidationError') {
+      const messages = Object.values(error.errors).map(val => val.message);
+      return next(new ErrorResponse(messages.join(', '), 400));
+    }
+    
+    if (error.code === 11000) {
+      const field = Object.keys(error.keyValue)[0];
+      return next(new ErrorResponse(`${field} đã tồn tại`, 400));
+    }
+    
     next(error);
   }
 };
@@ -85,24 +146,63 @@ exports.login = async (req, res, next) => {
       return next(new ErrorResponse('Vui lòng nhập tên tài khoản và mật khẩu', 400));
     }
 
-    const user = await User.findOne({ username })
-      .select('+password')
-      .populate('registeredEvents', 'name date location') // Populate event details
-      .populate('collaboratorEvents', 'name date location') // Populate event details
-      .populate('department', 'name'); // Populate department details
+    // Tìm user theo username hoặc email
+    const user = await User.findOne({ 
+      $or: [
+        { username: username.toLowerCase() },
+        { email: username.toLowerCase() }
+      ]
+    })
+      .select('+password +loginAttempts +lockUntil +mustChangePassword')
+      .populate('registeredEvents', 'title startDate')
+      .populate('collaboratorEvents.event', 'title startDate')
+      .populate('department', 'name');
 
     if (!user) {
-      return next(new ErrorResponse('Tài khoản hoặc mật khẩu không đúng', 401));
+      return next(new ErrorResponse('Tên đăng nhập hoặc mật khẩu không đúng', 401));
+    }
+
+    // Kiểm tra account có bị khóa không
+    if (user.lockUntil && user.lockUntil > Date.now()) {
+      const lockTimeRemaining = Math.ceil((user.lockUntil - Date.now()) / (60 * 1000));
+      return next(new ErrorResponse(`Tài khoản đang bị khóa. Thử lại sau ${lockTimeRemaining} phút.`, 423));
     }
 
     const isMatch = await user.comparePassword(password);
 
     if (!isMatch) {
-      return next(new ErrorResponse('Tài khoản hoặc mật khẩu không đúng', 401));
+      // Tăng số lần đăng nhập sai
+      await user.incLoginAttempts();
+      return next(new ErrorResponse('Tên đăng nhập hoặc mật khẩu không đúng', 401));
+    }
+
+    // Reset login attempts khi đăng nhập thành công
+    if (user.loginAttempts > 0) {
+      await user.resetLoginAttempts();
+    }
+
+    // Cập nhật last login
+    user.lastLogin = new Date();
+    await user.save({ validateBeforeSave: false });
+
+    // Kiểm tra có cần đổi password không
+    if (user.mustChangePassword) {
+      return res.status(200).json({
+        success: true,
+        mustChangePassword: true,
+        message: 'Bạn cần thay đổi mật khẩu trước khi tiếp tục',
+        tempToken: user.getJWTToken(),
+        user: {
+          id: user._id,
+          fullName: user.fullName,
+          email: user.email
+        }
+      });
     }
 
     sendTokenResponse(user, 200, res);
   } catch (error) {
+    console.error('Login error:', error);
     next(error);
   }
 };
@@ -266,4 +366,48 @@ exports.getMe = async (req, res, next) => {
     data: user
   });
 };
+
+// ========== SECURITY UTILITIES ==========
+
+/**
+ * @desc    Check if email is available
+ * @route   POST /api/v1/auth/check-email
+ * @access  Public
+ */
+exports.checkEmail = asyncHandler(async (req, res, next) => {
+  const { email } = req.body;
+
+  if (!email) {
+    return next(new ErrorResponse('Email là bắt buộc', 400));
+  }
+
+  const existingUser = await User.findOne({ email: email.toLowerCase() });
+
+  res.status(200).json({
+    success: true,
+    available: !existingUser,
+    message: existingUser ? 'Email đã được sử dụng' : 'Email có thể sử dụng'
+  });
+});
+
+/**
+ * @desc    Check if username is available
+ * @route   POST /api/v1/auth/check-username
+ * @access  Public
+ */
+exports.checkUsername = asyncHandler(async (req, res, next) => {
+  const { username } = req.body;
+
+  if (!username) {
+    return next(new ErrorResponse('Username là bắt buộc', 400));
+  }
+
+  const existingUser = await User.findOne({ username: username.toLowerCase() });
+
+  res.status(200).json({
+    success: true,
+    available: !existingUser,
+    message: existingUser ? 'Tên đăng nhập đã được sử dụng' : 'Tên đăng nhập có thể sử dụng'
+  });
+});
 

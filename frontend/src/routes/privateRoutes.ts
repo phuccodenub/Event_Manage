@@ -15,6 +15,10 @@ const PrivateRoutes = () => {
     Switch,
     null,
     React.createElement(Route, { 
+      path: "/admin/dashboard", 
+      component: () => React.createElement(AdminLayout, null, React.createElement(Dashboard))
+    }),
+    React.createElement(Route, { 
       path: "/admin", 
       component: (props: any) => React.createElement(AdminLayout, { children: null }, React.createElement(Dashboard))
     }),

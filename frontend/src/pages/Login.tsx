@@ -1,9 +1,9 @@
 import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import { useEvents } from '../context/EventContext';
 import authService from '../services/authService';
 import eventService from '../services/eventService';
-import { Mail, Lock, Calendar, Clock, MapPin } from 'lucide-react';
+import { Mail, Lock, Calendar, Clock, MapPin, Eye, EyeOff } from 'lucide-react';
 import { GoogleLogin } from '@react-oauth/google';
 import { jwtDecode } from "jwt-decode";
 import FacebookLogin from '@greatsumini/react-facebook-login';
@@ -13,6 +13,8 @@ import { toast } from 'react-toastify';
 const Login = () => {
   const [credentials, setCredentials] = useState({ username: '', password: '' });
   const [error, setError] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
   const navigate = useNavigate();
 
   const { events, setEvents } = useEvents();
@@ -68,11 +70,20 @@ const Login = () => {
       setError("Vui lòng nhập tên tài khoản và mật khẩu");
       return;
     }
+    
+    setLoading(true);
     try {
       setError("");
       const user = await authService.login(credentials.username, credentials.password);
       console.log("Login successful, user data:", user);
-      navigate("/", { replace: true });
+      
+      toast.success('Đăng nhập thành công!');
+      
+      // Force reload để đảm bảo auth state sync đúng
+      setTimeout(() => {
+        window.location.href = '/';
+      }, 500);
+      
     } catch (err: any) {
       console.error('Login error:', err);
       // Xử lý các trường hợp lỗi khác nhau
@@ -80,9 +91,13 @@ const Login = () => {
         setError("Tên đăng nhập hoặc mật khẩu không đúng");
       } else if (err.status === 429) {
         setError("Quá nhiều lần đăng nhập thất bại, vui lòng thử lại sau");
+      } else if (err.status === 423) {
+        setError("Tài khoản đã bị khóa, vui lòng liên hệ hỗ trợ");
       } else {
         setError(err.message || "Đăng nhập thất bại, vui lòng thử lại sau");
       }
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -104,7 +119,15 @@ const Login = () => {
       }
 
       const response = await authService.googleLogin(credentialResponse.credential);
-      navigate('/', { replace: true });
+      console.log('Google login successful:', response);
+      
+      toast.success('Đăng nhập Google thành công!');
+      
+      // Force reload để đảm bảo auth state sync đúng
+      setTimeout(() => {
+        window.location.href = '/';
+      }, 500);
+      
     } catch (err: any) {
       console.error('Google login error:', err);
       setError(err.response?.data?.message || 'Đăng nhập Google thất bại');
@@ -115,6 +138,7 @@ const Login = () => {
     try {
       console.log('Facebook login success:', response);
       await authService.facebookLogin(response.accessToken);
+      toast.success('Đăng nhập Facebook thành công!');
       navigate('/', { replace: true });
     } catch (err: any) {
       console.error('Facebook login error:', err);
@@ -233,13 +257,20 @@ const Login = () => {
                 <div className="relative group">
                   <Lock className="w-5 h-5 absolute left-3 top-1/2 -translate-y-1/4 text-gray-400 group-focus-within:text-orange-500 transition-colors" />
                   <input
-                    type="password"
-                    className="w-full pl-10 pr-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 focus:outline-none transition-all"
+                    type={showPassword ? 'text' : 'password'}
+                    className="w-full pl-10 pr-12 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 focus:outline-none transition-all"
                     placeholder="Nhập mật khẩu"
                     value={credentials.password}
                     onChange={(e) => setCredentials(prev => ({ ...prev, password: e.target.value }))}
                     required
                   />
+                  <button
+                    type="button"
+                    className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors"
+                    onClick={() => setShowPassword(!showPassword)}
+                  >
+                    {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                  </button>
                 </div>
               </div>
             </div>
@@ -255,16 +286,24 @@ const Login = () => {
                   Ghi nhớ đăng nhập
                 </label>
               </div>
-              <a href="/forgot-password" className="text-sm font-medium text-orange-600 hover:text-orange-700">
+              <Link to="/forgot-password" className="text-sm font-medium text-orange-600 hover:text-orange-700">
                 Quên mật khẩu?
-              </a>
+              </Link>
             </div>
 
             <button
               type="submit"
-              className="w-full bg-orange-600 text-white py-3 rounded-xl hover:bg-orange-700 focus:ring-4 focus:ring-orange-500/20 transition-all font-medium"
+              disabled={loading}
+              className="w-full bg-orange-600 text-white py-3 rounded-xl hover:bg-orange-700 focus:ring-4 focus:ring-orange-500/20 transition-all font-medium disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
             >
-              Đăng nhập
+              {loading ? (
+                <>
+                  <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white mr-2"></div>
+                  Đang đăng nhập...
+                </>
+              ) : (
+                'Đăng nhập'
+              )}
             </button>
           </form>
 
@@ -313,16 +352,13 @@ const Login = () => {
             >
               <img src="/icons/facebook.svg" alt="Facebook" className="h-6 w-6" />
             </FacebookLogin>
-            {/* <button className="flex justify-center items-center py-2.5 border border-gray-200 rounded-xl hover:bg-gray-50 transition-colors">
-              <img src="/icons/microsoft.svg" alt="Microsoft" className="h-6 w-6" />
-            </button> */}
           </div>
 
           <p className="text-center text-sm text-gray-600">
             Chưa có tài khoản?{' '}
-            <a href="#" className="font-medium text-orange-600 hover:text-orange-700">
-              Thì thôi đừng đăng nhập nữa
-            </a>
+            <Link to="/register" className="font-medium text-orange-600 hover:text-orange-700">
+              Đăng ký ngay
+            </Link>
           </p>
         </div>
       </div>

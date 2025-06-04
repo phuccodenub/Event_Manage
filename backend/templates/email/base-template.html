@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>HUTECH Event Management</title>
+  <style>
+    body { 
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
+      margin: 0; 
+      padding: 0; 
+      background-color: #f8fafc; 
+    }
+    .container { 
+      max-width: 600px; 
+      margin: 0 auto; 
+      background: white; 
+      border-radius: 12px; 
+      overflow: hidden; 
+      box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1); 
+    }
+    .header { 
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); 
+      color: white; 
+      padding: 30px; 
+      text-align: center; 
+    }
+    .content { 
+      padding: 30px; 
+    }
+    .button { 
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); 
+      color: white; 
+      padding: 12px 24px; 
+      text-decoration: none; 
+      border-radius: 8px; 
+      display: inline-block; 
+      margin: 20px 0; 
+    }
+    .footer { 
+      background: #f1f5f9; 
+      padding: 20px; 
+      text-align: center; 
+      color: #64748b; 
+      font-size: 14px; 
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <h1>🎓 HUTECH Event Management</h1>
+      <p>Hệ thống quản lý sự kiện Đại học Công nghệ TP.HCM</p>
+    </div>
+    <div class="content">
+      {{content}}
+    </div>
+    <div class="footer">
+      <p>© {{currentYear}} HUTECH Event Management. All rights reserved.</p>
+      <p>📧 Bạn nhận được email này vì bạn đã đăng ký tài khoản trên hệ thống HUTECH Event Management</p>
+    </div>
+  </div>
+</body>
+</html> 

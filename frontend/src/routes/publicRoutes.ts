@@ -1,6 +1,10 @@
 import { Route, Switch } from "wouter";
 import Home from "@/pages/Home";
 import Login from "@/pages/Login";
+import Register from "@/pages/Register";
+import ForgotPassword from "@/pages/ForgotPassword";
+import AccountVerification from "@/pages/AccountVerification";
+import ChangePassword from "@/pages/ChangePassword";
 import React from "react";
 import Events from "@/pages/Events";
 import Community from "@/pages/Community";
@@ -31,6 +35,10 @@ const PublicRoutes = () => {
     null,
     React.createElement(Route, { path: "/", component: Home }),
     React.createElement(Route, { path: "/login", component: Login }),
+    React.createElement(Route, { path: "/register", component: Register }),
+    React.createElement(Route, { path: "/forgot-password", component: ForgotPassword }),
+    React.createElement(Route, { path: "/verify-email", component: AccountVerification }),
+    React.createElement(Route, { path: "/change-password", component: ChangePassword }),
     React.createElement(Route, { path: "/events", component: Events }),
     React.createElement(Route, { path: "/community", component: CommunityList }),
     React.createElement(Route, { path: "/community/:id/edit", component: CommunityList }),

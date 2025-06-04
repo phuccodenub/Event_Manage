@@ -55,6 +55,13 @@ const authService = {
    */
   getProfile: async () => {
     try {
+      // Kiểm tra token trước khi gọi API
+      const token = localStorage.getItem('token');
+      if (!token) {
+        console.log('No token found, user not authenticated');
+        return null;
+      }
+
       // Tránh cache cho request này
       const config = disableCachingForRequest({});
       
@@ -71,10 +78,11 @@ const authService = {
       if ((error as ApiError).status === 401) {
         localStorage.removeItem('user');
         localStorage.removeItem('token');
+        console.log('Token expired or invalid, cleared localStorage');
       }
       
-      console.error('Get profile error:', error);
-      throw error;
+      console.log('Get profile error:', error);
+      return null; // Thay vì throw, return null để không crash router
     }
   },
 
@@ -93,13 +101,20 @@ const authService = {
    */
   googleLogin: async (credential: string) => {
     try {
-    const response = await apiClient.post('/auth/google', { credential });
-    const { user, token } = response.data;
-
-    localStorage.setItem('token', token);
-    localStorage.setItem('user', JSON.stringify(user));
-
-    return user;
+      console.log('Calling Google login API with credential:', credential ? 'Present' : 'Missing');
+      
+      const response = await apiClient.post('/auth/google-login', { credential });
+      
+      console.log('Google login response:', response.data);
+      
+      if (response.data.success) {
+        const { user, token } = response.data;
+        localStorage.setItem('token', token);
+        localStorage.setItem('user', JSON.stringify(user));
+        return user;
+      } else {
+        throw new Error(response.data.message || 'Google login failed');
+      }
     } catch (error) {
       console.error('Google login error:', error);
       throw error;
@@ -113,7 +128,11 @@ const authService = {
    */
   facebookLogin: async (accessToken: string) => {
     try {
-      const response = await apiClient.post('/auth/facebook', { accessToken });
+      console.log('Calling Facebook login API with accessToken:', accessToken ? 'Present' : 'Missing');
+      
+      const response = await apiClient.post('/auth/facebook-login', { accessToken });
+      
+      console.log('Facebook login response:', response.data);
       
       if (response.data.success) {
         const { user, token } = response.data;
@@ -122,7 +141,7 @@ const authService = {
         return user;
       }
       
-      throw new Error('Facebook login failed');
+      throw new Error(response.data.message || 'Facebook login failed');
     } catch (error) {
       console.error('Facebook login error:', error);
       throw error;

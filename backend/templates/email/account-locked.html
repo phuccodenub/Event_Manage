@@ -1,0 +1,249 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tài Khoản Bị Khóa - HUTECH Event Management</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            background-color: #f8f9fa;
+        }
+        
+        .container {
+            max-width: 600px;
+            margin: 0 auto;
+            background-color: #ffffff;
+            border-radius: 12px;
+            overflow: hidden;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+        }
+        
+        .header {
+            background: linear-gradient(135deg, #dc3545 0%, #c82333 100%);
+            color: white;
+            padding: 40px 30px;
+            text-align: center;
+        }
+        
+        .header h1 {
+            font-size: 28px;
+            margin-bottom: 10px;
+            font-weight: 600;
+        }
+        
+        .header p {
+            font-size: 16px;
+            opacity: 0.9;
+        }
+        
+        .icon {
+            width: 60px;
+            height: 60px;
+            background-color: rgba(255, 255, 255, 0.2);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 0 auto 20px;
+            font-size: 24px;
+        }
+        
+        .content {
+            padding: 40px 30px;
+        }
+        
+        .greeting {
+            font-size: 18px;
+            margin-bottom: 20px;
+            color: #2c3e50;
+        }
+        
+        .message {
+            font-size: 16px;
+            margin-bottom: 30px;
+            line-height: 1.7;
+            color: #555;
+        }
+        
+        .alert-box {
+            background-color: #f8d7da;
+            border: 1px solid #f5c6cb;
+            border-radius: 8px;
+            padding: 20px;
+            margin: 25px 0;
+        }
+        
+        .alert-box h3 {
+            color: #721c24;
+            margin-bottom: 10px;
+            font-size: 16px;
+        }
+        
+        .alert-box p {
+            color: #721c24;
+            margin: 5px 0;
+        }
+        
+        .unlock-button {
+            display: inline-block;
+            background: linear-gradient(135deg, #28a745 0%, #20c997 100%);
+            color: white;
+            text-decoration: none;
+            padding: 16px 32px;
+            border-radius: 8px;
+            font-weight: 600;
+            font-size: 16px;
+            text-align: center;
+            transition: all 0.3s ease;
+            margin: 20px 0;
+        }
+        
+        .unlock-button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(40, 167, 69, 0.4);
+        }
+        
+        .reasons {
+            background-color: #fff3cd;
+            border: 1px solid #ffeaa7;
+            border-radius: 8px;
+            padding: 20px;
+            margin: 25px 0;
+        }
+        
+        .reasons h3 {
+            color: #856404;
+            margin-bottom: 10px;
+            font-size: 16px;
+        }
+        
+        .reasons ul {
+            color: #856404;
+            padding-left: 20px;
+        }
+        
+        .reasons li {
+            margin-bottom: 5px;
+        }
+        
+        .footer {
+            background-color: #f8f9fa;
+            padding: 30px;
+            text-align: center;
+            border-top: 1px solid #e9ecef;
+        }
+        
+        .footer p {
+            color: #6c757d;
+            font-size: 14px;
+            margin-bottom: 10px;
+        }
+        
+        .social-links {
+            margin: 20px 0;
+        }
+        
+        .social-links a {
+            display: inline-block;
+            margin: 0 10px;
+            color: #667eea;
+            text-decoration: none;
+            font-size: 14px;
+        }
+        
+        @media (max-width: 600px) {
+            .container {
+                margin: 10px;
+                border-radius: 8px;
+            }
+            
+            .header, .content, .footer {
+                padding: 20px;
+            }
+            
+            .header h1 {
+                font-size: 24px;
+            }
+            
+            .unlock-button {
+                display: block;
+                text-align: center;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- Header -->
+        <div class="header">
+            <div class="icon">🔒</div>
+            <h1>Tài Khoản Bị Khóa</h1>
+            <p>HUTECH Event Management System</p>
+        </div>
+        
+        <!-- Content -->
+        <div class="content">
+            <div class="greeting">
+                Xin chào <strong>{{fullName}}</strong>,
+            </div>
+            
+            <div class="message">
+                Chúng tôi phải thông báo rằng tài khoản của bạn đã bị tạm thời khóa vì lý do bảo mật.
+            </div>
+            
+            <div class="alert-box">
+                <h3>⚠️ Thông tin chi tiết:</h3>
+                <p><strong>Thời gian khóa:</strong> {{lockTime}}</p>
+                <p><strong>Lý do:</strong> {{reason}}</p>
+                <p><strong>Thời gian mở khóa:</strong> {{unlockTime}}</p>
+            </div>
+            
+            <div class="reasons">
+                <h3>🔍 Các lý do có thể khiến tài khoản bị khóa:</h3>
+                <ul>
+                    <li>Đăng nhập sai mật khẩu quá nhiều lần</li>
+                    <li>Hoạt động đáng nghi ngờ được phát hiện</li>
+                    <li>Vi phạm điều khoản sử dụng</li>
+                    <li>Yêu cầu khóa tài khoản từ quản trị viên</li>
+                </ul>
+            </div>
+            
+            <div style="text-align: center;">
+                <a href="{{contactUrl}}" class="unlock-button">
+                    📞 Liên Hệ Hỗ Trợ
+                </a>
+            </div>
+            
+            <div class="message">
+                Nếu bạn cho rằng đây là một sai lầm hoặc cần hỗ trợ khẩn cấp, vui lòng liên hệ với đội ngũ hỗ trợ của chúng tôi.
+            </div>
+        </div>
+        
+        <!-- Footer -->
+        <div class="footer">
+            <p><strong>HUTECH Event Management</strong></p>
+            <p>Trường Đại học Công nghệ TP.HCM</p>
+            <p>Email này được gửi tự động, vui lòng không trả lời.</p>
+            
+            <div class="social-links">
+                <a href="mailto:support@hutech.edu.vn">Hỗ trợ</a> |
+                <a href="https://hutech.edu.vn">Website</a> |
+                <a href="https://hutech.edu.vn/privacy">Chính sách bảo mật</a>
+            </div>
+            
+            <p style="font-size: 12px; color: #adb5bd; margin-top: 20px;">
+                © 2024 HUTECH. Tất cả quyền được bảo lưu.
+            </p>
+        </div>
+    </div>
+</body>
+</html> 

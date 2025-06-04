@@ -692,15 +692,17 @@ const CommunityDetail: React.FC = () => {
               alt={community.name}
               className="w-full h-full object-cover"
               onError={(e) => {
-                console.log('Banner load error in Detail');
                 const target = e.target as HTMLImageElement;
                 target.onerror = null; // Tránh vòng lặp vô hạn
                 target.style.display = 'none';
                 // Hiển thị banner dự phòng
-                target.parentElement!.classList.add('bg-gradient-to-r', 'from-orange-500', 'to-orange-600', 'flex', 'items-center', 'justify-center');
-                const icon = document.createElement('div');
-                icon.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" class="h-16 w-16 text-white opacity-50" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" /></svg>';
-                target.parentElement!.appendChild(icon);
+                const parentElement = target.parentElement;
+                if (parentElement) {
+                  parentElement.classList.add('bg-gradient-to-r', 'from-orange-500', 'to-orange-600', 'flex', 'items-center', 'justify-center');
+                  const icon = document.createElement('div');
+                  icon.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" class="h-16 w-16 text-white opacity-50" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" /></svg>';
+                  parentElement.appendChild(icon);
+                }
               }}
             />
         ) : (
@@ -855,7 +857,7 @@ const CommunityDetail: React.FC = () => {
               <div className="bg-white p-6 rounded-xl shadow mb-6">
                 <h2 className="text-xl font-semibold text-gray-800 mb-4">
                   Yêu cầu tham gia ({community.pendingRequests.filter(r => r.status === 'pending').length})
-              </h2>
+                </h2>
                 {processingRequest && (
                   <div className="mb-4 bg-blue-50 p-2 rounded text-blue-700 text-sm flex items-center">
                     <svg className="animate-spin h-4 w-4 mr-2" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
@@ -866,56 +868,65 @@ const CommunityDetail: React.FC = () => {
                   </div>
                 )}
                 <div className="space-y-3">
-                {(community.pendingRequests || [])
-                  .filter(request => request.status === 'pending')
-                  .map(request => (
-                    <div
-                      key={request._id}
-                      className="flex items-center justify-between bg-gray-50 p-4 rounded-lg"
-                    >
-                        <div className="flex items-center space-x-3">
-                          <div className="w-10 h-10 rounded-lg overflow-hidden border border-gray-200">
-                        <img
-                              src={request.user.avatar?.url || '/default-avatar.png'}
-                          alt={request.user.fullName}
-                              className="w-full h-full object-cover"
-                              onError={(e) => {
-                                const target = e.target as HTMLImageElement;
-                                target.onerror = null;
-                                target.src = '/default-avatar.png';
-                              }}
-                        />
+                  {(community.pendingRequests || [])
+                    .filter(request => request.status === 'pending')
+                    .map(request => {
+                      // Kiểm tra request.user có tồn tại không
+                      if (!request.user) {
+                        console.warn('Request has no user data:', request._id);
+                        return null;
+                      }
+                      
+                      return (
+                        <div
+                          key={request._id}
+                          className="flex items-center justify-between bg-gray-50 p-4 rounded-lg"
+                        >
+                          <div className="flex items-center space-x-3">
+                            <div className="w-10 h-10 rounded-lg overflow-hidden border border-gray-200">
+                              <img
+                                src={request.user?.avatar?.url || '/default-avatar.png'}
+                                alt={request.user?.fullName || 'User'}
+                                className="w-full h-full object-cover"
+                                onError={(e) => {
+                                  const target = e.target as HTMLImageElement;
+                                  target.onerror = null;
+                                  target.src = '/default-avatar.png';
+                                }}
+                              />
+                            </div>
+                            <div>
+                              <p className="font-medium text-gray-800">
+                                {request.user?.fullName || 'Người dùng không xác định'}
+                              </p>
+                              <p className="text-xs text-gray-500">
+                                {new Date(request.requestDate).toLocaleDateString()}
+                              </p>
+                            </div>
                           </div>
-                        <div>
-                          <p className="font-medium text-gray-800">
-                            {request.user.fullName}
-                          </p>
-                            <p className="text-xs text-gray-500">
-                              {new Date(request.requestDate).toLocaleDateString()}
-                          </p>
+                          <div className="flex space-x-2">
+                            <button
+                              onClick={() => handleJoinRequest(request._id, 'approved')}
+                              disabled={processingRequest}
+                              className="px-2 py-1 bg-green-600 text-white rounded hover:bg-green-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed text-sm"
+                            >
+                              Duyệt
+                            </button>
+                            <button
+                              onClick={() => handleJoinRequest(request._id, 'rejected')}
+                              disabled={processingRequest}
+                              className="px-2 py-1 bg-red-600 text-white rounded hover:bg-red-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed text-sm"
+                            >
+                              Từ chối
+                            </button>
+                          </div>
                         </div>
-                      </div>
-                      <div className="flex space-x-2">
-                        <button
-                          onClick={() => handleJoinRequest(request._id, 'approved')}
-                            disabled={processingRequest}
-                            className="px-2 py-1 bg-green-600 text-white rounded hover:bg-green-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed text-sm"
-                        >
-                            Duyệt
-                        </button>
-                        <button
-                          onClick={() => handleJoinRequest(request._id, 'rejected')}
-                            disabled={processingRequest}
-                            className="px-2 py-1 bg-red-600 text-white rounded hover:bg-red-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed text-sm"
-                        >
-                          Từ chối
-                        </button>
-                      </div>
-                    </div>
-                  ))}
+                      );
+                    })
+                    .filter(Boolean)} {/* Lọc bỏ null values */}
+                </div>
               </div>
-            </div>
-          )}
+            )}
             
             {/* Quick Actions */}
             {isMember && (

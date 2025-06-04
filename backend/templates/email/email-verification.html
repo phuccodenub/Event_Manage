@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Xác thực tài khoản - HUTECH Event Management</title>
+  <style>
+    body { 
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
+      margin: 0; 
+      padding: 0; 
+      background-color: #f8fafc; 
+    }
+    .container { 
+      max-width: 600px; 
+      margin: 0 auto; 
+      background: white; 
+      border-radius: 12px; 
+      overflow: hidden; 
+      box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1); 
+    }
+    .header { 
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); 
+      color: white; 
+      padding: 30px; 
+      text-align: center; 
+    }
+    .content { 
+      padding: 30px; 
+    }
+    .button { 
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); 
+      color: white; 
+      padding: 12px 24px; 
+      text-decoration: none; 
+      border-radius: 8px; 
+      display: inline-block; 
+      margin: 20px 0; 
+    }
+    .footer { 
+      background: #f1f5f9; 
+      padding: 20px; 
+      text-align: center; 
+      color: #64748b; 
+      font-size: 14px; 
+    }
+    .warning {
+      background: #fef3cd;
+      border: 1px solid #ffeaa7;
+      padding: 15px;
+      border-radius: 8px;
+      margin: 20px 0;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <h1>🎓 HUTECH Event Management</h1>
+      <p>Hệ thống quản lý sự kiện Đại học Công nghệ TP.HCM</p>
+    </div>
+    <div class="content">
+      <h2>🔐 Xác thực tài khoản</h2>
+      <p>Xin chào <strong>{{fullName}}</strong>,</p>
+      <p>Cảm ơn bạn đã đăng ký tài khoản tại HUTECH Event Management! Để hoàn tất quá trình đăng ký, vui lòng xác thực địa chỉ email của bạn.</p>
+      
+      <div style="text-align: center; margin: 30px 0;">
+        <a href="{{verifyUrl}}" class="button">Xác thực tài khoản</a>
+      </div>
+      
+      <p>Hoặc bạn có thể copy và paste link sau vào trình duyệt:</p>
+      <p style="background: #f8f9fa; padding: 10px; border-radius: 4px; word-break: break-all;">{{verifyUrl}}</p>
+      
+      <div class="warning">
+        <p><strong>⚠️ Lưu ý quan trọng:</strong></p>
+        <ul>
+          <li>Link xác thực này sẽ hết hạn sau <strong>24 giờ</strong></li>
+          <li>Nếu bạn không xác thực email, bạn sẽ không thể đăng nhập vào hệ thống</li>
+          <li>Nếu link hết hạn, bạn có thể yêu cầu gửi lại email xác thực</li>
+        </ul>
+      </div>
+      
+      <p>Sau khi xác thực thành công, bạn sẽ có thể:</p>
+      <ul>
+        <li>✅ Đăng nhập vào hệ thống</li>
+        <li>✅ Đăng ký tham gia các sự kiện</li>
+        <li>✅ Trở thành cộng tác viên cho các sự kiện</li>
+        <li>✅ Nhận thông báo về các sự kiện mới</li>
+      </ul>
+      
+      <p>Nếu bạn không tạo tài khoản này, vui lòng bỏ qua email này.</p>
+      
+      <p>Trân trọng,<br>
+      <strong>Đội ngũ HUTECH Event Management</strong></p>
+    </div>
+    <div class="footer">
+      <p>© {{currentYear}} HUTECH Event Management. All rights reserved.</p>
+      <p>📧 Email: support@hutech.edu.vn | 📞 Hotline: 028 5445 7777</p>
+      <p>🏢 Đại học Công nghệ TP.HCM - 475A Điện Biên Phủ, P.25, Q.Bình Thạnh, TP.HCM</p>
+    </div>
+  </div>
+</body>
+</html> 
