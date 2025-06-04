@@ -1,0 +1,102 @@
+<div class="content-section">
+    <h2>🔐 Xác thực địa chỉ email của bạn</h2>
+    
+    <p>Xin chào <strong>{{fullName}}</strong>,</p>
+    <p>Cảm ơn bạn đã đăng ký tài khoản HUTECH Events! Để đảm bảo tính bảo mật và hoàn tất quá trình đăng ký, vui lòng xác thực địa chỉ email của bạn.</p>
+</div>
+
+<div class="content-section">
+    <div class="info-card">
+        <h3>📧 Email cần xác thực</h3>
+        <p style="font-size: 18px; font-weight: 600; color: #f97316; margin: 0;">{{email}}</p>
+    </div>
+</div>
+
+<div class="content-section" style="text-align: center;">
+    <h3>✅ Xác thực ngay bây giờ</h3>
+    <p>Click vào nút bên dưới để xác thực email của bạn:</p>
+    
+    <div style="margin: 32px 0;">
+        <a href="{{verifyUrl}}" class="btn btn-primary" style="font-size: 18px; padding: 16px 32px;">
+            🔓 Xác thực tài khoản
+        </a>
+    </div>
+    
+    <p style="font-size: 14px; color: #64748b;">
+        Hoặc copy và paste liên kết sau vào trình duyệt:<br>
+        <span style="background: #f1f5f9; padding: 8px 12px; border-radius: 4px; font-family: monospace; word-break: break-all; display: inline-block; margin-top: 8px;">
+            {{verifyUrl}}
+        </span>
+    </p>
+</div>
+
+<div class="content-section">
+    <div class="info-card warning">
+        <h3>⏰ Thông tin quan trọng</h3>
+        <ul style="margin: 12px 0; padding-left: 20px;">
+            <li style="margin-bottom: 8px;"><strong>Thời hạn:</strong> Liên kết này sẽ hết hạn sau <strong>24 giờ</strong></li>
+            <li style="margin-bottom: 8px;"><strong>Bảo mật:</strong> Chỉ sử dụng liên kết này một lần duy nhất</li>
+            <li style="margin-bottom: 0;"><strong>Lưu ý:</strong> Không chia sẻ liên kết này với bất kỳ ai khác</li>
+        </ul>
+    </div>
+</div>
+
+<div class="content-section">
+    <h3>🛡️ Tại sao cần xác thực email?</h3>
+    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; margin: 20px 0;">
+        <div style="text-align: center; padding: 16px;">
+            <div style="font-size: 28px; margin-bottom: 8px;">🔒</div>
+            <h4 style="color: #f97316; font-size: 16px; margin-bottom: 8px;">Bảo mật tài khoản</h4>
+            <p style="font-size: 14px; color: #64748b; margin: 0;">Đảm bảo tài khoản thuộc về bạn</p>
+        </div>
+        
+        <div style="text-align: center; padding: 16px;">
+            <div style="font-size: 28px; margin-bottom: 8px;">📬</div>
+            <h4 style="color: #f97316; font-size: 16px; margin-bottom: 8px;">Nhận thông báo</h4>
+            <p style="font-size: 14px; color: #64748b; margin: 0;">Cập nhật sự kiện quan trọng</p>
+        </div>
+        
+        <div style="text-align: center; padding: 16px;">
+            <div style="font-size: 28px; margin-bottom: 8px;">🔄</div>
+            <h4 style="color: #f97316; font-size: 16px; margin-bottom: 8px;">Khôi phục mật khẩu</h4>
+            <p style="font-size: 14px; color: #64748b; margin: 0;">Hỗ trợ khi quên mật khẩu</p>
+        </div>
+    </div>
+</div>
+
+<div class="content-section">
+    <div class="info-card error">
+        <h3>❌ Không phải bạn tạo tài khoản này?</h3>
+        <p>Nếu bạn không tạo tài khoản trên HUTECH Events, có thể ai đó đã nhập nhầm email của bạn. Trong trường hợp này:</p>
+        <ul style="margin: 12px 0; padding-left: 20px;">
+            <li>Bỏ qua email này - tài khoản sẽ tự động bị xóa sau 7 ngày</li>
+            <li>Hoặc liên hệ với chúng tôi qua email: <a href="mailto:security@hutech.edu.vn" style="color: #f97316;">security@hutech.edu.vn</a></li>
+        </ul>
+    </div>
+</div>
+
+<div class="content-section">
+    <h3>🆘 Cần hỗ trợ?</h3>
+    <p>Nếu bạn gặp khó khăn trong quá trình xác thực, đừng ngần ngại liên hệ với chúng tôi:</p>
+    
+    <div style="display: flex; flex-wrap: wrap; gap: 16px; justify-content: center; margin: 20px 0;">
+        <a href="{{frontendUrl}}/help/verification" style="color: #f97316; text-decoration: none; font-weight: 500;">
+            📚 Hướng dẫn xác thực
+        </a>
+        <a href="mailto:support@hutech.edu.vn" style="color: #f97316; text-decoration: none; font-weight: 500;">
+            📧 Email hỗ trợ
+        </a>
+        <a href="{{frontendUrl}}/contact" style="color: #f97316; text-decoration: none; font-weight: 500;">
+            💬 Chat trực tuyến
+        </a>
+    </div>
+</div>
+
+<div class="content-section" style="text-align: center; border-top: 1px solid #e2e8f0; padding-top: 24px;">
+    <p style="color: #64748b; font-size: 14px; margin-bottom: 8px;">
+        Email được gửi lúc: <strong>{{sentAt}}</strong>
+    </p>
+    <p style="color: #64748b; font-size: 12px; margin: 0;">
+        Mã xác thực: <code style="background: #f1f5f9; padding: 2px 6px; border-radius: 3px;">{{verificationId}}</code>
+    </p>
+</div> 
