@@ -1,5 +1,5 @@
 const express = require('express');
-const { protect } = require('../middleware/auth');
+const { protect, optionalAuth } = require('../middleware/auth');
 const {
   getAllCommunities,
   searchCommunities,
@@ -30,7 +30,7 @@ router.delete('/:id', protect, deleteCommunity);
 router.post('/:id/join', protect, requestToJoin);
 
 // Community events
-router.get('/:communityId/events', getCommunityEvents);
+router.get('/:communityId/events', optionalAuth, getCommunityEvents);
 router.post('/:communityId/events', protect, createCommunityEvent);
 
 module.exports = router;

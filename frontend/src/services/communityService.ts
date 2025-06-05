@@ -148,6 +148,20 @@ const communityService = {
     }
   },
 
+  // Hủy yêu cầu tham gia community
+  cancelJoinRequest: async (communityId: string): Promise<{ message: string }> => {
+    try {
+      const response = await apiClient.delete(`/communities/${communityId}/join`);
+      return response.data;
+    } catch (error: any) {
+      console.error(`Lỗi khi hủy yêu cầu tham gia cộng đồng ${communityId}:`, error);
+      throw {
+        message: error.response?.data?.message || error.message || 'Không thể hủy yêu cầu tham gia cộng đồng',
+        status: error.response?.status || 500
+      };
+    }
+  },
+
   // Xử lý yêu cầu tham gia (dành cho leader)
   handleJoinRequest: async (
     requestId: string,

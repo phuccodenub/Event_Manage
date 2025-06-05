@@ -126,6 +126,29 @@ const CommunityCard: React.FC<CommunityCardProps> = ({
     }
   };
 
+  const handleCancelJoinRequest = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    
+    if (!user) {
+      navigate('/login');
+      return;
+    }
+
+    try {
+      setIsLoading(true);
+      setError(null);
+      await communityService.cancelJoinRequest(community._id);
+      if (onJoinRequest) {
+        onJoinRequest(community._id);
+      }
+    } catch (error: any) {
+      console.error('Error canceling join request:', error);
+      setError(error.message || 'Có lỗi xảy ra khi hủy yêu cầu tham gia');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   const formatDate = (dateString: string | undefined) => {
     if (!dateString) return 'Chưa xác định';
     
@@ -287,10 +310,14 @@ const CommunityCard: React.FC<CommunityCardProps> = ({
           )}
 
           {hasPendingRequest && (
-            <div className="px-3 py-2 bg-yellow-50 text-yellow-600 rounded-lg text-sm font-medium flex items-center gap-1">
+            <button
+              onClick={handleCancelJoinRequest}
+              disabled={isLoading}
+              className="px-3 py-2 bg-yellow-50 text-yellow-600 hover:bg-yellow-100 rounded-lg text-sm font-medium flex items-center gap-1 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            >
               <IoTimeOutline />
-              Chờ duyệt
-            </div>
+              {isLoading ? 'Đang hủy...' : 'Hủy yêu cầu'}
+            </button>
           )}
 
           {isMember && (

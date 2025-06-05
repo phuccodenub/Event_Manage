@@ -1,6 +1,5 @@
 import React, { useState } from 'react';
 import { useParams, useLocation } from 'wouter';
-import { useAuth } from '../../context/AuthContext';
 import { useCommunityData } from '../../hooks/useCommunityData';
 import LoadingSpinner from '../LoadingSpinner';
 import ErrorAlert from '../ErrorAlert';
@@ -17,7 +16,6 @@ import { IoArrowBack } from 'react-icons/io5';
 const CommunityDetail: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const [, navigate] = useLocation();
-  const { user } = useAuth();
   
   // Use custom hook for data management
   const {
@@ -33,7 +31,7 @@ const CommunityDetail: React.FC = () => {
     hasPendingRequest,
     isLeader,
     isDeputy,
-    canManage: canManageProp,
+    canManage,
     loadCommunityDetails,
     loadCommunityEvents,
     sendJoinRequest,
@@ -42,9 +40,6 @@ const CommunityDetail: React.FC = () => {
     handleDeleteCommunity,
     setError
   } = useCommunityData(id);
-
-  // Convert nullable boolean to boolean
-  const canManage = canManageProp ?? false;
 
   // Local state for UI
   const [activeTab, setActiveTab] = useState<'about' | 'events' | 'discussions'>('about');
@@ -145,7 +140,7 @@ const CommunityDetail: React.FC = () => {
         hasPendingRequest={hasPendingRequest}
         isLeader={!!isLeader}
         isDeputy={!!isDeputy}
-        canManage={canManage}
+        canManage={!!canManage}
         onJoinRequestSent={sendJoinRequest}
         onCancelJoinRequest={cancelJoinRequest}
         onEditCommunity={handleEditCommunity}
@@ -175,7 +170,7 @@ const CommunityDetail: React.FC = () => {
               <CommunityEvents
                 events={events}
                 loading={eventsLoading}
-                canManage={canManage}
+                canManage={!!canManage}
                 onCreateEvent={handleCreateEvent}
               />
             )}
@@ -243,4 +238,4 @@ const CommunityDetail: React.FC = () => {
   );
 };
 
-export default CommunityDetail;
+export default CommunityDetail; 

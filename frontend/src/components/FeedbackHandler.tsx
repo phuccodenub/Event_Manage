@@ -126,8 +126,16 @@ const FeedbackHandler: React.FC = () => {
         // Double-check eligibility before showing
         await checkAndShowFeedbackModal(eventIdStr, false);
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error checking for pending feedback:', error);
+      
+      // Only log error, don't show toast to user as this is background operation
+      // and can fail if user is not logged in or endpoint doesn't exist
+      if (error.response?.status !== 404 && error.response?.status !== 401) {
+        console.warn('Unexpected error while checking pending feedback:', error.message);
+      }
+      
+      setCheckedForPendingFeedback(true); // Mark as checked to prevent retries
     } finally {
       isProcessingRef.current = false;
     }

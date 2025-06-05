@@ -4,8 +4,10 @@ import { useAuth } from '../context/AuthContext';
 import eventService from '../services/eventService';
 import notificationService from '../services/notificationService';
 import departmentService from '../services/departmentService';
+import uploadService from '../services/uploadService';
 import EventDaysSelector from './EventDaysSelector';
 import SupportScheduleSelector from './SupportScheduleSelector';
+import { toast } from 'react-toastify';
 
 interface CreateCommunityEventModalProps {
   isOpen: boolean;
@@ -88,14 +90,16 @@ const CreateCommunityEventModal: React.FC<CreateCommunityEventModalProps> = ({
   const { user } = useAuth();
   const [formData, setFormData] = useState<FormData>(initialFormData);
   const [loading, setLoading] = useState(false);
-  const [uploadedImages, setUploadedImages] = useState<Array<{public_id: string, url: string}>>([]);
+  const [selectedImages, setSelectedImages] = useState<File[]>([]);
+  const [previews, setPreviews] = useState<string[]>([]);
   const [currentTag, setCurrentTag] = useState('');
   const [departments, setDepartments] = useState<Array<{_id: string, name: string}>>([]);
 
   useEffect(() => {
     if (!isOpen) {
       setFormData(initialFormData);
-      setUploadedImages([]);
+      setSelectedImages([]);
+      setPreviews([]);
       setCurrentTag('');
     }
   }, [isOpen]);
@@ -129,11 +133,24 @@ const CreateCommunityEventModal: React.FC<CreateCommunityEventModalProps> = ({
     }
   };
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files) {
-      const files = Array.from(e.target.files);
-      setFormData(prev => ({ ...prev, images: files }));
+  const handleImageUpload = (files: FileList | null) => {
+    if (files) {
+      const filesArray = Array.from(files);
+      setSelectedImages(prev => [...prev, ...filesArray]);
+      
+      filesArray.forEach(file => {
+        const reader = new FileReader();
+        reader.onloadend = () => {
+          setPreviews(prev => [...prev, reader.result as string]);
+        };
+        reader.readAsDataURL(file);
+      });
     }
+  };
+
+  const removeImage = (index: number) => {
+    setSelectedImages(prev => prev.filter((_, i) => i !== index));
+    setPreviews(prev => prev.filter((_, i) => i !== index));
   };
 
   const addTag = () => {
@@ -168,14 +185,16 @@ const CreateCommunityEventModal: React.FC<CreateCommunityEventModalProps> = ({
     try {
       // Validate form
       if (!formData.title || !formData.description || !formData.department || formData.eventDays.length === 0) {
-        alert('Vui lòng điền đầy đủ thông tin bắt buộc');
+        toast.error('Vui lòng điền đầy đủ thông tin bắt buộc');
+        setLoading(false);
         return;
       }
 
       // Validate that each event day has at least one session
       const hasInvalidDays = formData.eventDays.some(day => day.sessions.length === 0);
       if (hasInvalidDays) {
-        alert('Mỗi ngày sự kiện phải có ít nhất một buổi');
+        toast.error('Mỗi ngày sự kiện phải có ít nhất một buổi');
+        setLoading(false);
         return;
       }
 
@@ -189,39 +208,48 @@ const CreateCommunityEventModal: React.FC<CreateCommunityEventModalProps> = ({
       submitData.append('category', formData.category);
       submitData.append('department', formData.department);
       submitData.append('visibility', formData.visibility);
-      submitData.append('capacity', formData.capacity);
-      submitData.append('isRegistrationRequired', formData.isRegistrationRequired.toString());
-      submitData.append('needsRegistrationForm', formData.needsRegistrationForm.toString());
-      submitData.append('needsCollaboratorForm', formData.needsCollaboratorForm.toString());
-      submitData.append('needsVolunteers', formData.needsCollaboratorForm.toString());
-      submitData.append('maxCollaborators', formData.maxCollaborators);
+      submitData.append('community', communityId);
       
       // Add organizer (current user)
       if (user?._id) {
         submitData.append('organizer', user._id);
       }
+
+      // Handle capacity
+      if (formData.capacity && parseInt(formData.capacity) > 0) {
+        submitData.append('capacity', formData.capacity.toString());
+      }
+
+      // Handle max collaborators
+      if (formData.maxCollaborators && parseInt(formData.maxCollaborators) > 0) {
+        submitData.append('maxVolunteers', formData.maxCollaborators.toString());
+      }
+
+      // Handle registration deadline
+      if (formData.registrationDeadline) {
+        submitData.append('registrationDeadline', formData.registrationDeadline);
+      }
       
       // Location - handle different event types
       const location: any = {};
       if (formData.eventType === 'offline' || formData.eventType === 'hybrid') {
-        if (formData.location.physical) {
-          location.physical = { address: formData.location.physical };
+        if (!formData.location.physical) {
+          toast.error('Vui lòng nhập địa chỉ cho sự kiện trực tiếp');
+          return;
         }
+        location.physical = { address: formData.location.physical };
       }
       if (formData.eventType === 'online' || formData.eventType === 'hybrid') {
-        if (formData.location.online) {
-          location.online = { 
-            platform: 'Custom',
-            meetingLink: formData.location.online 
-          };
+        if (!formData.location.online) {
+          toast.error('Vui lòng nhập đầy đủ thông tin cho sự kiện trực tuyến');
+          return;
         }
+        location.online = { 
+          platform: 'Custom',
+          meetingLink: formData.location.online 
+        };
       }
       submitData.append('location', JSON.stringify(location));
-      
-      // Registration deadline
-      if (formData.registrationDeadline) {
-        submitData.append('registrationDeadline', formData.registrationDeadline);
-      }
 
       // Event days
       if (formData.eventDays.length > 0) {
@@ -229,11 +257,6 @@ const CreateCommunityEventModal: React.FC<CreateCommunityEventModalProps> = ({
           date: day.date.toISOString(),
           sessions: day.sessions
         }))));
-      }
-
-      // Tags
-      if (formData.tags.length > 0) {
-        submitData.append('tags', JSON.stringify(formData.tags));
       }
 
       // Support schedule
@@ -246,16 +269,54 @@ const CreateCommunityEventModal: React.FC<CreateCommunityEventModalProps> = ({
         }));
       }
 
-      // Images
-      uploadedImages.forEach((image, index) => {
-        submitData.append(`images[${index}][public_id]`, image.public_id);
-        submitData.append(`images[${index}][url]`, image.url);
-      });
+      // Handle images like CreateEventModal
+      if (selectedImages.length > 0) {
+        try {
+          toast.info('Đang tải ảnh lên...');
+          const uploadedFiles = await uploadService.uploadEventImages(selectedImages);
+          
+          if (!uploadedFiles || uploadedFiles.length === 0) {
+            throw new Error('Không có ảnh nào được tải lên thành công');
+          }
+          
+          uploadedFiles.forEach((image, index) => {
+            if (image && image.public_id && image.url) {
+              submitData.append(`images[${index}][public_id]`, image.public_id);
+              submitData.append(`images[${index}][url]`, image.url);
+            }
+          });
+          
+          toast.success(`Đã tải lên ${uploadedFiles.length} ảnh thành công`);
+        } catch (uploadError: any) {
+          console.error('Error uploading images:', uploadError);
+          
+          // If it's a server connection error, allow user to proceed without images
+          if (uploadError.message?.includes('không sẵn sàng') || uploadError.message?.includes('kết nối')) {
+            const proceed = window.confirm(
+              'Không thể tải ảnh lên do lỗi kết nối server. Bạn có muốn tạo sự kiện không có ảnh không?'
+            );
+            if (proceed) {
+              toast.warning('Tạo sự kiện không có ảnh');
+              // Continue without images
+            } else {
+              setLoading(false);
+              return;
+            }
+          } else {
+            toast.error('Có lỗi khi tải ảnh lên. Vui lòng thử lại.');
+            setLoading(false);
+            return;
+          }
+        }
+      }
 
-      // File uploads
-      formData.images.forEach(file => {
-        submitData.append('eventImages', file);
-      });
+      // Add registration form data
+      submitData.append('needsRegistrationForm', formData.needsRegistrationForm ? 'true' : 'false');
+      submitData.append('formFields', JSON.stringify([]));
+
+      // Add collaborator form data
+      submitData.append('needsCollaboratorForm', formData.needsCollaboratorForm ? 'true' : 'false');
+      submitData.append('needsVolunteers', formData.needsCollaboratorForm ? 'true' : 'false');
 
       console.log('Submitting community event data:', {
         communityId,
@@ -268,7 +329,7 @@ const CreateCommunityEventModal: React.FC<CreateCommunityEventModalProps> = ({
       console.log('Community event creation result:', result);
       
       if (result && result.success) {
-        alert('Tạo sự kiện thành công!');
+        toast.success('Tạo sự kiện thành công!');
         onEventCreated();
         onClose();
       } else {
@@ -296,7 +357,7 @@ const CreateCommunityEventModal: React.FC<CreateCommunityEventModalProps> = ({
         errorMessage = error.message;
       }
       
-      alert(errorMessage);
+      toast.error(errorMessage);
     } finally {
       setLoading(false);
     }
@@ -610,13 +671,33 @@ const CreateCommunityEventModal: React.FC<CreateCommunityEventModalProps> = ({
               type="file"
               multiple
               accept="image/*"
-              onChange={handleFileChange}
+              onChange={(e) => handleImageUpload(e.target.files)}
               className="w-full p-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
             />
-            {formData.images.length > 0 && (
-              <p className="text-sm text-gray-600 mt-1">
-                Đã chọn {formData.images.length} hình ảnh
-              </p>
+            {selectedImages.length > 0 && (
+              <div className="mt-2">
+                <p className="text-sm text-gray-600 mb-2">
+                  Đã chọn {selectedImages.length} hình ảnh
+                </p>
+                <div className="grid grid-cols-3 gap-2">
+                  {previews.map((preview, index) => (
+                    <div key={index} className="relative">
+                      <img
+                        src={preview}
+                        alt={`Preview ${index + 1}`}
+                        className="w-full h-20 object-cover rounded"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => removeImage(index)}
+                        className="absolute top-1 right-1 bg-red-500 text-white rounded-full w-5 h-5 flex items-center justify-center text-xs hover:bg-red-600"
+                      >
+                        ×
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </div>
             )}
           </div>
 
