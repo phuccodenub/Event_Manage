@@ -72,9 +72,11 @@ const Dashboard = () => {
         monthIndex: monthDate.getMonth(),
         yearIndex: monthDate.getFullYear()
       };
-    });    events.forEach(event => {
-      if (!event.startDate) return;
-      const eventDate = new Date(event.startDate);
+    });
+
+    events.forEach(event => {
+      if (!event.eventDays || !event.eventDays[0]) return;
+      const eventDate = new Date(event.eventDays[0].date);
       if (eventDate >= startDate && eventDate <= endDate) {
         const monthEntry = monthlyStats.find(m => 
           m.monthIndex === eventDate.getMonth() && 
@@ -106,27 +108,30 @@ const Dashboard = () => {
           (a.participants?.length || 0) / (a.capacity || 100)
         )
         .slice(0, 5)
-        .map(event => ({
-          name: event.title,          registered: event.participants?.length || 0,
-          capacity: event.capacity || 100,
-          startDate: event.startDate ? new Date(event.startDate).toLocaleString('vi-VN', {
-            day: '2-digit',
-            month: '2-digit',
-            year: 'numeric',
-            hour: '2-digit',
-            minute: '2-digit'
-          }) : 'N/A',
-          endDate: event.endDate ? new Date(event.endDate).toLocaleString('vi-VN', {
-            hour: '2-digit',
-            minute: '2-digit'
-          }) : 'N/A',
-          location: event.location?.physical 
-            ? `${event.location.physical.address}${event.location.physical.room ? ` - ${event.location.physical.room}` : ''}`
-            : 'Online',
-          rate: Math.round(((event.participants?.length || 0) / (event.capacity || 100)) * 100),
-          department: event.department?.name || 'Chưa phân khoa',
-          status: event.status
-        }))
+        .map(event => {
+          const eventDay = event.eventDays?.[0];
+          const sessions = eventDay?.sessions || [];
+          
+          return {
+            name: event.title,
+            registered: event.participants?.length || 0,
+            capacity: event.capacity || 100,
+            startDate: eventDay ? new Date(eventDay.date).toLocaleDateString('vi-VN', {
+              day: '2-digit',
+              month: '2-digit',
+              year: 'numeric'
+            }) : 'N/A',
+            endDate: sessions.length > 0 
+              ? sessions.map(s => `${s.label}: ${s.startTime} - ${s.endTime}`).join('\n')
+              : 'N/A',
+            location: event.location?.physical 
+              ? `${event.location.physical.address}${event.location.physical.room ? ` - Phòng ${event.location.physical.room}` : ''}`
+              : 'Online',
+            rate: Math.round(((event.participants?.length || 0) / (event.capacity || 100)) * 100),
+            department: event.department?.name || 'Chưa phân khoa',
+            status: event.status
+          };
+        })
     };
   };
 
@@ -331,7 +336,10 @@ const Dashboard = () => {
                     <div className="flex-1">
                       <p className="font-medium text-gray-700">{event.name}</p>
                       <p className="text-sm text-gray-500">
-                        {event.startDate} - {event.endDate}
+                        {event.startDate}
+                      </p>
+                      <p className="text-sm text-gray-500 whitespace-pre-line">
+                        {event.endDate}
                       </p>
                       <p className="text-xs text-gray-400">
                         {event.location} | {event.department}

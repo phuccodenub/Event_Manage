@@ -282,6 +282,40 @@ const deleteCommunity = catchAsyncErrors(async (req, res, next) => {
   });
 });
 
+// Hủy yêu cầu tham gia community
+const cancelJoinRequest = catchAsyncErrors(async (req, res, next) => {
+  // Kiểm tra ID có hợp lệ theo định dạng MongoDB không
+  const isValidObjectId = mongoose.Types.ObjectId.isValid(req.params.id);
+  
+  if (!isValidObjectId) {
+    return next(new ErrorHandler('ID cộng đồng không hợp lệ', 400));
+  }
+
+  const community = await Community.findById(req.params.id);
+
+  if (!community) {
+    return next(new ErrorHandler('Không tìm thấy cộng đồng', 404));
+  }
+
+  // Tìm và xóa yêu cầu tham gia của user
+  const requestIndex = community.pendingRequests.findIndex(
+    request => request.user.toString() === req.user._id.toString() && 
+    request.status === 'pending'
+  );
+
+  if (requestIndex === -1) {
+    return next(new ErrorHandler('Không tìm thấy yêu cầu tham gia của bạn', 404));
+  }
+
+  community.pendingRequests.splice(requestIndex, 1);
+  await community.save();
+
+  res.status(200).json({
+    success: true,
+    message: 'Đã hủy yêu cầu tham gia thành công'
+  });
+});
+
 module.exports = {
   getAllCommunities,
   searchCommunities,
@@ -290,5 +324,6 @@ module.exports = {
   requestToJoin,
   handleJoinRequest,
   updateCommunity,
-  deleteCommunity
+  deleteCommunity,
+  cancelJoinRequest
 };

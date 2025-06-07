@@ -195,20 +195,24 @@ exports.updateAvatar = async (req, res, next) => {
   try {
     if (!req.files || !req.files.avatar) {
       return next(new ErrorResponse('Please upload an image file', 400));
-    }
-
-    const user = await User.findById(req.user.id);
+    }    const user = await User.findById(req.user.id);
     if (!user) {
       return next(new ErrorResponse('User not found', 404));
     }
 
     // Delete old avatar if exists
     if (user.avatar && user.avatar.public_id) {
-      await deleteFromCloudinary(user.avatar.public_id);
+      try {
+        await deleteFromCloudinary(user.avatar.public_id);
+        console.log('Old avatar deleted successfully:', user.avatar.public_id);
+      } catch (deleteError) {
+        console.warn('Warning: Could not delete old avatar:', deleteError.message);
+        // Continue with upload even if old avatar deletion fails
+      }
     }
 
     // Upload new avatar to Cloudinary
-    const result = await uploadToCloudinary(req.files.avatar);
+    const result = await uploadToCloudinary(req.files.avatar, 'user-avatars');
 
     // Update user avatar in database
     user.avatar = {

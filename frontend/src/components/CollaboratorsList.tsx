@@ -156,7 +156,7 @@ const CollaboratorsList: React.FC<CollaboratorListProps> = ({ eventId, onUpdate 
   
   // Debug log permissions info
   useEffect(() => {
-    if (process.env.NODE_ENV === 'development') {
+    if (import.meta.env.DEV) {
       console.log('Collaborator Permissions Debug:', {
         userId: user?._id,
         eventCreatorId: eventDetails?.creator?._id,

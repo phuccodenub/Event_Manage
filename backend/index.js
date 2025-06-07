@@ -32,6 +32,39 @@ io.on('connection', (socket) => {
   if (userId) {
     console.log(`User ${userId} connected`);
     
+    // Join community chat rooms
+    socket.on('community:join-chat', (communityId) => {
+      socket.join(`community_${communityId}`);
+      console.log(`User ${userId} joined community chat ${communityId}`);
+    });
+
+    // Leave community chat rooms
+    socket.on('community:leave-chat', (communityId) => {
+      socket.leave(`community_${communityId}`);
+      console.log(`User ${userId} left community chat ${communityId}`);
+    });
+
+    // Handle message sending (real-time broadcast to other users)
+    socket.on('community:send-message', (messageData) => {
+      // Broadcast to all other users in the community room
+      socket.to(`community_${messageData.communityId}`).emit('community:new-message', messageData);
+    });
+
+    // Handle typing indicators
+    socket.on('community:typing-start', (data) => {
+      socket.to(`community_${data.communityId}`).emit('community:user-typing', {
+        userId: userId,
+        communityId: data.communityId
+      });
+    });
+
+    socket.on('community:typing-stop', (data) => {
+      socket.to(`community_${data.communityId}`).emit('community:user-stopped-typing', {
+        userId: userId,
+        communityId: data.communityId
+      });
+    });
+    
     socket.on('disconnect', () => {
       console.log(`User ${userId} disconnected`);
     });

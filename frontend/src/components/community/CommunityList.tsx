@@ -1,5 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../../context/AuthContext';
+import { useCommunity } from '../../context/CommunityContext';
 import communityService from '../../services/communityService';
 import type { Community } from '../../services/communityService';
 import CommunityCard from './CommunityCard';
@@ -49,7 +50,7 @@ const initialFormData: FormData = {
 
 const CommunityList: React.FC = () => {
   const { user } = useAuth();
-  const [communities, setCommunities] = useState<Community[]>([]);
+  const { communities, setCommunities } = useCommunity();
   const [searchQuery, setSearchQuery] = useState('');
   const [isLoading, setIsLoading] = useState(true);
   const [isCreating, setIsCreating] = useState(false);
@@ -213,21 +214,30 @@ const CommunityList: React.FC = () => {
         }
       }
       
-      if (modalMode === 'edit' && selectedCommunity) {
-        await communityService.updateCommunity(selectedCommunity._id, submitData);
-      } else {
-        await communityService.createCommunity(submitData);
+      let result: Community;
+      if (modalMode === 'create') {
+        result = await communityService.createCommunity(submitData);
+        setCommunities(prev => [result, ...prev]);
+      } else if (selectedCommunity) {
+        result = await communityService.updateCommunity(selectedCommunity._id, submitData);
+        setCommunities(prev => 
+          prev.map(community => 
+            community._id === selectedCommunity._id ? result : community
+          )
+        );
       }
       
-      // Đóng modal và tải lại danh sách
       handleCloseModal();
-      await loadCommunities();
     } catch (error: any) {
-      console.error('Lỗi khi lưu cộng đồng:', error);
-      setError(error.message || 'Không thể lưu thông tin cộng đồng');
+      console.error('Lỗi khi tạo/cập nhật cộng đồng:', error);
+      setError(error.message || 'Có lỗi xảy ra khi xử lý yêu cầu');
     } finally {
       setIsSubmitting(false);
     }
+  };
+
+  const handleJoinRequest = async (communityId: string) => {
+    console.log('Join request handled for community:', communityId);
   };
 
   return (
@@ -319,7 +329,7 @@ const CommunityList: React.FC = () => {
                     onDelete={(id) => {
                       setCommunities(prev => prev.filter(c => c._id !== id));
                     }}
-                    onJoinRequest={loadCommunities}
+                    onJoinRequest={handleJoinRequest}
                     onEdit={handleEditCommunity}
                   />
                 ))}

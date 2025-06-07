@@ -9,6 +9,7 @@ import CommunityHeader from './CommunityHeader';
 import CommunityTabs from './CommunityTabs';
 import CommunityMembers from './CommunityMembers';
 import CommunityEvents from './CommunityEvents';
+import CommunityChat from './CommunityChat';
 import PendingRequests from './PendingRequests';
 import EditCommunityModal from './EditCommunityModal';
 import { IoArrowBack } from 'react-icons/io5';
@@ -177,10 +178,10 @@ const CommunityDetail: React.FC = () => {
 
             {activeTab === 'discussions' && (
               <div className="bg-white rounded-xl shadow p-6 mb-6">
-                <div className="text-center py-10 bg-gray-50 rounded-lg">
-                  <h3 className="text-lg font-medium text-gray-700">Chức năng thảo luận</h3>
-                  <p className="text-gray-500 mt-1">Tính năng này sẽ được phát triển trong tương lai</p>
-                </div>
+                <CommunityChat
+                  communityId={id || ''}
+                  members={members}
+                />
               </div>
             )}
           </div>

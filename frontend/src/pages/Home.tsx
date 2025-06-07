@@ -528,15 +528,7 @@ const Home: React.FC = () => {
     >
       <div className="flex items-center justify-between p-4 border-b border-[#EDEDED]">
         <div className="flex items-center">
-          {/* <img
-            src={event.organizer?.avatar?.url || '/default-avatar.png'}
-            alt={event.organizer?.fullName || 'User'}
-            className="w-10 h-10 rounded-full object-cover"
-            onError={(e) => {
-              const target = e.target as HTMLImageElement;
-              target.src = '/default-avatar.png';
-            }}
-          /> */}          {getSafeAvatarUrl(event.organizer?.avatar) ? (
+          {getSafeAvatarUrl(event.organizer?.avatar) ? (
             <img src={getSafeAvatarUrl(event.organizer?.avatar)} alt="" className="w-10 h-10 rounded-full object-cover flex-shrink-0" />
           ) : (
             <div className="w-10 h-10 rounded-full bg-gray-100 flex items-center justify-center flex-shrink-0">
@@ -550,22 +542,33 @@ const Home: React.FC = () => {
                   <h3 className="font-semibold text-gray-900 text-sm">
                     {event.organizer?.fullName || 'Unknown'}
                   </h3>
-                  {event.department?.name && (
+                  {event.community?.name ? (
+                    <span 
+                      className="text-xs text-blue-600 font-medium hover:text-blue-800 cursor-pointer"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        navigate(`/community/${event.community?._id}`);
+                      }}
+                    >
+                      • trong {event.community.name}
+                    </span>
+                  ) : event.department?.name && (
                     <span className="text-xs text-gray-500">• {event.department.name}</span>
                   )}
-                  {event.community?.name && (
-                    <span className="text-xs text-blue-600 font-medium">
-                      {event.department?.name ? ' • ' : ' • '}trong {event.community.name}
-                    </span>
-                  )}
                 </div>
-                <span className="text-xs text-gray-500 hover:text-orange-600 cursor-pointer whitespace-nowrap flex-shrink-0 ml-2">
-                  {event.createdAt ? formatTimeAgo(event.createdAt) : ''}
-                </span>
               </div>
               
-              {/* Location info on separate line */}
+              {/* Location and time info on second line */}
               <div className="flex items-center gap-3 flex-wrap">
+                <span 
+                  className="text-xs text-gray-500 hover:text-orange-600 cursor-pointer"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    navigate(`/events/${event._id}`);
+                  }}
+                >
+                  {event.createdAt ? formatTimeAgo(event.createdAt) : ''}
+                </span>
                 {(event.eventType === 'offline' || event.eventType === 'hybrid') && 
                   event.location?.physical?.address && (
                     <div className="flex items-center space-x-1">
@@ -693,8 +696,8 @@ const Home: React.FC = () => {
 
         <section className="col-span-1 lg:col-span-6 mb-10">
           {/* Test Component - chỉ hiển thị trong development */}
-          {process.env.NODE_ENV === 'development' && (
-            <div className="mb-4">
+          {import.meta.env.DEV && (
+            <div className="">
               {/* <TestCollaboratorButton /> */}
             </div>
           )}
@@ -721,7 +724,8 @@ const Home: React.FC = () => {
           )}
 
           <div className="bg-white rounded-lg shadow-sm p-4 mb-4">
-            <div className="flex items-start space-x-2">              {getSafeAvatarUrl(user?.avatar) ? (
+            <div className="flex items-start space-x-2">              
+              {getSafeAvatarUrl(user?.avatar) ? (
                 <img src={getSafeAvatarUrl(user?.avatar)} alt="" className="w-12 h-12 rounded-full object-cover flex-shrink-0" />
               ) : (
                 <div className="w-12 h-12 rounded-full bg-gray-100 flex items-center justify-center flex-shrink-0">

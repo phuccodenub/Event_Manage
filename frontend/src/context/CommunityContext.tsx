@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode, useCallback } from 'react';
 import { io, Socket } from 'socket.io-client';
+import type { Community } from '../services/communityService';
 
 interface CommunityJoinState {
   [communityId: string]: 'none' | 'pending' | 'member';
@@ -23,6 +24,12 @@ interface OnlineMemberStatus {
 }
 
 interface CommunityContextType {
+  // Core state like EventContext
+  communities: Community[];
+  setCommunities: React.Dispatch<React.SetStateAction<Community[]>>;
+  updateCommunityJoinState: (communityId: string, userId: string, action: 'join' | 'cancel') => void;
+  
+  // Legacy state for backward compatibility
   joinStates: CommunityJoinState;
   activities: CommunityActivity[];
   onlineMembers: OnlineMemberStatus;
@@ -33,6 +40,12 @@ interface CommunityContextType {
   leaveCommunityRoom: (communityId: string) => void;
   clearActivities: (communityId?: string) => void;
   retry: () => void;
+  
+  // User state tracking
+  activePendingRequests: string[]; // Community IDs where user has pending request
+  activeMemberships: string[]; // Community IDs where user is member
+  isUserPendingInCommunity: (communityId: string) => boolean;
+  isUserMemberOfCommunity: (communityId: string) => boolean;
 }
 
 const CommunityContext = createContext<CommunityContextType | undefined>(undefined);
@@ -42,6 +55,12 @@ interface CommunityProviderProps {
 }
 
 export const CommunityProvider: React.FC<CommunityProviderProps> = ({ children }) => {
+  // Core state like EventContext
+  const [communities, setCommunities] = useState<Community[]>([]);
+  const [activePendingRequests, setActivePendingRequests] = useState<string[]>([]);
+  const [activeMemberships, setActiveMemberships] = useState<string[]>([]);
+  
+  // Legacy state for backward compatibility
   const [joinStates, setJoinStates] = useState<CommunityJoinState>({});
   const [activities, setActivities] = useState<CommunityActivity[]>([]);
   const [onlineMembers, setOnlineMembers] = useState<OnlineMemberStatus>({});
@@ -51,15 +70,110 @@ export const CommunityProvider: React.FC<CommunityProviderProps> = ({ children }
 
   const maxReconnectAttempts = 5;
 
+  // Helper functions like EventContext
+  const isUserPendingInCommunity = useCallback((communityId: string) => {
+    return activePendingRequests.includes(communityId);
+  }, [activePendingRequests]);
+
+  const isUserMemberOfCommunity = useCallback((communityId: string) => {
+    return activeMemberships.includes(communityId);
+  }, [activeMemberships]);
+
+  // Main update function like updateEventParticipants
+  const updateCommunityJoinState = useCallback((communityId: string, userId: string, action: 'join' | 'cancel') => {
+    try {
+      // Update communities state optimistically
+      setCommunities(prevCommunities => 
+        prevCommunities.map(community => {
+          if (community._id === communityId) {
+            const pendingRequests = community.pendingRequests || [];
+            
+            if (action === 'join') {
+              // Add pending request
+              const newRequest = {
+                _id: `temp-${Date.now()}`,
+                user: {
+                  _id: userId,
+                  fullName: 'Loading...',
+                  avatar: { url: '/default-avatar.png' }
+                },
+                status: 'pending' as const,
+                requestDate: new Date().toISOString()
+              };
+              
+              return {
+                ...community,
+                pendingRequests: [...pendingRequests, newRequest]
+              };
+            } else if (action === 'cancel') {
+              // Remove pending request
+              return {
+                ...community,
+                pendingRequests: pendingRequests.filter(
+                  request => {
+                    const requestUserId = typeof request.user === 'string' ? request.user : request.user?._id;
+                    return requestUserId !== userId;
+                  }
+                )
+              };
+            }
+          }
+          return community;
+        })
+      );
+
+      // Update user state tracking
+      if (action === 'join') {
+        setActivePendingRequests(prev => 
+          prev.includes(communityId) ? prev : [...prev, communityId]
+        );
+        setActiveMemberships(prev => 
+          prev.filter(id => id !== communityId)
+        );
+      } else if (action === 'cancel') {
+        setActivePendingRequests(prev => 
+          prev.filter(id => id !== communityId)
+        );
+      }
+
+      // Update legacy state for backward compatibility
+      const newState = action === 'join' ? 'pending' : 'none';
+      setJoinStates(prev => ({
+        ...prev,
+        [communityId]: newState
+      }));
+
+      // Emit to websocket for real-time sync
+      if (socket && isConnected) {
+        socket.emit('community:update-join-state', {
+          communityId,
+          userId,
+          action,
+          status: newState,
+          timestamp: new Date().toISOString()
+        });
+      }
+
+    } catch (error) {
+      console.error('Error updating community join state:', error);
+    }
+  }, [socket, isConnected]);
+
   const initializeSocket = useCallback(() => {
     try {
-      const newSocket = io(process.env.REACT_APP_API_URL || 'http://localhost:5000', {
+      const currentUser = JSON.parse(localStorage.getItem('user') || '{}');
+      const userId = currentUser._id || currentUser.id;
+
+      const newSocket = io(import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000', {
         transports: ['websocket', 'polling'],
         timeout: 10000,
         reconnection: true,
         reconnectionAttempts: maxReconnectAttempts,
         reconnectionDelay: 1000,
-        reconnectionDelayMax: 5000
+        reconnectionDelayMax: 5000,
+        query: {
+          userId: userId || ''
+        }
       });
 
       // Connection events
@@ -93,10 +207,7 @@ export const CommunityProvider: React.FC<CommunityProviderProps> = ({ children }
       // Community-specific events
       newSocket.on('community:join-request', (data) => {
         console.log('📨 Community join request update:', data);
-        setJoinStates(prev => ({
-          ...prev,
-          [data.communityId]: data.status
-        }));
+        updateCommunityJoinState(data.communityId, data.userId, data.action);
 
         // Add to activity feed
         const activity: CommunityActivity = {
@@ -131,10 +242,7 @@ export const CommunityProvider: React.FC<CommunityProviderProps> = ({ children }
 
       newSocket.on('community:request-cancelled', (data) => {
         console.log('🚫 Community request cancelled:', data);
-        setJoinStates(prev => ({
-          ...prev,
-          [data.communityId]: 'none'
-        }));
+        updateCommunityJoinState(data.communityId, data.userId, 'cancel');
       });
 
       newSocket.on('community:member-status-change', (data) => {
@@ -175,6 +283,33 @@ export const CommunityProvider: React.FC<CommunityProviderProps> = ({ children }
     };
   }, [initializeSocket]);
 
+  // Initialize user state when communities are loaded
+  useEffect(() => {
+    const currentUser = JSON.parse(localStorage.getItem('user') || '{}');
+    if (currentUser && currentUser._id && communities.length > 0) {
+      const userId = currentUser._id;
+      
+      // Find communities where user has pending requests
+      const pendingCommunities = communities.filter(community => 
+        community.pendingRequests?.some(request => {
+          const requestUserId = typeof request.user === 'string' ? request.user : request.user?._id;
+          return requestUserId === userId && request.status === 'pending';
+        })
+      ).map(community => community._id);
+      
+      // Find communities where user is member
+      const memberCommunities = communities.filter(community =>
+        community.members?.some(member => {
+          const memberId = typeof member.user === 'string' ? member.user : member.user?._id;
+          return memberId === userId;
+        })
+      ).map(community => community._id);
+      
+      setActivePendingRequests(pendingCommunities);
+      setActiveMemberships(memberCommunities);
+    }
+  }, [communities]);
+
   const updateJoinState = useCallback((communityId: string, state: 'none' | 'pending' | 'member') => {
     setJoinStates(prev => ({
       ...prev,
@@ -214,15 +349,26 @@ export const CommunityProvider: React.FC<CommunityProviderProps> = ({ children }
   }, []);
 
   const retry = useCallback(() => {
+    console.log('🔄 Retrying websocket connection...');
     if (socket) {
       socket.close();
     }
-    setTimeout(() => {
-      initializeSocket();
-    }, 1000);
+    initializeSocket();
   }, [socket, initializeSocket]);
 
   const contextValue: CommunityContextType = {
+    // Core state like EventContext
+    communities,
+    setCommunities,
+    updateCommunityJoinState,
+    
+    // User state tracking
+    activePendingRequests,
+    activeMemberships,
+    isUserPendingInCommunity,
+    isUserMemberOfCommunity,
+    
+    // Legacy state for backward compatibility
     joinStates,
     activities,
     onlineMembers,

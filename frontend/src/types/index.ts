@@ -151,6 +151,7 @@ export interface Event {
   capacity?: number;
   eventScope?: 'general' | 'community';
   visibility?: 'public' | 'private' | 'restricted';
+  registrationDeadline?: Date | string;
   registrationForm?: {
     fields: FormField[];
   };

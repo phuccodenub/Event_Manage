@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
+import { useCommunity } from '../context/CommunityContext';
 import communityService from '../services/communityService';
 import type { Community } from '../services/communityService';
 import { Event } from '../types';
@@ -10,6 +11,7 @@ const isValidMongoId = (id: string): boolean => {
 
 export const useCommunityData = (id: string | undefined) => {
   const { user } = useAuth();
+  const { updateCommunityJoinState, isUserPendingInCommunity, isUserMemberOfCommunity } = useCommunity();
   const [community, setCommunity] = useState<Community | null>(null);
   const [events, setEvents] = useState<Event[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -64,34 +66,25 @@ export const useCommunityData = (id: string | undefined) => {
     try {
       setProcessingRequest(true);
       setError(null);
-      await communityService.requestToJoin(id);
       
-      // Optimistically update the community state to show pending request
-      if (community) {
-        const updatedCommunity: Community = {
-          ...community,
-          pendingRequests: [
-            ...(community.pendingRequests || []),
-            {
-              _id: `temp-${Date.now()}`,
-              user: {
-                _id: user.id || user._id || '',
-                fullName: user.fullName,
-                avatar: typeof user.avatar === 'string' ? { url: user.avatar } : user.avatar
-              },
-              status: 'pending' as const,
-              requestDate: new Date().toISOString()
-            }
-          ]
-        };
-        setCommunity(updatedCommunity);
-      }
+      const userId = user.id || user._id || '';
+      
+      // Update context state optimistically FIRST
+      updateCommunityJoinState(id, userId, 'join');
+      
+      // Then make API call
+      await communityService.requestToJoin(id);
       
       // Silently refresh the actual data in background
       setTimeout(() => loadCommunityDetails(), 1000);
       
       return true;
     } catch (error: any) {
+      // Revert optimistic update on error
+      if (user) {
+        const userId = user.id || user._id || '';
+        updateCommunityJoinState(id, userId, 'cancel');
+      }
       setError(error.message || 'Không thể gửi yêu cầu tham gia. Vui lòng thử lại sau.');
       return false;
     } finally {
@@ -106,28 +99,25 @@ export const useCommunityData = (id: string | undefined) => {
     try {
       setProcessingRequest(true);
       setError(null);
-      await communityService.cancelJoinRequest(id);
       
-      // Optimistically update the community state to remove pending request
-      if (community) {
-        const userId = user.id || user._id || '';
-        const updatedCommunity: Community = {
-          ...community,
-          pendingRequests: (community.pendingRequests || []).filter(
-            request => {
-              const requestUserId = typeof request.user === 'string' ? request.user : request.user?._id;
-              return requestUserId !== userId;
-            }
-          )
-        };
-        setCommunity(updatedCommunity);
-      }
+      const userId = user.id || user._id || '';
+      
+      // Update context state optimistically FIRST
+      updateCommunityJoinState(id, userId, 'cancel');
+      
+      // Then make API call
+      await communityService.cancelJoinRequest(id);
       
       // Silently refresh the actual data in background
       setTimeout(() => loadCommunityDetails(), 1000);
       
       return true;
     } catch (error: any) {
+      // Revert optimistic update on error
+      if (user) {
+        const userId = user.id || user._id || '';
+        updateCommunityJoinState(id, userId, 'join');
+      }
       setError(error.message || 'Không thể hủy yêu cầu tham gia. Vui lòng thử lại sau.');
       return false;
     } finally {
@@ -181,12 +171,9 @@ export const useCommunityData = (id: string | undefined) => {
     return member.user && member.user._id === userId;
   }));
   
-  const hasPendingRequest = Boolean(community?.pendingRequests?.some(
-    request => {
-      const requestUserId = typeof request.user === 'string' ? request.user : request.user?._id;
-      return requestUserId === userId && request.status === 'pending';
-    }
-  ));
+  // Use context state for real-time updates
+  const hasPendingRequest = id ? isUserPendingInCommunity(id) : false;
+  const isActiveMember = id ? isUserMemberOfCommunity(id) : false;
   
   const isLeader = leader && leader._id === userId;
   const isDeputy = community?.deputies?.some(deputy => deputy._id === userId) || false;
@@ -199,28 +186,27 @@ export const useCommunityData = (id: string | undefined) => {
     leader,
     members,
     
-    // Loading states
+    // States - use context state for real-time updates
     isLoading,
     eventsLoading,
     processingRequest,
     error,
-    
-    // User permissions
-    userId,
-    isMember,
+    isMember: isActiveMember || isMember, // Fallback to local state
     hasPendingRequest,
+    
+    // Permissions
     isLeader,
     isDeputy,
     canManage,
     isAdminOrTeacher,
     
     // Actions
-    loadCommunityDetails,
-    loadCommunityEvents,
     sendJoinRequest,
     cancelJoinRequest,
     handleJoinRequest,
     handleDeleteCommunity,
+    loadCommunityDetails,
+    loadCommunityEvents,
     setError
   };
 };

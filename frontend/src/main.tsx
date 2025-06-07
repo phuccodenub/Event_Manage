@@ -4,6 +4,7 @@ import './index.css'
 import App from './App.tsx'
 import { AuthProvider } from './context/AuthContext';
 import { EventProvider } from './context/EventContext';
+import { CommunityProvider } from './context/CommunityContext';
 import { NotificationProvider } from './context/NotificationContext';
 import { GoogleOAuthProvider } from '@react-oauth/google';
 import { DepartmentProvider } from './context/DepartmentContext';
@@ -28,9 +29,11 @@ createRoot(document.getElementById('root')!).render(
         <AuthProvider>
           <DepartmentProvider>
             <EventProvider>
-              <NotificationProvider>
-                <App />
-              </NotificationProvider>
+              <CommunityProvider>
+                <NotificationProvider>
+                  <App />
+                </NotificationProvider>
+              </CommunityProvider>
             </EventProvider>
           </DepartmentProvider>
         </AuthProvider>

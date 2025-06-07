@@ -8,10 +8,18 @@ const {
   requestToJoin,
   handleJoinRequest,
   updateCommunity,
-  deleteCommunity
+  deleteCommunity,
+  cancelJoinRequest
 } = require('../controllers/communityController');
 
 const { createCommunityEvent, getCommunityEvents } = require('../controllers/eventController');
+const {
+  getCommunityMessages,
+  sendMessage,
+  editMessage,
+  deleteMessage,
+  getOnlineMembers
+} = require('../controllers/chatController');
 
 const router = express.Router();
 
@@ -28,9 +36,17 @@ router.get('/:id', getCommunityDetails);
 router.put('/:id', protect, updateCommunity);
 router.delete('/:id', protect, deleteCommunity);
 router.post('/:id/join', protect, requestToJoin);
+router.delete('/:id/join', protect, cancelJoinRequest);
 
 // Community events
 router.get('/:communityId/events', optionalAuth, getCommunityEvents);
 router.post('/:communityId/events', protect, createCommunityEvent);
+
+// Community chat routes
+router.get('/:communityId/messages', protect, getCommunityMessages);
+router.post('/:communityId/messages', protect, sendMessage);
+router.put('/:communityId/messages/:messageId', protect, editMessage);
+router.delete('/:communityId/messages/:messageId', protect, deleteMessage);
+router.get('/:communityId/online-members', protect, getOnlineMembers);
 
 module.exports = router;

@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useCommunity } from '../../context/CommunityContext';
 import { IoPersonAdd, IoSettings, IoTrash, IoLocationOutline, IoCalendarOutline, IoPeopleOutline, IoTimeOutline, IoCloseOutline } from 'react-icons/io5';
 import type { Community } from '../../services/communityService';
 
@@ -42,7 +43,7 @@ const CommunityHeader: React.FC<CommunityHeaderProps> = ({
   leader,
   members,
   isMember,
-  hasPendingRequest,
+  hasPendingRequest: propHasPendingRequest, // Rename prop to avoid conflict
   isLeader,
   isDeputy,
   canManage,
@@ -52,6 +53,11 @@ const CommunityHeader: React.FC<CommunityHeaderProps> = ({
   onDeleteCommunity
 }) => {
   const [isProcessing, setIsProcessing] = useState(false);
+  const { isUserPendingInCommunity, isUserMemberOfCommunity } = useCommunity();
+  
+  // Use context state for real-time updates
+  const hasPendingRequest = isUserPendingInCommunity(community._id);
+  const isActiveMember = isUserMemberOfCommunity(community._id);
   
   const formatDate = (dateString: string) => {
     return new Date(dateString).toLocaleDateString('vi-VN', {
@@ -78,6 +84,10 @@ const CommunityHeader: React.FC<CommunityHeaderProps> = ({
       setIsProcessing(false);
     }
   };
+
+  // Use context state with fallback to props
+  const finalIsMember = isActiveMember || isMember;
+  const finalHasPendingRequest = hasPendingRequest || propHasPendingRequest;
 
   return (
     <div className="bg-white shadow-sm border-b">
@@ -125,16 +135,16 @@ const CommunityHeader: React.FC<CommunityHeaderProps> = ({
                   <span>{members.length} thành viên</span>
                 </div>
                 
-                                 {community.description && (
-                   <div className="flex items-center gap-1">
-                     <IoLocationOutline className="w-4 h-4" />
-                     <span>Mô tả: {community.description}</span>
-                   </div>
-                 )}
+                {community.description && (
+                  <div className="flex items-center gap-1">
+                    <IoLocationOutline className="w-4 h-4" />
+                    <span>Mô tả: {community.description}</span>
+                  </div>
+                )}
                 
                 <div className="flex items-center gap-1">
                   <IoCalendarOutline className="w-4 h-4" />
-                                     <span>Tạo ngày {community.createdAt ? formatDate(community.createdAt) : 'Không xác định'}</span>
+                  <span>Tạo ngày {community.createdAt ? formatDate(community.createdAt) : 'Không xác định'}</span>
                 </div>
               </div>
 
@@ -161,7 +171,7 @@ const CommunityHeader: React.FC<CommunityHeaderProps> = ({
 
           {/* Action Buttons */}
           <div className="flex flex-col sm:flex-row gap-3 lg:flex-col lg:w-auto lg:min-w-[200px]">
-            {!isMember && !hasPendingRequest && (
+            {!finalIsMember && !finalHasPendingRequest && (
               <button
                 onClick={handleJoinRequest}
                 disabled={isProcessing}
@@ -172,7 +182,7 @@ const CommunityHeader: React.FC<CommunityHeaderProps> = ({
               </button>
             )}
 
-            {hasPendingRequest && (
+            {finalHasPendingRequest && (
               <button
                 onClick={handleCancelRequest}
                 disabled={isProcessing}
@@ -183,7 +193,7 @@ const CommunityHeader: React.FC<CommunityHeaderProps> = ({
               </button>
             )}
 
-            {isMember && !canManage && (
+            {finalIsMember && !canManage && (
               <div className="px-4 py-2 bg-green-50 text-green-700 border border-green-200 rounded-lg text-sm text-center">
                 Đã tham gia
               </div>
@@ -198,16 +208,14 @@ const CommunityHeader: React.FC<CommunityHeaderProps> = ({
                   <IoSettings className="w-4 h-4" />
                   Chỉnh sửa
                 </button>
-                
-                {isLeader && (
-                  <button
-                    onClick={onDeleteCommunity}
-                    className="flex items-center justify-center gap-2 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors text-sm"
-                  >
-                    <IoTrash className="w-4 h-4" />
-                    Xóa cộng đồng
-                  </button>
-                )}
+
+                <button
+                  onClick={onDeleteCommunity}
+                  className="flex items-center justify-center gap-2 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors text-sm"
+                >
+                  <IoTrash className="w-4 h-4" />
+                  Xóa cộng đồng
+                </button>
               </div>
             )}
           </div>

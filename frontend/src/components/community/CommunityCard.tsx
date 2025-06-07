@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useAuth } from '../../context/AuthContext';
+import { useCommunity } from '../../context/CommunityContext';
 import { useLocation } from 'wouter';
 import type { Community } from '../../services/communityService';
 import communityService from '../../services/communityService';
@@ -30,6 +31,7 @@ const CommunityCard: React.FC<CommunityCardProps> = ({
   onEdit 
 }) => {
   const { user } = useAuth();
+  const { updateCommunityJoinState, isUserPendingInCommunity, isUserMemberOfCommunity } = useCommunity();
   const [, navigate] = useLocation();
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -60,9 +62,9 @@ const CommunityCard: React.FC<CommunityCardProps> = ({
     return member.user && member.user._id === userId;
   });
 
-  const hasPendingRequest = user && community.pendingRequests?.some(
-    request => request.user && request.user._id === userId && request.status === 'pending'
-  );
+  // Use context state for real-time updates
+  const hasPendingRequest = isUserPendingInCommunity(community._id);
+  const isActiveMember = isUserMemberOfCommunity(community._id);
 
   // Xử lý isActive
   const isActive = community.isActive !== undefined ? community.isActive : 
@@ -114,12 +116,25 @@ const CommunityCard: React.FC<CommunityCardProps> = ({
     try {
       setIsLoading(true);
       setError(null);
+      
+      const userId = user.id || user._id || '';
+      
+      // Update context state optimistically FIRST
+      updateCommunityJoinState(community._id, userId, 'join');
+      
+      // Then make API call
       await communityService.requestToJoin(community._id);
+      
       if (onJoinRequest) {
         onJoinRequest(community._id);
       }
     } catch (error: any) {
       console.error('Error requesting to join:', error);
+      // Revert optimistic update on error
+      if (user) {
+        const userId = user.id || user._id || '';
+        updateCommunityJoinState(community._id, userId, 'cancel');
+      }
       setError(error.message || 'Có lỗi xảy ra khi gửi yêu cầu tham gia');
     } finally {
       setIsLoading(false);
@@ -137,16 +152,80 @@ const CommunityCard: React.FC<CommunityCardProps> = ({
     try {
       setIsLoading(true);
       setError(null);
+      
+      const userId = user.id || user._id || '';
+      
+      // Update context state optimistically FIRST
+      updateCommunityJoinState(community._id, userId, 'cancel');
+      
+      // Then make API call
       await communityService.cancelJoinRequest(community._id);
+      
       if (onJoinRequest) {
         onJoinRequest(community._id);
       }
     } catch (error: any) {
       console.error('Error canceling join request:', error);
+      // Revert optimistic update on error
+      if (user) {
+        const userId = user.id || user._id || '';
+        updateCommunityJoinState(community._id, userId, 'join');
+      }
       setError(error.message || 'Có lỗi xảy ra khi hủy yêu cầu tham gia');
     } finally {
       setIsLoading(false);
     }
+  };
+
+  // Action Button Logic
+  const renderActionButton = () => {
+    if (!user) {
+      return (
+        <button
+          onClick={() => navigate('/login')}
+          className="flex-1 px-3 py-2 bg-orange-600 text-white hover:bg-orange-700 rounded-lg transition-colors text-sm font-medium flex items-center justify-center gap-1"
+        >
+          <IoPersonAddOutline />
+          Đăng nhập để tham gia
+        </button>
+      );
+    }
+
+    // If user is member or has special role
+    if (isActiveMember || isMember || isLeader || isDeputy) {
+      return (
+        <div className="flex-1 px-3 py-2 bg-green-100 text-green-700 rounded-lg text-sm font-medium flex items-center justify-center gap-1">
+          <IoCheckmarkCircleOutline />
+          Đã tham gia
+        </div>
+      );
+    }
+
+    // If user has pending request - use context state
+    if (hasPendingRequest) {
+      return (
+        <button
+          onClick={handleCancelJoinRequest}
+          disabled={isLoading}
+          className="flex-1 px-3 py-2 bg-yellow-100 text-yellow-700 hover:bg-yellow-200 rounded-lg transition-colors text-sm font-medium flex items-center justify-center gap-1 disabled:opacity-50"
+        >
+          <IoTimeOutline />
+          {isLoading ? 'Đang xử lý...' : 'Hủy yêu cầu'}
+        </button>
+      );
+    }
+
+    // Default: Join button
+    return (
+      <button
+        onClick={handleJoinRequest}
+        disabled={isLoading}
+        className="flex-1 px-3 py-2 bg-orange-600 text-white hover:bg-orange-700 rounded-lg transition-colors text-sm font-medium flex items-center justify-center gap-1 disabled:opacity-50"
+      >
+        <IoPersonAddOutline />
+        {isLoading ? 'Đang xử lý...' : 'Tham gia'}
+      </button>
+    );
   };
 
   const formatDate = (dateString: string | undefined) => {
@@ -203,8 +282,6 @@ const CommunityCard: React.FC<CommunityCardProps> = ({
             )}
           </div>
         )}
-
-
 
         {/* Status Badge */}
         <div className="absolute top-2 left-2">
@@ -297,35 +374,7 @@ const CommunityCard: React.FC<CommunityCardProps> = ({
             Xem chi tiết
           </button>
 
-          {/* Join/Status Button */}
-          {user && !isMember && !hasPendingRequest && (
-            <button
-              onClick={handleJoinRequest}
-              disabled={isLoading || !isActive}
-              className="px-3 py-2 bg-green-50 text-green-600 hover:bg-green-100 rounded-lg transition-colors text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1"
-            >
-              <IoPersonAddOutline />
-              {isLoading ? 'Đang xử lý...' : 'Tham gia'}
-            </button>
-          )}
-
-          {hasPendingRequest && (
-            <button
-              onClick={handleCancelJoinRequest}
-              disabled={isLoading}
-              className="px-3 py-2 bg-yellow-50 text-yellow-600 hover:bg-yellow-100 rounded-lg text-sm font-medium flex items-center gap-1 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              <IoTimeOutline />
-              {isLoading ? 'Đang hủy...' : 'Hủy yêu cầu'}
-            </button>
-          )}
-
-          {isMember && (
-            <div className="px-3 py-2 bg-blue-50 text-blue-600 rounded-lg text-sm font-medium flex items-center gap-1">
-              <IoCheckmarkCircleOutline />
-              Đã tham gia
-            </div>
-          )}
+          {renderActionButton()}
         </div>
       </div>
     </div>
