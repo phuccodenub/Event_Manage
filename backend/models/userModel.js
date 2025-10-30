@@ -151,11 +151,11 @@ const userSchema = new mongoose.Schema({
       schedule: {
         start: {
           type: Date,
-          required: true
+          required: false
         },
         end: {
           type: Date,
-          required: true
+          required: false
         }
       }
     }

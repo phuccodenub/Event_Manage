@@ -42,6 +42,8 @@ const BASE_COLUMN_WIDTHS = {
   actions: 'w-[120px] min-w-[100px]'
 };
 
+const safeLower = (value?: string): string => (value || '').toLowerCase();
+
 const sortUsers = (users: User[]) => {
   const rolePriority = {
     admin: 3,
@@ -56,8 +58,8 @@ const sortUsers = (users: User[]) => {
     
     if (roleComparison !== 0) return roleComparison;
 
-    // Then sort by name if same role
-    return a.fullName.localeCompare(b.fullName);
+    // Then sort by name if same role (null-safe, case-insensitive)
+    return safeLower(a.fullName).localeCompare(safeLower(b.fullName));
   });
 };
 
@@ -124,7 +126,10 @@ const UserManagement = () => {
     }
   };
 
-  const classes = [...new Set(users.map(user => user.class))].sort();
+  const classes = [...new Set(users
+    .map(user => user.class)
+    .filter((c): c is string => Boolean(c))
+  )].sort((a, b) => a.localeCompare(b));
   
   const filteredUsers = users.filter(user => {
     const matchesSearch = !filters.search || [

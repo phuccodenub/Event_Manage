@@ -1,6 +1,7 @@
 const express = require('express');
 const {
   getUsers,
+  getMe,
   getUserById,
   createUser,
   updateUser,
@@ -21,7 +22,7 @@ router.get('/', getUsers);
 
 // User profile routes
 router.route('/me')
-  .get(protect, getUserById)
+  .get(protect, getMe)
   .put(protect, updateUser);
 
 // @route: GET /api/v1/users/:id

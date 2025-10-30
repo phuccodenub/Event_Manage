@@ -25,6 +25,26 @@ const EventViewModal = ({ event, isOpen, onClose }: EventViewModalProps) => {
     setCurrentImage(0);
   }
 
+  const formatEventDateTime = (event: Event) => {
+    if (!event.eventDays || !event.eventDays[0]) return 'N/A';
+    
+    const eventDay = event.eventDays[0];
+    const date = new Date(eventDay.date).toLocaleDateString('vi-VN', {
+      weekday: 'long',
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric'
+    });
+    
+    if (!eventDay.sessions || eventDay.sessions.length === 0) return date;
+    
+    const sessions = eventDay.sessions.map(session => 
+      `${session.label}: ${session.startTime} - ${session.endTime}`
+    ).join('\n');
+    
+    return `${date}\n${sessions}`;
+  };
+
   return (
     <Transition show={isOpen} as={Fragment}>
       <Dialog onClose={onClose} className="relative z-50">
@@ -112,32 +132,27 @@ const EventViewModal = ({ event, isOpen, onClose }: EventViewModalProps) => {
 
                         <div className="flex items-center gap-2 text-gray-600">
                           <CalendarIcon className="w-5 h-5" />
-                          <span>                            {event.startDate && new Date(event.startDate).toLocaleString('vi-VN', {
-                              weekday: 'long',
-                              year: 'numeric',
-                              month: 'long',
-                              day: 'numeric',
-                              hour: '2-digit',
-                              minute: '2-digit'
-                            })}
-                          </span>
+                          <div className="whitespace-pre-line">
+                            {formatEventDateTime(event)}
+                          </div>
                         </div>
 
                         <div className="flex items-center gap-2 text-gray-600">
                           <LocationMarkerIcon className="w-5 h-5" />
                           <span>
                             {event.location?.physical 
-                              ? `${event.location.physical.address}${event.location.physical.room ? ` - ${event.location.physical.room}` : ''}`
+                              ? `${event.location.physical.address}${event.location.physical.room ? ` - Phòng ${event.location.physical.room}` : ''}`
                               : event.location?.online?.platform || 'Online'}
                           </span>
                         </div>
 
-                        {event.department && (
-                          <div className="flex items-center gap-2 text-gray-600">
-                            <UserGroupIcon className="w-5 h-5" />
-                            <span>{event.department.name}</span>
-                          </div>
-                        )}
+                        {/* Hiển thị community hoặc department */}
+                        <div className="flex items-center gap-2 text-gray-600">
+                          <UserGroupIcon className="w-5 h-5" />
+                          <span>
+                            {event.community?.name || event.department?.name || 'Chưa có thông tin'}
+                          </span>
+                        </div>
                       </div>
                     </div>
                   </div>

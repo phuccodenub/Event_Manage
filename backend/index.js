@@ -136,7 +136,7 @@ const announcementRoutes = require('./routes/announcementRoutes');
 // Mount routes
 app.use('/api/v1/auth', authRoutes);
 app.use('/api/v1/users', userRoutes);
-app.use('/api/v1/event', eventRoutes);
+app.use('/api/v1/events', eventRoutes);
 app.use('/api/v1/departments', departmentRoutes);
 app.use('/api/v1/forms', formRoutes);
 app.use('/api/v1/checkins', checkinRoutes);
@@ -163,8 +163,8 @@ const server = httpServer.listen(PORT, () => {
   console.log(`Server running in ${process.env.NODE_ENV} mode on port ${PORT}`);
   
   // Set up cron job for updating event statuses and sending feedback notifications
-  // Run every 15 minutes
-  cron.schedule('*/15 * * * *', async () => {
+  // Run every 30 seconds
+  cron.schedule('*/30 * * * * *', async () => {
     try {
       console.log('Running scheduled event status update...');
       const Event = require('./models/eventModel');

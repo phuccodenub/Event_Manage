@@ -189,7 +189,8 @@ const LeftSidebar: React.FC = () => {
       <div className="bg-white rounded-lg shadow-md overflow-hidden">
         <div className="h-16 bg-gradient-to-r from-orange-600 to-orange-500"></div>
         <div className="p-4">
-          {/* Avatar section */}          <div className="relative w-fit mx-auto">
+          {/* Avatar section */}          
+          <div className="relative w-fit mx-auto">
             {getSafeAvatarUrl(userInfo.avatar) !== '/default-avatar.png' ? (
               <img
                 src={getSafeAvatarUrl(userInfo.avatar)}

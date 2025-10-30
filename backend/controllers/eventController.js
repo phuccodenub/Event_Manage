@@ -338,6 +338,50 @@ exports.updateEvent = async (req, res, next) => {
     const eventData = { ...req.body };
     const oldEvent = await Event.findById(req.params.id);
 
+    // Handle eventDays from form data
+    if (req.body.eventDays) {
+      try {
+        const eventDaysData = JSON.parse(req.body.eventDays);
+        if (eventDaysData && Array.isArray(eventDaysData)) {
+          eventData.eventDays = eventDaysData.map(day => ({
+            date: new Date(day.date),
+            sessions: day.sessions.map(session => ({
+              type: session.type,
+              startTime: session.startTime,
+              endTime: session.endTime,
+              label: session.label || (session.type === 'custom' ? session.label : undefined)
+            }))
+          }));
+        }
+      } catch (error) {
+        console.error('Error parsing eventDays:', error);
+        return next(new ErrorResponse('Invalid event days format', 400));
+      }
+    }
+
+    // Handle setupTime from form data
+    if (req.body.setupTime) {
+      try {
+        const setupTimeData = JSON.parse(req.body.setupTime);
+        if (setupTimeData.supportDays && Array.isArray(setupTimeData.supportDays)) {
+          eventData.setupTime = {
+            supportDays: setupTimeData.supportDays.map(day => ({
+              date: new Date(day.date),
+              sessions: day.sessions.map(session => ({
+                type: session.type,
+                startTime: session.startTime,
+                endTime: session.endTime,
+                label: session.label || (session.type === 'custom' ? session.label : undefined)
+              }))
+            }))
+          };
+        }
+      } catch (error) {
+        console.error('Error parsing setupTime:', error);
+        return next(new ErrorResponse('Invalid support schedule format', 400));
+      }
+    }
+
     // Handle arrays properly
     const arrayFields = ['participants', 'collaborators', 'speakers', 'tags', 'likes', 'comments', 'shares'];
     arrayFields.forEach(field => {
@@ -1005,7 +1049,6 @@ exports.approveCollaborator = async (req, res, next) => {
       return next(new ErrorResponse('Yêu cầu này đã được phê duyệt trước đó', 400));
     }
     
-    // Cập nhật trạng thái sử dụng updateOne thay vì cập nhật trực tiếp object
     // Lấy thông tin collaborator từ event
     const collaborator = event.collaborators.find(
       c => c.user.toString() === userId
@@ -1017,12 +1060,7 @@ exports.approveCollaborator = async (req, res, next) => {
 
     // Cập nhật trạng thái trong event
     await Event.updateOne(
-      {
-        _id: id,
-        'collaborators.$.status': 'approved',
-        'collaborators.$.approvedAt': new Date(),
-        'collaborators.$.approvedBy': req.user._id
-      },
+      { _id: id, 'collaborators.user': userId },
       {
         $set: {
           'collaborators.$.status': 'approved',
@@ -1037,7 +1075,13 @@ exports.approveCollaborator = async (req, res, next) => {
       userId,
       {
         $addToSet: {
-          collaboratorEvents: id
+          collaboratorEvents: {
+            event: id,
+            schedule: {
+              start: new Date(event.startDate),
+              end: new Date(event.endDate)
+            }
+          }
         }
       }
     );

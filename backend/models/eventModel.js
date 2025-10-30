@@ -369,70 +369,95 @@ eventSchema.pre('save', async function(next) {
 eventSchema.statics.updateEventStatus = async function() {
   const now = new Date();
   
-  // Find events that just changed to ongoing
-  const ongoingEvents = await this.find({
+  // Find all events that need status update
+  const events = await this.find({
     eventDays: { $exists: true, $ne: [] },
-    status: { $ne: 'ongoing' }
-  });
-
-  for (const event of ongoingEvents) {
-    const eventStart = event.startDate;
-    const eventEnd = event.endDate;
-    
-    if (eventStart && eventEnd && now >= eventStart && now <= eventEnd) {
-      event.status = 'ongoing';
-      await event.save();
-    }
-  }
-
-  // Find events that just completed
-  const justCompletedEvents = await this.find({
-    eventDays: { $exists: true, $ne: [] },
-    status: { $ne: 'completed' }
+    status: { $ne: 'cancelled' } // Không cập nhật các sự kiện đã hủy
   });
 
   const completedEvents = [];
-  for (const event of justCompletedEvents) {
-    const eventEnd = event.endDate;
-    
-    if (eventEnd && now > eventEnd) {
-      event.status = 'completed';
+
+  for (const event of events) {
+    let shouldUpdate = false;
+    let newStatus = event.status;
+
+    // Kiểm tra từng ngày và ca của sự kiện
+    const allSessions = event.eventDays.flatMap(day => 
+      day.sessions.map(session => ({
+        date: new Date(day.date),
+        startTime: session.startTime,
+        endTime: session.endTime
+      }))
+    );
+
+    // Sắp xếp các ca theo thời gian
+    allSessions.sort((a, b) => {
+      const dateA = new Date(a.date);
+      const dateB = new Date(b.date);
+      const [hoursA, minutesA] = a.startTime.split(':');
+      const [hoursB, minutesB] = b.startTime.split(':');
+      dateA.setHours(parseInt(hoursA), parseInt(minutesA));
+      dateB.setHours(parseInt(hoursB), parseInt(minutesB));
+      return dateA - dateB;
+    });
+
+    if (allSessions.length > 0) {
+      const firstSession = allSessions[0];
+      const lastSession = allSessions[allSessions.length - 1];
+
+      // Tính thời gian bắt đầu và kết thúc của ca đầu tiên và cuối cùng
+      const [startHours, startMinutes] = firstSession.startTime.split(':');
+      const [endHours, endMinutes] = lastSession.endTime.split(':');
+      
+      const eventStart = new Date(firstSession.date);
+      eventStart.setHours(parseInt(startHours), parseInt(startMinutes), 0, 0);
+      
+      const eventEnd = new Date(lastSession.date);
+      eventEnd.setHours(parseInt(endHours), parseInt(endMinutes), 0, 0);
+
+      // Kiểm tra trạng thái hiện tại của sự kiện
+      if (now < eventStart) {
+        if (event.status !== 'upcoming') {
+          newStatus = 'upcoming';
+          shouldUpdate = true;
+        }
+      } else if (now >= eventStart && now <= eventEnd) {
+        if (event.status !== 'ongoing') {
+          newStatus = 'ongoing';
+          shouldUpdate = true;
+        }
+      } else if (now > eventEnd) {
+        if (event.status !== 'completed') {
+          newStatus = 'completed';
+          shouldUpdate = true;
+          completedEvents.push(event);
+        }
+      }
+    }
+
+    // Cập nhật trạng thái nếu cần
+    if (shouldUpdate) {
+      event.status = newStatus;
       await event.save();
-      completedEvents.push(event);
+      console.log(`Updated event ${event.title} (${event._id}) status to ${newStatus}`);
     }
   }
   
-  // If we found events that just completed, send feedback requests for them
+  // Gửi yêu cầu phản hồi cho các sự kiện vừa hoàn thành
   if (completedEvents.length > 0) {
     try {
       const feedbackController = require('../controllers/feedbackController');
       
-      // Send feedback requests for each completed event
       for (const event of completedEvents) {
         try {
-          console.log(`Automatically sending feedback requests for event: ${event.title} (${event._id})`);
+          console.log(`Sending feedback requests for completed event: ${event.title} (${event._id})`);
           await feedbackController.sendFeedbackNotificationsAuto(event._id);
         } catch (error) {
-          console.error(`Error sending auto feedback for event ${event._id}:`, error);
+          console.error(`Error sending feedback for event ${event._id}:`, error);
         }
       }
     } catch (error) {
-      console.error('Error loading feedback controller for auto notifications:', error);
-    }
-  }
-
-  // Update upcoming events
-  const upcomingEvents = await this.find({
-    eventDays: { $exists: true, $ne: [] },
-    status: { $ne: 'upcoming' }
-  });
-
-  for (const event of upcomingEvents) {
-    const eventStart = event.startDate;
-    
-    if (eventStart && now < eventStart) {
-      event.status = 'upcoming';
-      await event.save();
+      console.error('Error in feedback notification process:', error);
     }
   }
 };

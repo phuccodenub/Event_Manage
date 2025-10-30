@@ -302,7 +302,7 @@ const CommunityDetail: React.FC = () => {
       id: Date.now().toString(),
       author: {
         name: user?.fullName || 'Bạn',
-        avatar: user?.avatar ? getSafeAvatarUrl(user.avatar) : '/default-avatar.png',
+        avatar: user?.avatar ? getSafeAvatarUrl(user.avatar) : 'https://res.cloudinary.com/douepguvd/image/upload/v1749044097/default-avatar_njeapu.png',
         role: isLeader ? 'Leader' : isDeputy ? 'Deputy' : 'Member'
       },
       content: newMessage,
@@ -377,7 +377,7 @@ const CommunityDetail: React.FC = () => {
   const leader = community.leader || (community.createdBy ? {
     _id: community.createdBy,
     fullName: 'Quản trị viên',
-    avatar: { url: '/default-avatar.png' }
+    avatar: { url: 'https://res.cloudinary.com/douepguvd/image/upload/v1749044097/default-avatar_njeapu.png' }
   } : null);
   
   // Xử lý members với cấu trúc data thực
@@ -603,13 +603,13 @@ const CommunityDetail: React.FC = () => {
           <div className="flex space-x-3 items-center">
             <div className="w-10 h-10 rounded-lg overflow-hidden border border-gray-200">
               <img
-                src={user?.avatar ? getSafeAvatarUrl(user.avatar) : '/default-avatar.png'}
+                src={user?.avatar ? getSafeAvatarUrl(user.avatar) : 'https://res.cloudinary.com/douepguvd/image/upload/v1749044097/default-avatar_njeapu.png'}
                 alt={user?.fullName || 'Avatar'}
                 className="w-full h-full object-cover"
                 onError={(e) => {
                   const target = e.target as HTMLImageElement;
                   target.onerror = null;
-                  target.src = '/default-avatar.png';
+                  target.src = 'https://res.cloudinary.com/douepguvd/image/upload/v1749044097/default-avatar_njeapu.png';
                 }}
               />
             </div>
@@ -720,13 +720,13 @@ const CommunityDetail: React.FC = () => {
             <div className="flex-shrink-0 mb-4 md:mb-0 md:mr-6">
               <div className="w-32 h-32 md:w-40 md:h-40 rounded-lg bg-white p-1 border-4 border-white shadow-md overflow-hidden -mt-12 md:-mt-20">
                 <img
-                  src={community.avatar?.url || '/default-community.png'}
+                  src={community.avatar?.url || 'https://res.cloudinary.com/douepguvd/image/upload/v1749044097/default-avatar_njeapu.png'}
                   alt={community.name}
                   className="w-full h-full object-cover"
                   onError={(e) => {
                     const target = e.target as HTMLImageElement;
                     target.onerror = null;
-                    target.src = '/default-community.png';
+                    target.src = 'https://res.cloudinary.com/douepguvd/image/upload/v1749044097/default-avatar_njeapu.png';
                   }}
                 />
               </div>
@@ -809,7 +809,7 @@ const CommunityDetail: React.FC = () => {
                       const memberUser = typeof member.user === 'string' ? {
                         _id: member.user,
                         fullName: 'Thành viên',
-                        avatar: { url: '/default-avatar.png' }
+                        avatar: { url: 'https://res.cloudinary.com/douepguvd/image/upload/v1749044097/default-avatar_njeapu.png' }
                       } : member.user;
                       
                       if (!memberUser) return null;
@@ -818,7 +818,7 @@ const CommunityDetail: React.FC = () => {
                         <div key={member._id || memberUser._id} className="flex flex-col items-center text-center">
                           <div className="w-16 h-16 rounded-lg overflow-hidden mb-2 border border-gray-200">
                             <img
-                              src={memberUser.avatar?.url || '/default-avatar.png'}
+                              src={memberUser.avatar?.url || 'https://res.cloudinary.com/douepguvd/image/upload/v1749044097/default-avatar_njeapu.png'}
                               alt={memberUser.fullName}
                               className="w-full h-full object-cover"
                               onError={(e) => {
@@ -885,13 +885,13 @@ const CommunityDetail: React.FC = () => {
                           <div className="flex items-center space-x-3">
                             <div className="w-10 h-10 rounded-lg overflow-hidden border border-gray-200">
                               <img
-                                src={request.user?.avatar?.url || '/default-avatar.png'}
+                                src={request.user?.avatar?.url || 'https://res.cloudinary.com/douepguvd/image/upload/v1749044097/default-avatar_njeapu.png'}
                                 alt={request.user?.fullName || 'User'}
                                 className="w-full h-full object-cover"
                                 onError={(e) => {
                                   const target = e.target as HTMLImageElement;
                                   target.onerror = null;
-                                  target.src = '/default-avatar.png';
+                                  target.src = 'https://res.cloudinary.com/douepguvd/image/upload/v1749044097/default-avatar_njeapu.png';
                                 }}
                               />
                             </div>

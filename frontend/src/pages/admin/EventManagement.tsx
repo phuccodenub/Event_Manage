@@ -56,14 +56,23 @@ const truncateText = (text: string, maxLength: number) => {
   return text.length > maxLength ? `${text.substring(0, maxLength)}...` : text;
 };
 
-const formatDateTime = (date: string) => {
-  return new Date(date).toLocaleString('vi-VN', {
+const formatDateTime = (event: Event) => {
+  if (!event.eventDays || !event.eventDays[0]) return 'N/A';
+  
+  const eventDay = event.eventDays[0];
+  const date = new Date(eventDay.date).toLocaleDateString('vi-VN', {
     day: '2-digit',
     month: '2-digit',
-    year: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit'
+    year: 'numeric'
   });
+  
+  if (!eventDay.sessions || eventDay.sessions.length === 0) return date;
+  
+  const sessions = eventDay.sessions.map(session => 
+    `${session.label}: ${session.startTime} - ${session.endTime}`
+  ).join('\n');
+  
+  return `${date}\n${sessions}`;
 };
 
 const sortEvents = (events: Event[]) => {
@@ -149,6 +158,8 @@ const EventManagement = () => {
     try {
       await eventService.updateEvent(id, eventData);
       toast.success('Cập nhật sự kiện thành công');
+      setIsEditModalOpen(false);
+      fetchEvents();
     } catch (error: any) {
       toast.error(error.response?.data?.message || 'Có lỗi xảy ra khi cập nhật sự kiện');
     }
@@ -332,11 +343,10 @@ const EventManagement = () => {
                   <td className={`px-6 py-4 ${COLUMN_WIDTHS.time}`}>
                     <div className="space-y-1">
                       <div className="flex items-center gap-1 text-gray-600">
-                        <ClockIcon className="h-4 w-4 text-orange-500" />                        {event.startDate ? formatDateTime(typeof event.startDate === 'string' ? event.startDate : event.startDate.toISOString()) : 'N/A'}
-                      </div>
-                      <div className="flex items-center gap-1 text-gray-600">
-                        <ArrowRightIcon className="h-4 w-4 text-orange-500" />
-                        {event.endDate ? formatDateTime(typeof event.endDate === 'string' ? event.endDate : event.endDate.toISOString()) : 'N/A'}
+                        <ClockIcon className="h-4 w-4 text-orange-500" />
+                        <div className="whitespace-pre-line">
+                          {formatDateTime(event)}
+                        </div>
                       </div>
                     </div>
                   </td>
@@ -345,7 +355,7 @@ const EventManagement = () => {
                       <LocationMarkerIcon className="h-4 w-4 text-orange-500" />
                       <div className="truncate" title={event.location?.physical?.address}>
                         {event.location?.physical 
-                          ? truncateText(`${event.location.physical.address}${event.location.physical.room ? ` - ${event.location.physical.room}` : ''}`, 25)
+                          ? truncateText(`${event.location.physical.address}${event.location.physical.room ? ` - Phòng ${event.location.physical.room}` : ''}`, 25)
                           : 'Online'}
                       </div>
                     </div>

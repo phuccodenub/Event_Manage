@@ -3,6 +3,33 @@ const ErrorResponse = require('../utils/errorResponse');
 const { uploadToCloudinary, deleteFromCloudinary } = require('../utils/cloudinary');
 const Event = require('../models/eventModel');
 
+// @desc: Get current authenticated user (me)
+// @route: GET /api/v1/users/me
+// @access: Private
+exports.getMe = async (req, res, next) => {
+  try {
+    const user = await User.findById(req.user.id)
+      .select('-password')
+      .populate('department')
+      .populate('registeredEvents')
+      .populate('collaboratorEvents');
+
+    if (!user) {
+      return next(new ErrorResponse('User not found', 404));
+    }
+
+    const userObj = user.toObject();
+    userObj.uniqueEventCount = user.getUniqueEventCount();
+
+    res.status(200).json({
+      success: true,
+      data: userObj
+    });
+  } catch (error) {
+    next(new ErrorResponse('Error fetching current user', 500));
+  }
+};
+
 // @desc: Get all users (with optional role filtering)
 // @route: GET /api/v1/users
 // @access: Private/Admin
@@ -101,15 +128,40 @@ exports.getUserEvents = async (req, res, next) => {
 
 // @desc: Create a new user
 // @route: POST /api/v1/users
-// @access: Private/Admin
+// @access: Private/Admin (currently open in routes)
 exports.createUser = async (req, res, next) => {
   try {
-    const user = await User.create(req.body);
-    res.status(201).json({
-      success: true,
-      data: user
-    });
+    const payload = { ...req.body };
+
+    // Normalize optional fields
+    if (!payload.department || typeof payload.department !== 'string' || payload.department.includes('{{')) {
+      delete payload.department;
+    }
+    if (payload.birthday && typeof payload.birthday === 'string') {
+      const dt = new Date(payload.birthday);
+      if (!isNaN(dt.getTime())) payload.birthday = dt;
+    }
+
+    // Student must provide class
+    if (payload.role === 'student' && !payload.class) {
+      return next(new ErrorResponse('Lớp là bắt buộc đối với sinh viên', 400));
+    }
+
+    const user = await User.create(payload);
+    res.status(201).json({ success: true, data: user });
   } catch (error) {
+    // Duplicate key error (email/username/userId)
+    if (error && error.code === 11000) {
+      const fields = Object.keys(error.keyPattern || {});
+      const field = fields[0] || 'field';
+      return next(new ErrorResponse(`${field} đã tồn tại`, 400));
+    }
+    // Mongoose validation errors
+    if (error && error.name === 'ValidationError') {
+      const messages = Object.values(error.errors).map(e => e.message);
+      return next(new ErrorResponse(messages.join('; '), 400));
+    }
+    console.error('Create user error:', error);
     next(new ErrorResponse('Error creating user', 500));
   }
 };
@@ -125,6 +177,28 @@ exports.updateUser = async (req, res, next) => {
       return next(new ErrorResponse(`User not found with id of ${req.params.id}`, 404));
     }
 
+    // Normalize input fields
+    const payload = { ...req.body };
+
+    // Không cho update một số trường nhạy cảm trực tiếp
+    delete payload.password; // dùng endpoint riêng để đổi mật khẩu
+
+    // Bỏ department nếu rỗng/placeholder
+    if (!payload.department || typeof payload.department !== 'string' || payload.department.includes('{{')) {
+      delete payload.department;
+    }
+
+    // Parse birthday nếu là string
+    if (payload.birthday && typeof payload.birthday === 'string') {
+      const dt = new Date(payload.birthday);
+      if (!isNaN(dt.getTime())) payload.birthday = dt; else delete payload.birthday;
+    }
+
+    // Nếu role là student thì cần class
+    if (payload.role === 'student' && !payload.class && !user.class) {
+      return next(new ErrorResponse('Lớp là bắt buộc đối với sinh viên', 400));
+    }
+
     // Handle avatar upload if exists
     if (req.files?.avatar) {
       // Delete old avatar if exists
@@ -137,7 +211,7 @@ exports.updateUser = async (req, res, next) => {
         'avatars'
       );
 
-      req.body.avatar = {
+      payload.avatar = {
         public_id: result.public_id,
         url: result.url
       };
@@ -145,7 +219,7 @@ exports.updateUser = async (req, res, next) => {
 
     const updatedUser = await User.findByIdAndUpdate(
       req.params.id,
-      req.body,
+      payload,
       {
         new: true,
         runValidators: true
@@ -157,6 +231,16 @@ exports.updateUser = async (req, res, next) => {
       data: updatedUser
     });
   } catch (error) {
+    if (error && error.code === 11000) {
+      const fields = Object.keys(error.keyPattern || {});
+      const field = fields[0] || 'field';
+      return next(new ErrorResponse(`${field} đã tồn tại`, 400));
+    }
+    if (error && error.name === 'ValidationError') {
+      const messages = Object.values(error.errors).map(e => e.message);
+      return next(new ErrorResponse(messages.join('; '), 400));
+    }
+    console.error('Update user error:', error);
     next(new ErrorResponse('Error updating user', 500));
   }
 };

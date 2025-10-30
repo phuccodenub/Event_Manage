@@ -25,7 +25,7 @@ export function getAvatarUrl(avatar: string | Avatar | undefined): string | unde
 /**
  * Returns a safe avatar URL with fallback to default
  */
-export function getSafeAvatarUrl(avatar: string | Avatar | undefined, fallback: string = '/default-avatar.png'): string {
+export function getSafeAvatarUrl(avatar: string | Avatar | undefined, fallback: string = 'https://res.cloudinary.com/douepguvd/image/upload/v1749044097/default-avatar_njeapu.png'): string {
   return getAvatarUrl(avatar) || fallback;
 }
 

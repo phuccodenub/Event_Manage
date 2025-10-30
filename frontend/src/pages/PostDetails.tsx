@@ -296,61 +296,72 @@ const PostDetails: React.FC = () => {
       <div className="bg-white rounded-lg shadow-sm overflow-hidden">
         <div className="flex items-center justify-between p-4 border-b border-[#EDEDED]">
           <div className="flex items-center">
-            {post.organizer?.avatar && typeof post.organizer.avatar === 'object' && 'url' in post.organizer.avatar ? (
-              <img src={post.organizer.avatar.url} alt="" className="w-10 h-10 rounded-full object-cover flex-shrink-0" />
+            {getSafeAvatarUrl(post.organizer?.avatar) ? (
+              <img src={getSafeAvatarUrl(post.organizer?.avatar)} alt="" className="w-10 h-10 rounded-full object-cover flex-shrink-0" />
             ) : (
               <div className="w-10 h-10 rounded-full bg-gray-100 flex items-center justify-center flex-shrink-0">
                 <UserIcon className="w-6 h-6 text-gray-400" />
               </div>
             )}
             <div className="ml-3 flex-1">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <h3 className="font-semibold text-gray-900 text-sm">
-                    {post.organizer?.fullName || 'Unknown'}
-                  </h3>
-                  {post.department?.name && (
-                    <span className="text-xs text-gray-500">• {post.department.name}</span>
-                  )}
-                  {post.community?.name && (
-                    <span className="text-xs text-blue-600 font-medium">
-                      {post.department?.name ? ' • ' : ' • '}trong {post.community.name}
-                    </span>
-                  )}
-                </div>
-                <div className="flex items-center gap-2">
-                  <span className="text-xs text-gray-500 hover:text-orange-600 cursor-pointer">
-                    {post.createdAt ? formatTimeAgo(post.createdAt) : ''}
-                  </span>
-                  <div className="flex items-center gap-3">
-                    {(post.eventType === 'offline' || post.eventType === 'hybrid') && 
-                      post.location?.physical?.address && (
-                        <div className="flex items-center space-x-1">
-                          <IoLocationOutline className="text-orange-500 w-3 h-3" />
-                          <span className="text-xs text-gray-500 truncate max-w-[150px]">
-                            {post.location.physical.room 
-                              ? `${post.location.physical.address} - ${post.location.physical.room}`
-                              : post.location.physical.address}
-                          </span>
-                        </div>
-                    )}
-                    {(post.eventType === 'online' || post.eventType === 'hybrid') && 
-                      post.location?.online?.platform && (
-                        <div className="flex items-center space-x-1">
-                          <IoDesktopOutline className="text-orange-500 w-3 h-3" />
-                          <span className="text-xs text-gray-500 truncate">
-                            {post.location.online.platform} Meeting
-                          </span>
-                        </div>
+              <div className="flex flex-col gap-1">
+                <div className="flex items-start justify-between gap-2">
+                  <div className="flex items-center gap-2 flex-wrap min-w-0 flex-1">
+                    <h3 className="font-semibold text-gray-900 text-sm">
+                      {post.organizer?.fullName || 'Unknown'}
+                    </h3>
+                    {post.community?.name ? (
+                      <span 
+                        className="text-xs text-blue-600 font-medium hover:text-blue-800 cursor-pointer"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          navigate(`/community/${post.community?._id}`);
+                        }}
+                      >
+                        • trong {post.community.name}
+                      </span>
+                    ) : post.department?.name && (
+                      <span className="text-xs text-gray-500">• {post.department.name}</span>
                     )}
                   </div>
+                </div>
+                
+                {/* Location and time info on second line */}
+                <div className="flex items-center gap-3 flex-wrap">
+                  <span 
+                    className="text-xs text-gray-500 hover:text-orange-600 cursor-pointer"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      navigate(`/events/${post._id}`);
+                    }}
+                  >
+                    {post.createdAt ? formatTimeAgo(post.createdAt) : ''}
+                  </span>
+                  {(post.eventType === 'offline' || post.eventType === 'hybrid') && 
+                    post.location?.physical?.address && (
+                      <div className="flex items-center space-x-1">
+                        <IoLocationOutline className="text-orange-500 w-3 h-3" />
+                        <span className="text-xs text-gray-500 truncate max-w-[200px]">
+                          {post.location.physical.room 
+                            ? `${post.location.physical.address} - ${post.location.physical.room}`
+                            : post.location.physical.address}
+                        </span>
+                      </div>
+                  )}
+                  {(post.eventType === 'online' || post.eventType === 'hybrid') && 
+                    post.location?.online?.platform && (
+                      <div className="flex items-center space-x-1">
+                        <IoDesktopOutline className="text-orange-500 w-3 h-3" />
+                        <span className="text-xs text-gray-500 truncate">
+                          {post.location.online.platform}
+                        </span>
+                      </div>
+                  )}
                 </div>
               </div>
             </div>
           </div>
-          {(
-            renderDropdownMenu(post, 'event')
-          )}
+          {renderDropdownMenu(post, 'event')}
         </div>
 
         <div className="p-4 flex flex-col">

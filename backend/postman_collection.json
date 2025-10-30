@@ -1,0 +1,190 @@
+{
+  "info": {
+    "_postman_id": "8b7e0d50-8d58-4f7b-9a8a-6b5a2f6a9f0a",
+    "name": "Event_Manage API",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "base_url", "value": "http://localhost:5000/api/v1" },
+    { "key": "auth_token", "value": "" },
+    { "key": "userId", "value": "" },
+    { "key": "eventId", "value": "" },
+    { "key": "communityId", "value": "" },
+    { "key": "notificationId", "value": "" },
+    { "key": "announcementId", "value": "" },
+    { "key": "token", "value": "" },
+    { "key": "departmentId", "value": "" },
+    { "key": "checkinId", "value": "" },
+    { "key": "type", "value": "" },
+    { "key": "requestId", "value": "" },
+    { "key": "publicId", "value": "" },
+    { "key": "folder", "value": "" }
+  ],
+  "item": [
+    {
+      "name": "Auth",
+      "item": [
+        { "name": "Register", "request": { "method": "POST", "header": [{"key":"Content-Type","value":"application/json"}], "url": "{{base_url}}/auth/register", "body": {"mode":"raw","raw":"{\n  \"username\": \"test\",\n  \"email\": \"test@example.com\",\n  \"password\": \"Passw0rd!\"\n}"} } },
+        { "name": "Login", "request": { "method": "POST", "header": [{"key":"Content-Type","value":"application/json"}], "url": "{{base_url}}/auth/login", "body": {"mode":"raw","raw":"{\n  \"username\": \"test\",\n  \"password\": \"Passw0rd!\"\n}"} } },
+        { "name": "Google Login", "request": { "method": "POST", "url": "{{base_url}}/auth/google-login" } },
+        { "name": "Facebook Login", "request": { "method": "POST", "url": "{{base_url}}/auth/facebook-login" } },
+        { "name": "Check Email", "request": { "method": "POST", "header": [{"key":"Content-Type","value":"application/json"}], "url": "{{base_url}}/auth/check-email", "body": {"mode":"raw","raw":"{\n  \"email\": \"test@example.com\"\n}"} } },
+        { "name": "Check Username", "request": { "method": "POST", "header": [{"key":"Content-Type","value":"application/json"}], "url": "{{base_url}}/auth/check-username", "body": {"mode":"raw","raw":"{\n  \"username\": \"test\"\n}"} } },
+        { "name": "Me", "request": { "method": "GET", "header": [{"key":"Authorization","value":"Bearer {{auth_token}}"}], "url": "{{base_url}}/auth/me" } },
+        { "name": "Logout", "request": { "method": "POST", "header": [{"key":"Authorization","value":"Bearer {{auth_token}}"}], "url": "{{base_url}}/auth/logout" } }
+      ]
+    },
+    {
+      "name": "Account",
+      "item": [
+        { "name": "Register (account)", "request": { "method": "POST", "header": [{"key":"Content-Type","value":"application/json"}], "url": "{{base_url}}/account/register", "body": {"mode":"raw","raw":"{\n  \"username\": \"test\",\n  \"email\": \"test@example.com\",\n  \"password\": \"Passw0rd!\"\n}"} } },
+        { "name": "Verify Email", "request": { "method": "GET", "url": "{{base_url}}/account/verify-email/{{token}}" } },
+        { "name": "Resend Verification", "request": { "method": "POST", "url": "{{base_url}}/account/resend-verification" } },
+        { "name": "Forgot Password", "request": { "method": "POST", "url": "{{base_url}}/account/forgot-password" } },
+        { "name": "Reset Password", "request": { "method": "POST", "url": "{{base_url}}/account/reset-password/{{token}}" } },
+        { "name": "Check Password Strength", "request": { "method": "POST", "url": "{{base_url}}/account/check-password-strength" } },
+        { "name": "Change Password (me)", "request": { "method": "PUT", "header": [{"key":"Authorization","value":"Bearer {{auth_token}}"}], "url": "{{base_url}}/account/change-password" } },
+        { "name": "Update Profile (me)", "request": { "method": "PUT", "header": [{"key":"Authorization","value":"Bearer {{auth_token}}"}], "url": "{{base_url}}/account/profile" } },
+        { "name": "Unlock Account (admin)", "request": { "method": "PUT", "header": [{"key":"Authorization","value":"Bearer {{auth_token}}"}], "url": "{{base_url}}/account/unlock/{{userId}}" } },
+        { "name": "Force Password Change (admin)", "request": { "method": "PUT", "header": [{"key":"Authorization","value":"Bearer {{auth_token}}"}], "url": "{{base_url}}/account/force-password-change/{{userId}}" } }
+      ]
+    },
+    {
+      "name": "Users",
+      "item": [
+        { "name": "List Users", "request": { "method": "GET", "url": "{{base_url}}/users" } },
+        { "name": "Get Me (profile)", "request": { "method": "GET", "header": [{"key":"Authorization","value":"Bearer {{auth_token}}"}], "url": "{{base_url}}/users/me" } },
+        { "name": "Update Me (profile)", "request": { "method": "PUT", "header": [{"key":"Authorization","value":"Bearer {{auth_token}}"},{"key":"Content-Type","value":"application/json"}], "url": "{{base_url}}/users/me", "body": {"mode":"raw","raw":"{}"} } },
+        { "name": "Create User", "request": { "method": "POST", "header": [{"key":"Content-Type","value":"application/json"}], "url": "{{base_url}}/users", "body": {"mode":"raw","raw":"{}"} } },
+        { "name": "Get User By Id", "request": { "method": "GET", "url": "{{base_url}}/users/{{userId}}" } },
+        { "name": "Update User", "request": { "method": "PUT", "header": [{"key":"Content-Type","value":"application/json"}], "url": "{{base_url}}/users/{{userId}}", "body": {"mode":"raw","raw":"{}"} } },
+        { "name": "Delete User", "request": { "method": "DELETE", "url": "{{base_url}}/users/{{userId}}" } },
+        { "name": "Get User Events", "request": { "method": "GET", "header": [{"key":"Authorization","value":"Bearer {{auth_token}}"}], "url": "{{base_url}}/users/{{userId}}/events" } },
+        { "name": "Update Avatar (me)", "request": { "method": "PUT", "header": [{"key":"Authorization","value":"Bearer {{auth_token}}"}], "url": "{{base_url}}/users/me/avatar" } },
+        { "name": "Delete Avatar (me)", "request": { "method": "DELETE", "header": [{"key":"Authorization","value":"Bearer {{auth_token}}"}], "url": "{{base_url}}/users/me/avatar" } },
+        { "name": "Change Password (me)", "request": { "method": "PUT", "header": [{"key":"Authorization","value":"Bearer {{auth_token}}"}], "url": "{{base_url}}/users/me/password" } },
+        { "name": "Update Privacy (me)", "request": { "method": "PUT", "header": [{"key":"Authorization","value":"Bearer {{auth_token}}"},{"key":"Content-Type","value":"application/json"}], "url": "{{base_url}}/users/me/privacy", "body": {"mode":"raw","raw":"{}"} } },
+        { "name": "Reset Password (admin)", "request": { "method": "POST", "header": [{"key":"Authorization","value":"Bearer {{auth_token}}"}], "url": "{{base_url}}/users/{{userId}}/reset-password" } }
+      ]
+    },
+    {
+      "name": "Events",
+      "item": [
+        { "name": "List Events", "request": { "method": "GET", "url": "{{base_url}}/events" } },
+        { "name": "Get Event By Id", "request": { "method": "GET", "url": "{{base_url}}/events/{{eventId}}" } },
+        { "name": "Create Event", "request": { "method": "POST", "header": [{"key":"Authorization","value":"Bearer {{auth_token}}"},{"key":"Content-Type","value":"application/json"}], "url": "{{base_url}}/events", "body": {"mode":"raw","raw":"{}"} } },
+        { "name": "Update Event", "request": { "method": "PUT", "header": [{"key":"Authorization","value":"Bearer {{auth_token}}"},{"key":"Content-Type","value":"application/json"}], "url": "{{base_url}}/events/{{eventId}}", "body": {"mode":"raw","raw":"{}"} } },
+        { "name": "Delete Event", "request": { "method": "DELETE", "header": [{"key":"Authorization","value":"Bearer {{auth_token}}"}], "url": "{{base_url}}/events/{{eventId}}" } },
+        { "name": "Pending Feedback Events", "request": { "method": "GET", "header": [{"key":"Authorization","value":"Bearer {{auth_token}}"}], "url": "{{base_url}}/events/pending-feedback" } },
+        { "name": "Participants", "request": { "method": "GET", "header": [{"key":"Authorization","value":"Bearer {{auth_token}}"}], "url": "{{base_url}}/events/{{eventId}}/participants" } },
+        { "name": "Collaborators", "request": { "method": "GET", "header": [{"key":"Authorization","value":"Bearer {{auth_token}}"}], "url": "{{base_url}}/events/{{eventId}}/collaborators" } },
+        { "name": "Approve Collaborator", "request": { "method": "PUT", "header": [{"key":"Authorization","value":"Bearer {{auth_token}}"}], "url": "{{base_url}}/events/{{eventId}}/approve-collaborator/{{userId}}" } },
+        { "name": "Reject Collaborator", "request": { "method": "PUT", "header": [{"key":"Authorization","value":"Bearer {{auth_token}}"}], "url": "{{base_url}}/events/{{eventId}}/reject-collaborator/{{userId}}" } },
+        { "name": "Join as Collaborator", "request": { "method": "POST", "header": [{"key":"Authorization","value":"Bearer {{auth_token}}"}], "url": "{{base_url}}/events/{{eventId}}/join-collaborator" } },
+        { "name": "Leave as Collaborator", "request": { "method": "POST", "header": [{"key":"Authorization","value":"Bearer {{auth_token}}"}], "url": "{{base_url}}/events/{{eventId}}/leave-collaborator" } },
+        { "name": "Remove Collaborator", "request": { "method": "POST", "header": [{"key":"Authorization","value":"Bearer {{auth_token}}"}], "url": "{{base_url}}/events/{{eventId}}/remove-collaborator/{{userId}}" } },
+        { "name": "Registration Form", "request": { "method": "GET", "url": "{{base_url}}/events/{{eventId}}/registration-form" } },
+        { "name": "Form Submissions", "request": { "method": "GET", "header": [{"key":"Authorization","value":"Bearer {{auth_token}}"}], "url": "{{base_url}}/events/{{eventId}}/submissions" } },
+        { "name": "Collaborator Form", "request": { "method": "GET", "url": "{{base_url}}/events/{{eventId}}/collaborator-form" } },
+        { "name": "Update Collaborator Form", "request": { "method": "PUT", "header": [{"key":"Authorization","value":"Bearer {{auth_token}}"}], "url": "{{base_url}}/events/{{eventId}}/collaborator-form" } },
+        { "name": "Collaborator Submissions", "request": { "method": "GET", "header": [{"key":"Authorization","value":"Bearer {{auth_token}}"}], "url": "{{base_url}}/events/{{eventId}}/collaborator-submissions" } },
+        { "name": "Join Event", "request": { "method": "POST", "header": [{"key":"Authorization","value":"Bearer {{auth_token}}"}], "url": "{{base_url}}/events/{{eventId}}/join" } },
+        { "name": "Leave Event", "request": { "method": "POST", "header": [{"key":"Authorization","value":"Bearer {{auth_token}}"}], "url": "{{base_url}}/events/{{eventId}}/leave" } },
+        { "name": "Update Statuses (manual)", "request": { "method": "POST", "header": [{"key":"Authorization","value":"Bearer {{auth_token}}"}], "url": "{{base_url}}/events/update-statuses" } },
+        { "name": "Event Feedback (nested)", "item": [
+          { "name": "Check Eligibility", "request": { "method": "GET", "header": [{"key":"Authorization","value":"Bearer {{auth_token}}"}], "url": "{{base_url}}/events/{{eventId}}/feedback/check" } },
+          { "name": "Send Notifications", "request": { "method": "POST", "header": [{"key":"Authorization","value":"Bearer {{auth_token}}"}], "url": "{{base_url}}/events/{{eventId}}/feedback/notify" } },
+          { "name": "Create Feedback", "request": { "method": "POST", "header": [{"key":"Authorization","value":"Bearer {{auth_token}}"},{"key":"Content-Type","value":"application/json"}], "url": "{{base_url}}/events/{{eventId}}/feedback", "body": {"mode":"raw","raw":"{}"} } },
+          { "name": "Get Feedback", "request": { "method": "GET", "url": "{{base_url}}/events/{{eventId}}/feedback" } }
+        ]}
+      ]
+    },
+    {
+      "name": "Departments",
+      "item": [
+        { "name": "List Departments", "request": { "method": "GET", "url": "{{base_url}}/departments" } },
+        { "name": "Create Department", "request": { "method": "POST", "header": [{"key":"Authorization","value":"Bearer {{auth_token}}"},{"key":"Content-Type","value":"application/json"}], "url": "{{base_url}}/departments", "body": {"mode":"raw","raw":"{}"} } },
+        { "name": "Get Department", "request": { "method": "GET", "url": "{{base_url}}/departments/{{departmentId}}" } },
+        { "name": "Update Department", "request": { "method": "PUT", "header": [{"key":"Authorization","value":"Bearer {{auth_token}}"},{"key":"Content-Type","value":"application/json"}], "url": "{{base_url}}/departments/{{departmentId}}", "body": {"mode":"raw","raw":"{}"} } },
+        { "name": "Delete Department", "request": { "method": "DELETE", "header": [{"key":"Authorization","value":"Bearer {{auth_token}}"}], "url": "{{base_url}}/departments/{{departmentId}}" } },
+        { "name": "Get Department Head", "request": { "method": "GET", "url": "{{base_url}}/departments/{{departmentId}}/head" } },
+        { "name": "Assign Department Head", "request": { "method": "PUT", "header": [{"key":"Authorization","value":"Bearer {{auth_token}}"}], "url": "{{base_url}}/departments/{{departmentId}}/head" } },
+        { "name": "Update Department Roles", "request": { "method": "PUT", "header": [{"key":"Authorization","value":"Bearer {{auth_token}}"},{"key":"Content-Type","value":"application/json"}], "url": "{{base_url}}/departments/{{departmentId}}/roles", "body": {"mode":"raw","raw":"{}"} } }
+      ]
+    },
+    {
+      "name": "Forms",
+      "item": [
+        { "name": "Get Event Form", "request": { "method": "GET", "url": "{{base_url}}/forms/{{eventId}}" } },
+        { "name": "Update Event Form", "request": { "method": "PUT", "header": [{"key":"Authorization","value":"Bearer {{auth_token}}"},{"key":"Content-Type","value":"application/json"}], "url": "{{base_url}}/forms/{{eventId}}", "body": {"mode":"raw","raw":"{}"} } },
+        { "name": "Submit Form Response", "request": { "method": "POST", "header": [{"key":"Authorization","value":"Bearer {{auth_token}}"},{"key":"Content-Type","value":"application/json"}], "url": "{{base_url}}/forms/{{eventId}}/submit", "body": {"mode":"raw","raw":"{}"} } },
+        { "name": "Get Form Responses", "request": { "method": "GET", "header": [{"key":"Authorization","value":"Bearer {{auth_token}}"}], "url": "{{base_url}}/forms/{{eventId}}/responses" } }
+      ]
+    },
+    {
+      "name": "Checkins",
+      "item": [
+        { "name": "Checkin User", "request": { "method": "POST", "header": [{"key":"Authorization","value":"Bearer {{auth_token}}"},{"key":"Content-Type","value":"application/json"}], "url": "{{base_url}}/checkins", "body": {"mode":"raw","raw":"{}"} } },
+        { "name": "Get Event Checkins", "request": { "method": "GET", "header": [{"key":"Authorization","value":"Bearer {{auth_token}}"}], "url": "{{base_url}}/checkins/event/{{eventId}}" } },
+        { "name": "Delete Checkin", "request": { "method": "DELETE", "header": [{"key":"Authorization","value":"Bearer {{auth_token}}"}], "url": "{{base_url}}/checkins/{{checkinId}}" } },
+        { "name": "Delete Checkins By Student", "request": { "method": "DELETE", "header": [{"key":"Authorization","value":"Bearer {{auth_token}}"}], "url": "{{base_url}}/checkins/event/{{eventId}}/student/{{userId}}" } }
+      ]
+    },
+    {
+      "name": "Certificates",
+      "item": [
+        { "name": "User Eligible Certificates", "request": { "method": "GET", "url": "{{base_url}}/certificates/user/{{userId}}/eligible" } },
+        { "name": "Verify Eligibility (with type)", "request": { "method": "GET", "url": "{{base_url}}/certificates/verify/{{eventId}}/{{userId}}/{{type}}" } },
+        { "name": "Verify Eligibility (fallback)", "request": { "method": "GET", "url": "{{base_url}}/certificates/verify/{{eventId}}/{{userId}}" } },
+        { "name": "Generate Certificate (with type)", "request": { "method": "GET", "header": [{"key":"Authorization","value":"Bearer {{auth_token}}"}], "url": "{{base_url}}/certificates/{{eventId}}/{{userId}}/{{type}}" } },
+        { "name": "Generate Certificate (fallback)", "request": { "method": "GET", "header": [{"key":"Authorization","value":"Bearer {{auth_token}}"}], "url": "{{base_url}}/certificates/{{eventId}}/{{userId}}" } }
+      ]
+    },
+    {
+      "name": "Communities",
+      "item": [
+        { "name": "List Communities", "request": { "method": "GET", "url": "{{base_url}}/communities" } },
+        { "name": "Search Communities", "request": { "method": "GET", "url": "{{base_url}}/communities/search" } },
+        { "name": "Create Community", "request": { "method": "POST", "header": [{"key":"Authorization","value":"Bearer {{auth_token}}"},{"key":"Content-Type","value":"application/json"}], "url": "{{base_url}}/communities/new", "body": {"mode":"raw","raw":"{}"} } },
+        { "name": "Get Community Details", "request": { "method": "GET", "url": "{{base_url}}/communities/{{communityId}}" } },
+        { "name": "Update Community", "request": { "method": "PUT", "header": [{"key":"Authorization","value":"Bearer {{auth_token}}"},{"key":"Content-Type","value":"application/json"}], "url": "{{base_url}}/communities/{{communityId}}", "body": {"mode":"raw","raw":"{}"} } },
+        { "name": "Delete Community", "request": { "method": "DELETE", "header": [{"key":"Authorization","value":"Bearer {{auth_token}}"}], "url": "{{base_url}}/communities/{{communityId}}" } },
+        { "name": "Request To Join", "request": { "method": "POST", "header": [{"key":"Authorization","value":"Bearer {{auth_token}}"}], "url": "{{base_url}}/communities/{{communityId}}/join" } },
+        { "name": "Handle Join Request", "request": { "method": "PUT", "header": [{"key":"Authorization","value":"Bearer {{auth_token}}"}], "url": "{{base_url}}/communities/requests/{{requestId}}" } },
+        { "name": "Get Community Events", "request": { "method": "GET", "url": "{{base_url}}/communities/{{communityId}}/events" } },
+        { "name": "Create Community Event", "request": { "method": "POST", "header": [{"key":"Authorization","value":"Bearer {{auth_token}}"},{"key":"Content-Type","value":"application/json"}], "url": "{{base_url}}/communities/{{communityId}}/events", "body": {"mode":"raw","raw":"{}"} } }
+      ]
+    },
+    {
+      "name": "Notifications",
+      "item": [
+        { "name": "List Notifications", "request": { "method": "GET", "header": [{"key":"Authorization","value":"Bearer {{auth_token}}"}], "url": "{{base_url}}/notifications" } },
+        { "name": "Unread Count", "request": { "method": "GET", "header": [{"key":"Authorization","value":"Bearer {{auth_token}}"}], "url": "{{base_url}}/notifications/unread" } },
+        { "name": "Mark All As Read", "request": { "method": "PUT", "header": [{"key":"Authorization","value":"Bearer {{auth_token}}"}], "url": "{{base_url}}/notifications/read-all" } },
+        { "name": "Mark As Read", "request": { "method": "PUT", "header": [{"key":"Authorization","value":"Bearer {{auth_token}}"}], "url": "{{base_url}}/notifications/{{notificationId}}/read" } },
+        { "name": "Delete Notification", "request": { "method": "DELETE", "header": [{"key":"Authorization","value":"Bearer {{auth_token}}"}], "url": "{{base_url}}/notifications/{{notificationId}}" } },
+        { "name": "Create Mass Notification (admin/teacher)", "request": { "method": "POST", "header": [{"key":"Authorization","value":"Bearer {{auth_token}}"},{"key":"Content-Type","value":"application/json"}], "url": "{{base_url}}/notifications/mass", "body": {"mode":"raw","raw":"{}"} } }
+      ]
+    },
+    {
+      "name": "Announcements",
+      "item": [
+        { "name": "List Announcements", "request": { "method": "GET", "url": "{{base_url}}/announcements" } },
+        { "name": "Create Announcement (admin)", "request": { "method": "POST", "header": [{"key":"Authorization","value":"Bearer {{auth_token}}"},{"key":"Content-Type","value":"application/json"}], "url": "{{base_url}}/announcements", "body": {"mode":"raw","raw":"{}"} } },
+        { "name": "Get Announcement", "request": { "method": "GET", "url": "{{base_url}}/announcements/{{announcementId}}" } },
+        { "name": "Update Announcement (admin)", "request": { "method": "PUT", "header": [{"key":"Authorization","value":"Bearer {{auth_token}}"},{"key":"Content-Type","value":"application/json"}], "url": "{{base_url}}/announcements/{{announcementId}}", "body": {"mode":"raw","raw":"{}"} } },
+        { "name": "Delete Announcement (admin)", "request": { "method": "DELETE", "header": [{"key":"Authorization","value":"Bearer {{auth_token}}"}], "url": "{{base_url}}/announcements/{{announcementId}}" } },
+        { "name": "Update Announcement Status (admin)", "request": { "method": "PATCH", "header": [{"key":"Authorization","value":"Bearer {{auth_token}}"},{"key":"Content-Type","value":"application/json"}], "url": "{{base_url}}/announcements/{{announcementId}}/status", "body": {"mode":"raw","raw":"{\n  \"status\": \"published\"\n}"} } }
+      ]
+    },
+    {
+      "name": "Upload",
+      "item": [
+        { "name": "Upload Event Images", "request": { "method": "POST", "header": [{"key":"Authorization","value":"Bearer {{auth_token}}"}], "url": "{{base_url}}/upload/events" } },
+        { "name": "Upload Community Image", "request": { "method": "POST", "header": [{"key":"Authorization","value":"Bearer {{auth_token}}"}], "url": "{{base_url}}/upload/community" } },
+        { "name": "Delete Image", "request": { "method": "DELETE", "header": [{"key":"Authorization","value":"Bearer {{auth_token}}"}], "url": "{{base_url}}/upload/{{publicId}}" } },
+        { "name": "Proxy Image", "request": { "method": "GET", "url": "{{base_url}}/upload/proxy/{{folder}}/{{publicId}}" } }
+      ]
+    }
+  ]
+}

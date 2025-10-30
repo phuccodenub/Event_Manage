@@ -7,13 +7,13 @@ import {
 } from '@heroicons/react/outline';
 
 const menuItems = [
-  { name: 'Dashboard', icon: ChartBarIcon, path: '/admin/dashboard' },
-  { name: 'Events', icon: CalendarIcon, path: '/admin/events' },
-  { name: 'Users', icon: UsersIcon, path: '/admin/users' },
-  { name: 'Communities', icon: UserGroupIcon, path: '/admin/communities' },
-  { name: 'Announcements', icon: BellIcon, path: '/admin/announcements' },
-  { name: 'Faculties', icon: AcademicCapIcon, path: '/admin/faculties' },
-  { name: 'Settings', icon: CogIcon, path: '/admin/settings' },
+  { name: 'Tổng quan', icon: ChartBarIcon, path: '/admin/dashboard' },
+  { name: 'Sự kiện', icon: CalendarIcon, path: '/admin/events' },
+  { name: 'Người dùng', icon: UsersIcon, path: '/admin/users' },
+  { name: 'Cộng đồng', icon: UserGroupIcon, path: '/admin/communities' },
+  { name: 'Thông báo', icon: BellIcon, path: '/admin/announcements' },
+  { name: 'Khoa', icon: AcademicCapIcon, path: '/admin/faculties' },
+  { name: 'Cài đặt', icon: CogIcon, path: '/admin/settings' },
 ];
 
 const Sidebar = () => {
